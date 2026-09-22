@@ -13,6 +13,10 @@ import { ConfirmSquarePaymentSchema } from '../schemas/confirm-square-payment.sc
 import { PaymentConfigService } from './payment-config.service';
 import { PaymentService } from './payment.service';
 import { getPaymentProvider } from '../providers/provider-factory';
+import {
+  describeSquareChargeError,
+  isDefiniteSquareChargeFailure,
+} from '../providers/square.provider';
 import type { PaymentStatus } from '../types/payment.types';
 
 /**
@@ -90,14 +94,16 @@ export const createPaymentAction = enhanceAction(
     // Re-checked here because server actions are reachable by direct POST,
     // not only through our UI (same rationale as the checks above). Unlike
     // those, this one throws rather than returning an ActionResult: the
-    // caller (`checkout-form.tsx`) only branches on
-    // `result.clientSecret`/`result.paymentId` and otherwise treats the
-    // resolved value as a success (pushing to the checkout success page).
-    // A returned `{ success: false }` shape has neither field, so it would
-    // silently fall into that success branch. Throwing lets the existing
-    // try/catch in `onSubmit` show `t('paymentError')` instead, matching
-    // how validation errors from `CreatePaymentSchema.parse` below and
-    // provider errors from `createPayment` are already handled.
+    // caller (`checkout-form.tsx`) only ever uses the resolved value to
+    // populate `paymentIntent` (`clientSecret`/`paymentId`) and render the
+    // matching provider's payment form -- it never branches on a
+    // `success` flag. A returned `{ success: false }` shape has neither
+    // field, so `paymentIntent` would be set from `undefined`s and
+    // `StripePaymentForm`/`SquarePaymentForm` would mount and fail
+    // obscurely instead of showing a clear error. Throwing lets the
+    // existing try/catch in `onSubmit` show `t('paymentError')` instead,
+    // matching how validation errors from `CreatePaymentSchema.parse`
+    // below and provider errors from `createPayment` are already handled.
     if (!(await assertCanCheckout(user.id))) {
       throw new Error('You do not have permission to make a payment.');
     }
@@ -191,22 +197,42 @@ export const confirmSquarePaymentAction = enhanceAction(
       };
     }
 
-    // Guards against re-charging a payment that has already succeeded (or
-    // otherwise left the pending state), whether from a duplicate submit,
-    // a replayed request, or a race with the webhook handler.
-    if (payment.status !== 'pending') {
-      return {
-        success: false,
-        error: 'This payment has already been processed.',
-      };
-    }
-
     const provider = await getPaymentProvider(adminClient);
 
     if (!provider.chargeWithToken) {
       return {
         success: false,
         error: 'The active payment provider does not support this operation.',
+      };
+    }
+
+    // Atomically claim the row before charging. A plain read-then-check
+    // (fetch, check `status === 'pending'`, charge, update) has a network
+    // round-trip between the check and the charge, so two concurrent
+    // confirms of the same payment (two tabs, a replayed direct POST) can
+    // both pass the check and both charge the card. Conditioning this
+    // UPDATE on `status = 'pending'` makes the claim itself the guard --
+    // only one concurrent request can ever move the row out of `pending`,
+    // so only one can reach the charge below. If zero rows come back,
+    // someone else already claimed it (or it was never pending).
+    const { data: claimedRows, error: claimError } = await adminClient
+      .from('payments')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', payment.id)
+      .eq('status', 'pending')
+      .select();
+
+    if (claimError) {
+      return {
+        success: false,
+        error: 'Failed to process payment. Please try again.',
+      };
+    }
+
+    if (!claimedRows || claimedRows.length === 0) {
+      return {
+        success: false,
+        error: 'This payment has already been processed.',
       };
     }
 
@@ -218,12 +244,50 @@ export const confirmSquarePaymentAction = enhanceAction(
         amount: payment.amount,
         currency: payment.currency,
         note: payment.description ?? undefined,
+        // Stable and derived from the row rather than freshly minted per
+        // call, so a retry of this same payment reuses the same key and
+        // Square dedupes it instead of charging the card twice. See the
+        // doc comment on `ChargeWithTokenParams.idempotencyKey`.
+        idempotencyKey: payment.id,
+        // Links the Square-side payment back to this row for dashboard
+        // reconciliation (the old `createPayment` set this to the user id;
+        // the row id is the more useful key since it's unique per charge).
+        referenceId: payment.id,
       });
     } catch (error) {
+      // A charge failure must not strand the row in `processing` forever.
+      // Which state it lands in next depends on what Square told us:
+      //  - A *definite* failure (a 4xx `SquareError` -- a decline or
+      //    validation error) means Square rejected the request and
+      //    nothing was charged. The row goes to `failed`, a terminal
+      //    state; `SquarePaymentForm` offers a link back to
+      //    `/home/checkout` to start a fresh payment (see 1g in the
+      //    review) rather than retrying this row, since a new sourceToken
+      //    against the same idempotency key that Square already has on
+      //    file for a failed attempt is not something we can rely on.
+      //  - An *ambiguous* failure (a timeout, a dropped connection, a 5xx
+      //    from Square's own infra) means we don't know whether the
+      //    charge was actually created. The row goes back to `pending` so
+      //    the member can tap "Pay Now" again on the same still-mounted
+      //    form -- that retry reuses this same `payment.id` idempotency
+      //    key, so if the original charge *did* go through despite the
+      //    error surfacing here, Square dedupes the retry instead of
+      //    charging again. This is the fix for the double-charge scenario
+      //    this review flagged (1a).
+      const nextStatus = isDefiniteSquareChargeFailure(error)
+        ? 'failed'
+        : 'pending';
+
+      await adminClient
+        .from('payments')
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq('id', payment.id);
+
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : 'Failed to process payment.',
+          describeSquareChargeError(error) ??
+          'Payment failed. Please try again.',
       };
     }
 
@@ -237,6 +301,19 @@ export const confirmSquarePaymentAction = enhanceAction(
       .eq('id', payment.id);
 
     if (updateError) {
+      // The charge succeeded on Square's side but we failed to record it.
+      // `provider_payment_id` is still the placeholder `createPayment` set
+      // (see `SquareProvider.createPayment`), so the webhook handler --
+      // which looks payments up by `provider_payment_id` -- cannot repair
+      // this either. This log is the only remaining record that money was
+      // taken; it has to be reconciled by hand against Square's dashboard.
+      // No card data or tokens, only the ids needed to look the charge up.
+      console.error('Square charge succeeded but payment record update failed.', {
+        paymentId: payment.id,
+        squarePaymentId: result.paymentId,
+        error: updateError.message,
+      });
+
       return {
         success: false,
         error:
@@ -245,9 +322,16 @@ export const confirmSquarePaymentAction = enhanceAction(
     }
 
     if (result.status !== 'succeeded' && result.status !== 'processing') {
+      // Square returned a 200 but the payment itself is in a terminal,
+      // non-success state (e.g. a hard decline reported as
+      // `payment.status = FAILED` rather than as an HTTP error). Nothing
+      // was charged, and the row above is now written to that terminal
+      // status (not `pending`), so a plain retry of this row is
+      // intentionally a dead end -- `SquarePaymentForm` links back to
+      // `/home/checkout` for a fresh attempt instead (see 1g).
       return {
         success: false,
-        error: 'The payment was not successful. Please try again.',
+        error: 'The payment was not successful.',
       };
     }
 

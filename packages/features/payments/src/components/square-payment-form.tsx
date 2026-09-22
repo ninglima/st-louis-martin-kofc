@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import { useTranslations } from 'next-intl';
@@ -125,8 +126,25 @@ export function SquarePaymentForm({
             />
 
             {errorMessage && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-                {errorMessage}
+              <div className="flex flex-col gap-y-2 rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+                <p>{errorMessage}</p>
+                {/*
+                  A hard decline (or any other terminal failure) writes the
+                  row to a non-`pending` status server-side, so re-submitting
+                  this same form is a dead end -- the atomic claim in
+                  `confirmSquarePaymentAction` rejects it. This always gives
+                  the member a way out: back to checkout to start a fresh
+                  payment. A soft `next/link` navigation is fine here (unlike
+                  `update-password-form.tsx`'s forced full reload) since
+                  there's no stale-session/claims concern involved.
+                */}
+                <Link
+                  href="/home/checkout"
+                  className="font-medium underline underline-offset-4"
+                  data-test="square-payment-restart-link"
+                >
+                  {t('backToCheckout')}
+                </Link>
               </div>
             )}
 

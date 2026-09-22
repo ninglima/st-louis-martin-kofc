@@ -30,6 +30,7 @@
   "payNow": "Pay Now",
   "processing": "Processing...",
   "paymentError": "Payment failed. Please try again.",
+  "backToCheckout": "Back to checkout",
   "paymentSuccess": "Payment Successful",
   "squareInitError": "Failed to initialize Square payment form.",
   "checkout": "Checkout",
