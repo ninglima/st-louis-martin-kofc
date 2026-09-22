@@ -10,7 +10,8 @@ export const generateMetadata = async () => {
   };
 };
 
-const H3_CLASS = 'text-foreground mt-8 mb-3 text-xl font-semibold';
+const H2_CLASS =
+  'text-foreground mt-10 mb-4 text-2xl font-semibold tracking-tight';
 const P_CLASS = 'text-muted-foreground mb-4 leading-7';
 const UL_CLASS = 'text-muted-foreground mb-4 list-disc space-y-2 pl-6';
 const LI_CLASS = 'leading-7';
@@ -274,7 +275,7 @@ async function FAQPage() {
             {faqItems.map((item, index) => {
               return (
                 <div key={index}>
-                  <h3 className={H3_CLASS}>{item.question}</h3>
+                  <h2 className={H2_CLASS}>{item.question}</h2>
                   {item.body}
                 </div>
               );
