@@ -330,8 +330,8 @@ export type Database = {
           created_at: string
           filename: string
           id: string
-          plan: Json
-          results: Json | null
+          plan_enc: string | null
+          results_enc: string | null
           status: string
           uploaded_by: string | null
         }
@@ -340,8 +340,8 @@ export type Database = {
           created_at?: string
           filename: string
           id?: string
-          plan: Json
-          results?: Json | null
+          plan_enc?: string | null
+          results_enc?: string | null
           status?: string
           uploaded_by?: string | null
         }
@@ -350,8 +350,8 @@ export type Database = {
           created_at?: string
           filename?: string
           id?: string
-          plan?: Json
-          results?: Json | null
+          plan_enc?: string | null
+          results_enc?: string | null
           status?: string
           uploaded_by?: string | null
         }
@@ -394,20 +394,34 @@ export type Database = {
       member_upsert_from_roster: { Args: { p: Json }; Returns: string }
       members_list: {
         Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        // HAND-CORRECTED, do not regenerate away: Supabase's generator types
+        // every column of a `setof`-returning function as non-nullable. Eight
+        // of these are nullable in SQL and are null on real roster data (two
+        // members have no email; a member with no phone at all yields null).
         Returns: {
-          address_line1: string
+          address_line1: string | null
           bad_address: boolean
-          city: string
+          city: string | null
           full_name: string
           id: string
           membership_number: string
-          phone: string
-          postal_code: string
-          primary_email: string
-          roster_last_seen_at: string
-          state: string
-          user_id: string
+          phone: string | null
+          postal_code: string | null
+          primary_email: string | null
+          roster_last_seen_at: string | null
+          state: string | null
+          user_id: string | null
         }[]
+      }
+      roster_import_load_plan: { Args: { p_import: string }; Returns: Json }
+      roster_import_load_results: { Args: { p_import: string }; Returns: Json }
+      roster_import_save_plan: {
+        Args: { p_import: string; p_plan: Json }
+        Returns: undefined
+      }
+      roster_import_save_results: {
+        Args: { p_import: string; p_results: Json }
+        Returns: undefined
       }
     }
     Enums: {

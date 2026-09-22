@@ -26,7 +26,8 @@
     "checkout": "Checkout",
     "payment_settings": "Payment Settings",
     "users": "User Management",
-    "roles": "Roles (Manage = full admin access)"
+    "roles": "Roles (Manage = full admin access)",
+    "members": "Member Roster"
   },
   "verbs": {
     "view": "View",
