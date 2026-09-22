@@ -32,6 +32,7 @@ export const SITE_NAV: readonly NavItem[] = [
   {
     label: 'Faith In Action',
     children: [
+      { label: 'Our Faith in Action', path: '/faith-in-action' },
       { label: 'Right to Life', path: '/faith-in-action/right-to-life' },
       { label: 'Foster Children Support', path: '/faith-in-action/foster-children-support' },
       { label: 'Loudoun Food Pantry', path: '/faith-in-action/food-pantry' },
@@ -46,6 +47,7 @@ export const SITE_NAV: readonly NavItem[] = [
   {
     label: 'Get Involved',
     children: [
+      { label: 'Ways to Get Involved', path: '/get-involved' },
       { label: 'Membership', path: '/get-involved/membership' },
       { label: 'Fraternal Benefits', path: '/get-involved/fraternal-benefits' },
       { label: 'Pay Dues', path: '/get-involved/pay-dues' },
