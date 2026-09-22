@@ -50,7 +50,8 @@ Each gets its own spec.
 | Dues tracking and payment recording | The extract contains no dues data; needs its own source of truth |
 | Unpaid / funds-raised dashboards | Depend on dues tracking existing first |
 | A member-visible directory | Exposing 372 home addresses to every member is a separate consent decision |
-| Bulk invitation emails | Accounts are created silently; deciding to email 372 people is its own action with its own approved copy |
+| Bulk invitation emails | Accounts are created silently; deciding to email 372 people is its own action with its own approved copy. Transactional mail is moving to Resend via Supabase — that spec owns delivery, this one only guarantees import sends nothing |
+| Syncing Stripe/Square payments into Supabase | Planned via Make.com in its own spec. It is the likeliest source of the dues state this importer is forbidden to invent |
 | Editing member records in the UI | Import + read only for now |
 
 **Never in scope:** auto-deactivating members absent from an uploaded file.
