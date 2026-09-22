@@ -7,7 +7,9 @@ import { PersonalAccountDropdown } from '@kit/accounts/personal-account-dropdown
 import { useSignOut } from '@kit/supabase/hooks/use-sign-out';
 import { useUser } from '@kit/supabase/hooks/use-user';
 import { Button } from '@kit/ui/button';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@kit/ui/dropdown-menu';
 import { If } from '@kit/ui/if';
+import { SubMenuModeToggle } from '@kit/ui/mode-toggle';
 import { Trans } from '@kit/ui/trans';
 
 import featuresFlagConfig from '~/config/feature-flags.config';
@@ -56,6 +58,51 @@ export function SiteHeaderAccountSection() {
       user={user}
       signOutRequested={() => signOut.mutateAsync()}
     />
+  );
+}
+
+/**
+ * The Sign In button and the theme toggle live in a `md:` -only row of the
+ * header, because three controls plus the logo plus the hamburger overflow a
+ * 390px viewport. Below `md` they are reached from the navigation dropdown
+ * instead, which is where every other header affordance already lives on a
+ * phone. Rendered only for a signed-out visitor: once signed in the account
+ * dropdown is visible at every width and already carries the theme submenu, so
+ * duplicating it here would put two theme controls on the same screen.
+ *
+ * `DropdownMenuItem`/`SubMenuModeToggle` rather than buttons: these are handed
+ * to `SiteNavigation` and rendered inside its `DropdownMenuContent`, so they
+ * have to be menu children to keep the menu's roving focus and roles intact.
+ */
+export function SiteHeaderMobileMenuActions() {
+  const { data: user } = useUser();
+
+  if (user) {
+    return null;
+  }
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+
+      <DropdownMenuItem
+        render={
+          <Link
+            className={'flex h-full w-full items-center'}
+            href={pathsConfig.auth.signIn}
+            data-test={'mobile-sign-in'}
+          />
+        }
+      >
+        <Trans i18nKey={'auth.signIn'} />
+      </DropdownMenuItem>
+
+      <If condition={features.enableThemeToggle}>
+        <DropdownMenuSeparator />
+
+        <SubMenuModeToggle />
+      </If>
+    </>
   );
 }
 

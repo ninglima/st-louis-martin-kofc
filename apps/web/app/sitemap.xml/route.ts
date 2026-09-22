@@ -3,6 +3,7 @@ import { cacheLife } from 'next/cache';
 import { getServerSideSitemap } from 'next-sitemap';
 
 import appConfig from '~/config/app.config';
+import { SITEMAP_ROUTES } from '~/config/site-navigation.config';
 
 /**
  * @description The maximum age of the sitemap in seconds.
@@ -28,22 +29,22 @@ export async function GET() {
  * whole route to per-request rendering. The cache wraps the paths rather than
  * the handler: `getServerSideSitemap` returns a Response, which is a class
  * instance and cannot cross a `use cache` boundary.
+ *
+ * The paths come from `SITEMAP_ROUTES`, which is derived from the same
+ * `PUBLIC_ROUTES` the header, the footer, the link-integrity unit tests and
+ * the browser sweep all read. Do not reintroduce a literal array here: the
+ * MakerKit scaffold this replaced listed five paths, none of which were the
+ * nineteen content pages the site was built to serve, and nothing failed.
+ * `site-navigation.routes.test.ts` now asserts both that every public
+ * non-legal route is in `SITEMAP_ROUTES` and that this file still derives from
+ * it.
  */
 async function getPaths() {
   'use cache';
 
   cacheLife('days');
 
-  const paths = [
-    '/',
-    '/faq',
-    '/cookie-policy',
-    '/terms-of-service',
-    '/privacy-policy',
-    // add more paths here
-  ];
-
-  return paths.map((path) => {
+  return SITEMAP_ROUTES.map((path) => {
     return {
       loc: new URL(path, appConfig.url).href,
       lastmod: new Date().toISOString(),

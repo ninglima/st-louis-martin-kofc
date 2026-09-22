@@ -1,3 +1,4 @@
+import createMDX from '@next/mdx';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 // Create the next-intl plugin with the request config path
@@ -20,6 +21,7 @@ const INTERNAL_PACKAGES = [
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  pageExtensions: ['ts', 'tsx', 'mdx'],
   /** Enables hot reloading for local packages without a build step */
   transpilePackages: INTERNAL_PACKAGES,
   images: {
@@ -50,7 +52,7 @@ const config = {
   partialPrefetching: true,
   reactCompiler: ENABLE_REACT_COMPILER,
   turbopack: {
-    resolveExtensions: ['.ts', '.tsx', '.js', '.jsx'],
+    resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.mdx'],
   },
   experimental: {
     mdxRs: true,
@@ -75,7 +77,9 @@ const config = {
   typescript: { ignoreBuildErrors: true },
 };
 
-export default withNextIntl(config);
+const withMDX = createMDX();
+
+export default withNextIntl(withMDX(config));
 
 function getRemotePatterns() {
   /** @type {import('next').NextConfig['remotePatterns']} */
