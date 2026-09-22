@@ -10,7 +10,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { PaymentSettingsForm } from '@kit/payments/components/payment-settings-form';
 import type { PaymentConfig } from '@kit/payments/types';
 import { Delayed } from '~/components/skeletons/page-skeletons';
-import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
+import { requirePermission } from '~/lib/server/require-permission';
 
 export const generateMetadata = async () => {
   const t = await getTranslations();
@@ -30,18 +30,9 @@ function PaymentSettingsPage() {
 }
 
 async function PaymentSettingsContent() {
-  const user = await requireUserInServerComponent();
+  await requirePermission('payment_settings', 'manage');
+
   const adminClient = getSupabaseServerAdminClient();
-
-  const { data: adminUser } = await adminClient
-    .from('admin_users')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .single();
-
-  if (!adminUser) {
-    redirect('/home');
-  }
 
   const { data: config } = await adminClient
     .from('payment_config')

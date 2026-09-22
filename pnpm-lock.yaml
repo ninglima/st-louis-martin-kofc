@@ -501,6 +501,9 @@ importers:
       '@kit/next':
         specifier: workspace:*
         version: link:../../next
+      '@kit/rbac':
+        specifier: workspace:*
+        version: link:../rbac
       '@kit/shared':
         specifier: workspace:*
         version: link:../../shared

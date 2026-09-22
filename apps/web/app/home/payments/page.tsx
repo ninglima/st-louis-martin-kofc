@@ -9,7 +9,9 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 
 import { PaymentHistoryTable } from '@kit/payments/components/payment-history-table';
 import { PaymentService } from '@kit/payments/server/payment.service';
+import { hasPermission } from '@kit/rbac/types';
 import { Delayed } from '~/components/skeletons/page-skeletons';
+import { getCurrentPermissions } from '~/lib/server/require-permission';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 export const generateMetadata = async () => {
@@ -36,13 +38,8 @@ async function PaymentsContent() {
   const user = await requireUserInServerComponent();
   const adminClient = getSupabaseServerAdminClient();
 
-  const { data: adminUser } = await adminClient
-    .from('admin_users')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .single();
-
-  const isAdmin = !!adminUser;
+  const perms = await getCurrentPermissions();
+  const isAdmin = hasPermission(perms, 'payments', 'manage');
 
   const paymentService = new PaymentService(adminClient);
   const payments = await paymentService.getPayments(user.id, isAdmin);

@@ -70,12 +70,20 @@ export function PaymentSettingsForm({
 
   const onSubmit = (values: PaymentConfigFormValues) => {
     startTransition(async () => {
-      const promise = savePaymentConfigAction(values);
-      toast.promise(() => promise, {
-        success: t('configSaved'),
-        error: t('configSaveError'),
-        loading: t('savingConfig'),
-      });
+      const loadingToast = toast.loading(t('savingConfig'));
+
+      try {
+        const result = await savePaymentConfigAction(values);
+        if (result.success) {
+          toast.success(t('configSaved'));
+        } else {
+          toast.error(result.error);
+        }
+      } catch {
+        toast.error(t('configSaveError'));
+      } finally {
+        toast.dismiss(loadingToast);
+      }
     });
   };
 

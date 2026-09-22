@@ -2,10 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
-
 import { enhanceAction } from '@kit/next/actions';
-import type { Database } from '@kit/supabase/database';
+import { hasPermission } from '@kit/rbac/types';
+import { loadPermissionsForUser } from '@kit/rbac/server/permissions.service';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 
 import { PaymentConfigSchema } from '../schemas/payment-config.schema';
@@ -14,17 +13,43 @@ import { PaymentConfigService } from './payment-config.service';
 import { PaymentService } from './payment.service';
 import { getPaymentProvider } from '../providers/provider-factory';
 
-export const savePaymentConfigAction = enhanceAction(
-  async (data: unknown, user) => {
-    const parsed = PaymentConfigSchema.parse(data);
-    const adminClient = getSupabaseServerAdminClient();
+/**
+ * Next.js redacts thrown Server Action error messages in production builds
+ * ("The specific message is omitted in production builds to avoid leaking
+ * sensitive details" -- see `next/dist/server/app-render/create-error-handler`).
+ * So authorization failures below are returned, never thrown, matching the
+ * pattern in `role-actions.ts`.
+ */
+export type ActionResult =
+  | { success: true }
+  | { success: false; error: string };
 
-    const isAdmin = await checkIsAdmin(adminClient, user.id);
-    if (!isAdmin) {
-      throw new Error('Unauthorized: admin access required');
+const UNAUTHORIZED_MESSAGE =
+  'You do not have permission to manage payment settings.';
+
+async function assertCanManagePaymentSettings(userId: string) {
+  const client = getSupabaseServerAdminClient();
+  const perms = await loadPermissionsForUser(client, userId);
+
+  if (!hasPermission(perms, 'payment_settings', 'manage')) {
+    return { authorized: false as const };
+  }
+
+  return { authorized: true as const, client };
+}
+
+export const savePaymentConfigAction = enhanceAction(
+  async (data: unknown, user): Promise<ActionResult> => {
+    // Re-checked here because server actions are reachable by direct POST,
+    // not only through our UI.
+    const auth = await assertCanManagePaymentSettings(user.id);
+
+    if (!auth.authorized) {
+      return { success: false, error: UNAUTHORIZED_MESSAGE };
     }
 
-    const service = new PaymentConfigService(adminClient);
+    const parsed = PaymentConfigSchema.parse(data);
+    const service = new PaymentConfigService(auth.client);
     await service.updateConfig(parsed, user.id);
 
     revalidatePath('/home/settings/payments');
@@ -35,15 +60,17 @@ export const savePaymentConfigAction = enhanceAction(
 );
 
 export const testConnectionAction = enhanceAction(
-  async (data: { provider: 'stripe' | 'square' }, user) => {
-    const adminClient = getSupabaseServerAdminClient();
+  async (
+    data: { provider: 'stripe' | 'square' },
+    user,
+  ): Promise<{ success: boolean; message: string }> => {
+    const auth = await assertCanManagePaymentSettings(user.id);
 
-    const isAdmin = await checkIsAdmin(adminClient, user.id);
-    if (!isAdmin) {
-      throw new Error('Unauthorized: admin access required');
+    if (!auth.authorized) {
+      return { success: false, message: UNAUTHORIZED_MESSAGE };
     }
 
-    const service = new PaymentConfigService(adminClient);
+    const service = new PaymentConfigService(auth.client);
     return service.testConnection(data.provider);
   },
   {},
@@ -77,16 +104,3 @@ export const createPaymentAction = enhanceAction(
   },
   {},
 );
-
-async function checkIsAdmin(
-  adminClient: SupabaseClient<Database>,
-  userId: string,
-): Promise<boolean> {
-  const { data } = await adminClient
-    .from('admin_users')
-    .select('user_id')
-    .eq('user_id', userId)
-    .single();
-
-  return !!data;
-}
