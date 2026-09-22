@@ -45,6 +45,13 @@ export const SECTIONS = [
       'View: see roles. Manage is equivalent to full administrator access: a holder can edit any role (including their own) and grant any permission, on any role, to anyone — including themselves.',
     verbs: ['view', 'manage'],
   },
+  {
+    key: 'members',
+    label: 'Member Roster',
+    description:
+      'View: the council member list. Manage: upload and apply a roster import',
+    verbs: ['view', 'manage'],
+  },
 ] as const satisfies readonly SectionDef[];
 
 export type SectionKey = (typeof SECTIONS)[number]['key'];
