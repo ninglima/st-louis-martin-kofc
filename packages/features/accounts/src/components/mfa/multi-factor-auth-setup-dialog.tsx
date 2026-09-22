@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react';
 
+import Image from 'next/image';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeftIcon, TriangleAlert } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -426,11 +428,12 @@ function FactorNameForm(
 
 function QrImage({ src }: { src: string }) {
   return (
-    <img
+    <Image
       alt={'QR Code'}
       src={src}
       width={160}
       height={160}
+      unoptimized
       className={'bg-white p-2'}
     />
   );

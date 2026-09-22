@@ -7,7 +7,12 @@ const routes = [
     label: 'Application',
     children: [
       { label: 'Home', path: '/home', section: 'home', verb: 'view' as const },
-      { label: 'Payments', path: '/home/payments', section: 'payments', verb: 'view' as const },
+      {
+        label: 'Payments',
+        path: '/home/payments',
+        section: 'payments',
+        verb: 'view' as const,
+      },
     ],
   },
   {
@@ -44,7 +49,12 @@ describe('filterRoutesByPermission', () => {
       {
         label: 'Admin',
         children: [
-          { label: 'Roles', path: '/home/settings/roles', section: 'roles', verb: 'manage' as const },
+          {
+            label: 'Roles',
+            path: '/home/settings/roles',
+            section: 'roles',
+            verb: 'manage' as const,
+          },
         ],
       },
     ];
@@ -93,9 +103,12 @@ describe('filterRoutesByPermission', () => {
     const result = filterRoutesByPermission(routesWithSubChildren, perms);
 
     const payments = result[0]?.children.find((c) => c.label === 'Payments');
+    const paymentsChildren = payments?.children;
+
+    expect(paymentsChildren).toBeDefined();
 
     expect(
-      (payments?.children as Array<{ label: string }>).map((c) => c.label),
+      (paymentsChildren as Array<{ label: string }>).map((c) => c.label),
     ).toEqual(['History', 'Export']);
   });
 });
