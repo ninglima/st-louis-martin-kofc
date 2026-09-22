@@ -20,7 +20,13 @@ import { SITE_NAV } from '~/config/site-navigation.config';
 
 import { SiteNavigationItem } from './site-navigation-item';
 
-export function SiteNavigation() {
+/**
+ * `mobileFooter` is appended to the bottom of the mobile dropdown. It exists so
+ * the header's auth- and theme-dependent controls, which are client-rendered
+ * and hidden below `md`, can still be reached on a phone without this server
+ * component having to know anything about the session.
+ */
+export function SiteNavigation(props: { mobileFooter?: React.ReactNode }) {
   return (
     <>
       <div
@@ -31,7 +37,7 @@ export function SiteNavigation() {
       </div>
 
       <div className={'flex justify-start sm:items-center md:hidden'}>
-        <MobileDropdown />
+        <MobileDropdown footer={props.mobileFooter} />
       </div>
     </>
   );
@@ -79,7 +85,7 @@ function DesktopNavigation() {
   );
 }
 
-function MobileDropdown() {
+function MobileDropdown(props: { footer?: React.ReactNode }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger aria-label={'Open Menu'}>
@@ -134,6 +140,8 @@ function MobileDropdown() {
             </DropdownMenuItem>
           );
         })}
+
+        {props.footer}
       </DropdownMenuContent>
     </DropdownMenu>
   );
