@@ -129,14 +129,27 @@ function emailKey(value: string | null | undefined): string | null {
  *
  * Rows sharing an email AND a membership number are not contested — that is
  * one member listed twice, which the membership-number check handles.
+ *
+ * Only the FIRST row for each membership number gets a vote, matching the
+ * first-wins order the duplicate-number check already applies. A later row
+ * for a number some earlier row already holds is going to be discarded
+ * whatever happens, so it must not get a say in whether somebody else's email
+ * is contested: without this, a second listing of member A carrying a typo of
+ * member B's address costs B their go-live create, and B had only one row.
  */
 function contestedEmails(
   records: RosterRecord[],
   byEmail: Map<string, ExistingMember>,
 ): Map<string, string | null> {
   const numbersByEmail = new Map<string, Set<string>>();
+  const voted = new Set<string>();
 
   for (const record of records) {
+    if (voted.has(record.membershipNumber)) continue;
+    // Claimed before the email is read, so a number whose first row carries no
+    // usable email does not get a second bite through a later row.
+    voted.add(record.membershipNumber);
+
     const key = emailKey(record.primaryEmail);
     if (key === null) continue;
 
@@ -180,6 +193,8 @@ export function buildPlan(
   const contested = contestedEmails(records, byEmail);
 
   const seenNumbers = new Set<string>();
+  /** Email -> the membership number of the planned row already holding it. */
+  const claimedEmails = new Map<string, string>();
   const rows: PlanRow[] = [];
 
   for (const record of records) {
@@ -227,6 +242,28 @@ export function buildPlan(
       });
       continue;
     }
+
+    // Backstop, after the number check so a repeat listing is reported for
+    // what it is rather than for whose address it happened to carry. The vote
+    // above only weighs each number's FIRST row, so a row promoted to be its
+    // number's claimant -- because that first row was itself skipped -- never
+    // stood for election. This is what keeps two planned rows from ever
+    // holding the same address. Before the number is claimed, for the same
+    // reason the contested check is.
+    if (incomingEmail !== null) {
+      const claimant = claimedEmails.get(incomingEmail);
+
+      if (claimant !== undefined && claimant !== record.membershipNumber) {
+        rows.push({
+          ...base,
+          action: 'skip',
+          reason: 'Duplicate email in file',
+          conflicts: [],
+        });
+        continue;
+      }
+    }
+
     seenNumbers.add(record.membershipNumber);
 
     const match = byNumber.get(record.membershipNumber);
@@ -249,6 +286,11 @@ export function buildPlan(
       continue;
     }
 
+    // Past every skip, so this row is going to be planned and its address is
+    // now spoken for.
+    if (incomingEmail !== null)
+      claimedEmails.set(incomingEmail, record.membershipNumber);
+
     if (!match) {
       rows.push({ ...base, action: 'create', conflicts: [], record });
       continue;
@@ -265,7 +307,15 @@ export function buildPlan(
             ? match.firstName
             : match.lastName;
 
-      if (typeof incoming !== 'string' || !stored) continue;
+      if (typeof incoming !== 'string' || stored === null) continue;
+
+      // A whitespace-only stored email is BLANK, not a disagreement -- the
+      // fill below handles it. Guarding on `!stored` alone reports a member
+      // as disagreeing with '   ' while simultaneously filling it.
+      const blank =
+        field === 'primaryEmail' ? emailKey(stored) === null : stored === '';
+
+      if (blank) continue;
 
       const differs =
         field === 'primaryEmail'

@@ -748,6 +748,153 @@ describe('buildPlan', () => {
     expect(buildPlan(records, stored).counts).toEqual(plan.counts);
   });
 
+  it('does not let a doomed duplicate-number row contest an innocent email', () => {
+    // The third row is a second listing of 1000001 carrying a typo of
+    // 1000002's address. It will be discarded as a duplicate number whatever
+    // happens, so it must not get a vote -- 1000002 has only one row and
+    // would otherwise lose their go-live create to somebody else's typo.
+    const plan = buildPlan(
+      [
+        record({ membershipNumber: '1000001', primaryEmail: 'a@example.com' }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'b@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '1000001',
+          primaryEmail: 'b@example.com',
+          sourceRow: 4,
+        }),
+      ],
+      [],
+    );
+
+    expect(plan.rows.map((r) => [r.membershipNumber, r.action])).toEqual([
+      ['1000001', 'create'],
+      ['1000002', 'create'],
+      ['1000001', 'skip'],
+    ]);
+    expect(plan.rows[2]?.reason).toBe('Duplicate row in file');
+  });
+
+  it('reaches the same verdict wherever the innocent row sits in the file', () => {
+    // The only ordering that can matter is which row is a number's FIRST, so
+    // moving an unrelated member's row must not change anyone's fate.
+    const first = record({
+      membershipNumber: '1000001',
+      primaryEmail: 'a@example.com',
+    });
+    const innocent = record({
+      membershipNumber: '1000002',
+      primaryEmail: 'b@example.com',
+      sourceRow: 3,
+    });
+    const doomed = record({
+      membershipNumber: '1000001',
+      primaryEmail: 'b@example.com',
+      sourceRow: 4,
+    });
+
+    for (const rows of [
+      [first, innocent, doomed],
+      [innocent, first, doomed],
+    ]) {
+      const plan = buildPlan(rows, []);
+      const verdict = Object.fromEntries(
+        plan.rows.map((r) => [
+          `${r.membershipNumber}@${r.sourceRow}`,
+          r.action,
+        ]),
+      );
+
+      expect(verdict).toEqual({
+        '1000001@2': 'create',
+        '1000002@3': 'create',
+        '1000001@4': 'skip',
+      });
+    }
+  });
+
+  it('still skips both when a genuine contested pair are each their own first row', () => {
+    // The F7 fix must not weaken the rule into uselessness: two DIFFERENT
+    // members, one row each, sharing an address is still unadjudicable.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '1000001',
+          primaryEmail: 'same@example.com',
+        }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'same@example.com',
+          sourceRow: 3,
+        }),
+      ],
+      [],
+    );
+
+    expect(plan.counts).toEqual({
+      create: 0,
+      update: 0,
+      nochange: 0,
+      skip: 2,
+    });
+    for (const row of plan.rows) {
+      expect(row.reason).toBe('Two rows in the file share this email');
+    }
+  });
+
+  it('never plans two rows holding the same email', () => {
+    // A row promoted to be its number's claimant -- because that number's
+    // first row was itself skipped -- never stood in the contested vote. The
+    // backstop is what keeps it from walking off with an address another
+    // planned row already holds.
+    const plan = buildPlan(
+      [
+        record({ membershipNumber: '1000001', primaryEmail: 'a@example.com' }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'a@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'b@example.com',
+          sourceRow: 4,
+        }),
+        record({
+          membershipNumber: '1000003',
+          primaryEmail: 'b@example.com',
+          sourceRow: 5,
+        }),
+      ],
+      [],
+    );
+
+    const planned = plan.rows.filter((r) => r.action !== 'skip');
+    const emails = planned.map((r) => r.record?.primaryEmail);
+
+    expect(new Set(emails).size).toBe(emails.length);
+    expect(plan.rows[3]?.action).toBe('skip');
+    expect(plan.rows[3]?.reason).toBe('Duplicate email in file');
+  });
+
+  it('treats a whitespace-only stored email as blank, not as a disagreement', () => {
+    // Both halves matter: the fill must fire AND no conflict may be emitted.
+    // Reporting a member as disagreeing with '   ' while simultaneously
+    // filling it is a contradiction the officer cannot act on.
+    const plan = buildPlan(
+      [record({ primaryEmail: 'john@example.com' })],
+      [existing({ primaryEmail: '   ', filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.action).toBe('update');
+    expect(
+      plan.rows[0]?.conflicts.filter((c) => c.field === 'primaryEmail'),
+    ).toEqual([]);
+  });
+
   // --- Every row says where in the file it came from ---
 
   it('carries the source row of the record behind a create, update and nochange', () => {
