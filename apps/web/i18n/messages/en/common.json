@@ -65,7 +65,9 @@
     "profile": "Profile",
     "payments": "Payments",
     "paymentSettings": "Payment Settings",
-    "application": "Application"
+    "application": "Application",
+    "users": "Users",
+    "roles": "Roles"
   },
   "roles": {
     "owner": {

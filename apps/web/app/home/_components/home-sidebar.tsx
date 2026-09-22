@@ -11,7 +11,7 @@ import { Skeleton } from '@kit/ui/skeleton';
 
 import { AppLogo } from '~/components/app-logo';
 import { ProfileAccountDropdownContainer } from '~/components/personal-account-dropdown-container';
-import { navigationConfig } from '~/config/navigation.config';
+import type { navigationConfig } from '~/config/navigation.config';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 /**
@@ -20,7 +20,11 @@ import { requireUserInServerComponent } from '~/lib/server/require-user-in-serve
  * behind a boundary. Taking the user as a prop here would push the await up
  * into the layout and make the whole sidebar, and everything under it, wait.
  */
-export function HomeSidebar() {
+export function HomeSidebar({
+  config,
+}: {
+  config: typeof navigationConfig;
+}) {
   return (
     <Sidebar collapsible={'icon'}>
       <SidebarHeader className={'h-16 justify-center'}>
@@ -32,7 +36,7 @@ export function HomeSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarNavigation config={navigationConfig} />
+        <SidebarNavigation config={config} />
       </SidebarContent>
 
       <SidebarFooter>

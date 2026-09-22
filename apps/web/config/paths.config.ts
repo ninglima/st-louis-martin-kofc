@@ -15,6 +15,8 @@ const PathsSchema = z.object({
     payments: z.string().min(1),
     paymentSettings: z.string().min(1),
     checkout: z.string().min(1),
+    users: z.string().min(1),
+    roles: z.string().min(1),
   }),
 });
 
@@ -33,6 +35,8 @@ const pathsConfig = PathsSchema.parse({
     payments: '/home/payments',
     paymentSettings: '/home/settings/payments',
     checkout: '/home/checkout',
+    users: '/home/settings/users',
+    roles: '/home/settings/roles',
   },
 } satisfies z.infer<typeof PathsSchema>);
 
