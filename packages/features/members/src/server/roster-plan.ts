@@ -7,6 +7,13 @@ export interface ExistingMember {
   primaryEmail: string | null;
   firstName: string | null;
   lastName: string | null;
+  /**
+   * Supreme's bad-address marker as currently stored. Unlike every other
+   * field this one is authoritative in the file rather than in the database —
+   * the upsert writes `excluded.bad_address` rather than coalescing it — so
+   * the planner needs its value, not merely whether it is filled.
+   */
+  badAddress: boolean;
   /** Field names that already hold a value, so must not be overwritten. */
   filledFields: string[];
 }
@@ -210,9 +217,19 @@ export function buildPlan(
       hasSomethingToFill = true;
     }
 
+    // The bad-address flag is the council's signal that a member's mail
+    // bounces, and it exists to be acted on. It is neither a fill-blanks
+    // candidate nor a conflict: the file always wins, in both directions, and
+    // a cleared flag matters as much as a set one because it means mail works
+    // again. But the apply step skips `nochange` rows entirely, so without
+    // this a changed flag on an otherwise fully-populated member would never
+    // reach the upsert -- which is exactly what a steady-state monthly
+    // re-import produces.
+    const badAddressChanged = record.badAddress !== match.badAddress;
+
     rows.push({
       ...base,
-      action: hasSomethingToFill ? 'update' : 'nochange',
+      action: hasSomethingToFill || badAddressChanged ? 'update' : 'nochange',
       conflicts,
       record,
     });

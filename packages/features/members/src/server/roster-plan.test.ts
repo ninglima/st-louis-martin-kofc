@@ -88,10 +88,22 @@ function existing(overrides: Partial<ExistingMember> = {}): ExistingMember {
     primaryEmail: 'john@example.com',
     firstName: 'John',
     lastName: 'Smith',
+    badAddress: false,
     filledFields: [],
     ...overrides,
   };
 }
+
+/** A member with every incoming contact field already stored. */
+const ALL_FILLED = [
+  'addressLine1',
+  'city',
+  'state',
+  'postalCode',
+  'country',
+  'primaryType',
+  'phoneCell',
+];
 
 /** The shared fixture, read and parsed exactly as an upload would be. */
 async function fixtureRecords(): Promise<RosterRecord[]> {
@@ -413,6 +425,48 @@ describe('buildPlan', () => {
     ).toBe(false);
   });
 
+  it('plans a newly flagged bad address as an update, not a no-change', () => {
+    // The flag is the council's signal that a member's mail bounces, and the
+    // apply step skips `nochange` rows entirely. A member whose contact
+    // fields are all already stored -- the steady state a monthly re-import
+    // produces -- would otherwise never carry the new flag to the database.
+    const plan = buildPlan(
+      [record({ badAddress: true })],
+      [existing({ badAddress: false, filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.action).toBe('update');
+    // Authoritative, not contested: the file always wins, so this is work to
+    // do rather than something for the officer to reconcile.
+    expect(plan.rows[0]?.conflicts.some((c) => c.field === 'badAddress')).toBe(
+      false,
+    );
+  });
+
+  it('plans a cleared bad address as an update too', () => {
+    // A flag coming off means the member's mail works again. Treating only
+    // the false -> true direction as work would leave every corrected address
+    // flagged forever.
+    const plan = buildPlan(
+      [record({ badAddress: false })],
+      [existing({ badAddress: true, filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.action).toBe('update');
+  });
+
+  it('leaves an unchanged bad address as a no-change', () => {
+    // The flag must not turn every re-import into a write. Asserted with the
+    // flag SET on both sides, which is the case the false/false default in
+    // the no-op test above cannot reach.
+    const plan = buildPlan(
+      [record({ badAddress: true })],
+      [existing({ badAddress: true, filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.action).toBe('nochange');
+  });
+
   it('reports an email held by another member as a conflict when the number is known', () => {
     // The skip above only fires for an UNKNOWN membership number. When the
     // number is known the row is still an update, so without this the
@@ -512,6 +566,9 @@ describe('buildPlan', () => {
         primaryEmail: r.primaryEmail,
         firstName: r.firstName,
         lastName: r.lastName,
+        // Stored exactly as last month's import left it, flag included --
+        // including the fixture's genuinely flagged member 1000004.
+        badAddress: r.badAddress,
         filledFields: [...FILLED_FIELD_NAMES],
       }));
 
