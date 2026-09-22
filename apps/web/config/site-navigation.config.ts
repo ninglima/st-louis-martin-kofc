@@ -9,6 +9,11 @@ export interface NavItem {
   children?: readonly NavChild[];
 }
 
+export interface LegalLink {
+  path: string;
+  i18nKey: string;
+}
+
 /**
  * Single source of truth for the public site's navigation. The site header and
  * the footer's quick links both read from it, so there is only one copy of the
@@ -17,11 +22,10 @@ export interface NavItem {
  * `site-navigation.config.test.ts` covers the array itself: every item has a
  * `path` or `children`, every path is root-relative, no path appears twice,
  * and each dropdown's first child is the section landing page the footer links
- * for it -- so re-ordering a `children` array fails a test rather than quietly
- * re-targeting a footer link. `site-navigation.routes.test.ts` checks every
- * path against the filesystem, so a renamed or deleted page fails the unit
- * suite instead of 404ing silently, and `apps/e2e/tests/public-site` loads
- * each route in a browser.
+ * for it -- so a re-order that puts a different child first fails a test
+ * rather than quietly re-targeting a footer link. Link integrity for the
+ * routes themselves is covered by `PUBLIC_ROUTES` below, not by this array
+ * alone.
  *
  * Deliberate deviations from the WordPress site, all recorded in the spec:
  * "News" is omitted (no content, empty on the live site), "Grand Knight" is
@@ -75,3 +79,44 @@ export const SITE_NAV: readonly NavItem[] = [
     ],
   },
 ] as const;
+
+/**
+ * The policy pages in the footer's bottom bar. They are not menu items, so
+ * they are not in `SITE_NAV` -- but they are real routes rendered on every
+ * public page, which is exactly why they live here rather than inline in
+ * `site-footer.tsx`: a second hand-maintained path list inside a component is
+ * a list nothing can test, and renaming one of these pages would otherwise
+ * ship a broken link on every page of the site with a green suite.
+ */
+export const LEGAL_LINKS: readonly LegalLink[] = [
+  { path: '/terms-of-service', i18nKey: 'marketing.termsOfService' },
+  { path: '/privacy-policy', i18nKey: 'marketing.privacyPolicy' },
+  { path: '/cookie-policy', i18nKey: 'marketing.cookiePolicy' },
+] as const;
+
+/**
+ * Public routes that no menu links at all. `/master-calendar` is reached from
+ * the body of the Events page; the live WordPress site leaves it out of the
+ * navigation too, so it is recorded here rather than added to `SITE_NAV`.
+ */
+export const UNLISTED_ROUTES: readonly string[] = ['/master-calendar'] as const;
+
+/**
+ * Every route the public marketing site serves, in one place, so the
+ * link-integrity checks have a single list to read instead of re-deriving one
+ * per test file.
+ *
+ * `site-navigation.routes.test.ts` checks each of these against the
+ * filesystem -- so a renamed or deleted page fails the unit suite instead of
+ * 404ing silently -- and also walks `app/(marketing)` in the other direction,
+ * so a page added on disk that no list here mentions fails too.
+ * `apps/e2e/tests/public-site` loads every one of them in a browser.
+ */
+export const PUBLIC_ROUTES: readonly string[] = [
+  ...SITE_NAV.flatMap((item) => [
+    ...(item.path ? [item.path] : []),
+    ...(item.children ?? []).map((child) => child.path),
+  ]),
+  ...LEGAL_LINKS.map((link) => link.path),
+  ...UNLISTED_ROUTES,
+];

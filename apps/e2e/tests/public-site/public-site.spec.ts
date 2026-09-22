@@ -1,6 +1,6 @@
 import { Page, expect, test } from '@playwright/test';
 
-import { SITE_NAV } from '../../../web/config/site-navigation.config';
+import { PUBLIC_ROUTES } from '../../../web/config/site-navigation.config';
 
 /**
  * The public marketing site is not gated, so unlike the rbac and account
@@ -8,18 +8,38 @@ import { SITE_NAV } from '../../../web/config/site-navigation.config';
  * running dev/prod server is the only dependency.
  *
  * The route list is imported from the same config the header and footer read
- * rather than copied, so a page added to the navigation is covered here the
- * moment it lands. `/master-calendar` is the one exception: it is deliberately
- * absent from `SITE_NAV` (the live site does not put it in the menu either)
- * but it is a real route linked from the Events page, so it is appended by
- * hand.
+ * rather than copied, so a page added to the navigation, to the footer's legal
+ * links or to the unlisted routes is covered here the moment it lands. Nothing
+ * is appended by hand: `site-navigation.routes.test.ts` walks
+ * `app/(marketing)` and fails on any page that list does not mention, so the
+ * sweep below is complete by construction rather than by remembering.
  */
-const NAV_PATHS = SITE_NAV.flatMap((item) => [
-  ...(item.path ? [item.path] : []),
-  ...(item.children ?? []).map((child) => child.path),
-]);
 
-const PUBLIC_PATHS = [...NAV_PATHS, '/master-calendar'];
+/**
+ * A character reference that reached the user as literal text.
+ *
+ * Three branches, because the defect arrives in three shapes and a single
+ * naive `&\w+;` would fire on ordinary prose:
+ *
+ * - `&#\d*` -- decimal references (`&#8217;`, `&#8211;`), the form the
+ *   WordPress export is thickest with. Kept deliberately loose: a bare `&#`
+ *   is already malformed, so there is nothing to gain by demanding digits.
+ * - `&#x...;` -- the hexadecimal spelling of the same thing.
+ * - `&<name>;` -- named references (`&rsquo;`, `&nbsp;`, `&mdash;`), which
+ *   WordPress emits just as freely and which the earlier numeric-only pattern
+ *   let through. Restricted to two-or-more lowercase alphanumerics so that
+ *   real copy cannot trip it: the ampersand, the word and the semicolon all
+ *   have to be adjacent with no space, which rules out "Faith & Family;" and
+ *   the like, and the abbreviation case ("Q&A;", "R&D;") is a single
+ *   uppercase letter and fails both halves of the character class. Verified
+ *   against the rendered text of every route in `PUBLIC_ROUTES`: nothing on
+ *   the site matches it today.
+ *
+ * Mixed-case names (`&Eacute;`) are out of scope on purpose -- allowing them
+ * back would re-admit the acronym false positives for a shape this corpus
+ * does not contain.
+ */
+const RAW_ENTITY = /&#\d*|&#x[0-9a-fA-F]+;|&[a-z][a-z0-9]{1,8};/;
 
 /**
  * Every heading in document order, as a number. Used for the two structural
@@ -33,7 +53,7 @@ function headingLevels(page: Page) {
 }
 
 test.describe('public site', () => {
-  for (const path of PUBLIC_PATHS) {
+  for (const path of PUBLIC_ROUTES) {
     test(`renders ${path}`, async ({ page }) => {
       const response = await page.goto(path);
 
@@ -65,16 +85,19 @@ test.describe('public site', () => {
     });
 
     test(`renders no raw HTML entity on ${path}`, async ({ page }) => {
-      await page.goto(path);
+      const response = await page.goto(path);
 
-      // The WordPress export is full of numeric character references
-      // (`&#8217;`, `&#8211;`). Any that survive into the page as literal text
-      // rather than as the character they encode are a porting defect, and
-      // `&#` is the shortest fragment that catches all of them. `innerText`
-      // rather than `textContent`: it is the visible rendering, so an entity
-      // hidden in a `<script>` or a `display: none` node is not a false alarm.
+      // Next's 404 document contains no entities either, so without this the
+      // test would pass on a route that no longer exists and assert nothing.
+      expect(response?.status(), `${path} did not return 200`).toBe(200);
+
+      // The WordPress export is full of character references (`&#8217;`,
+      // `&rsquo;`). Any that survive into the page as literal text rather than
+      // as the character they encode are a porting defect. `innerText` rather
+      // than `textContent`: it is the visible rendering, so an entity hidden
+      // in a `<script>` or a `display: none` node is not a false alarm.
       const text = await page.locator('body').innerText();
-      const match = /&#\d*/.exec(text);
+      const match = RAW_ENTITY.exec(text);
 
       expect(
         match?.[0] ?? null,

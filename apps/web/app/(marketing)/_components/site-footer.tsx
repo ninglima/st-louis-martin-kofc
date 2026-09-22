@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Trans } from '@kit/ui/trans';
 
 import { AppLogo } from '~/components/app-logo';
-import { SITE_NAV } from '~/config/site-navigation.config';
+import { LEGAL_LINKS, SITE_NAV } from '~/config/site-navigation.config';
 
 const COUNCIL_EMAIL = 'kofc15256@googlegroups.com';
 const GRAND_KNIGHT = 'Steve Shields';
@@ -50,12 +50,6 @@ const SOCIAL_LINKS = [
     href: 'https://instagram.com/kofc_15256',
   },
   { label: 'Facebook', handle: null, href: 'https://www.facebook.com' },
-];
-
-const LEGAL_LINKS = [
-  { path: '/terms-of-service', key: 'marketing.termsOfService' },
-  { path: '/privacy-policy', key: 'marketing.privacyPolicy' },
-  { path: '/cookie-policy', key: 'marketing.cookiePolicy' },
 ];
 
 /**
@@ -201,7 +195,7 @@ export async function SiteFooter() {
                   href={link.path}
                   className="hover:text-foreground transition-colors"
                 >
-                  <Trans i18nKey={link.key} />
+                  <Trans i18nKey={link.i18nKey} />
                 </Link>
               </li>
             ))}
