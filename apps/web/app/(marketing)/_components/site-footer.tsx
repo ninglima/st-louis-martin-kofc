@@ -23,7 +23,9 @@ const INSURANCE_AGENT = {
  * landing page ("Who We Are" opens "About Our Council", and so on), which is
  * exactly where the live footer's link points. Deriving it here means a
  * renamed or re-ordered page cannot leave a stale second copy of the site map
- * behind in the footer.
+ * behind in the footer. `config/site-navigation.config.test.ts` pins the
+ * first-child assumption, so re-ordering a dropdown's children fails there
+ * rather than silently re-targeting one of these links.
  */
 const QUICK_LINKS = SITE_NAV.flatMap((item) => {
   const path = item.path ?? item.children?.[0]?.path;

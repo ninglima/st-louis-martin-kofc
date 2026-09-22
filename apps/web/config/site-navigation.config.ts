@@ -14,11 +14,14 @@ export interface NavItem {
  * the footer's quick links both read from it, so there is only one copy of the
  * site map to keep current.
  *
- * `site-navigation.config.test.ts` covers the array's shape only: every item
- * has a `path` or `children`, every path is root-relative, no path appears
- * twice. Nothing here is checked against the filesystem, so a renamed or
- * deleted page will still 404 silently; the footer's "first child is the
- * section landing page" assumption is likewise unenforced.
+ * `site-navigation.config.test.ts` covers the array itself: every item has a
+ * `path` or `children`, every path is root-relative, no path appears twice,
+ * and each dropdown's first child is the section landing page the footer links
+ * for it -- so re-ordering a `children` array fails a test rather than quietly
+ * re-targeting a footer link. `site-navigation.routes.test.ts` checks every
+ * path against the filesystem, so a renamed or deleted page fails the unit
+ * suite instead of 404ing silently, and `apps/e2e/tests/public-site` loads
+ * each route in a browser.
  *
  * Deliberate deviations from the WordPress site, all recorded in the spec:
  * "News" is omitted (no content, empty on the live site), "Grand Knight" is
