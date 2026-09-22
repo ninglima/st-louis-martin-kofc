@@ -34,10 +34,19 @@ export const SITE_NAV: readonly NavItem[] = [
     children: [
       { label: 'Our Faith in Action', path: '/faith-in-action' },
       { label: 'Right to Life', path: '/faith-in-action/right-to-life' },
-      { label: 'Foster Children Support', path: '/faith-in-action/foster-children-support' },
+      {
+        label: 'Foster Children Support',
+        path: '/faith-in-action/foster-children-support',
+      },
       { label: 'Loudoun Food Pantry', path: '/faith-in-action/food-pantry' },
-      { label: 'Breakfast with the Knights', path: '/faith-in-action/breakfast-with-knights' },
-      { label: 'Handy Man Services', path: '/faith-in-action/handy-man-services' },
+      {
+        label: 'Breakfast with the Knights',
+        path: '/faith-in-action/breakfast-with-knights',
+      },
+      {
+        label: 'Handy Man Services',
+        path: '/faith-in-action/handy-man-services',
+      },
       { label: 'Honor Flights', path: '/faith-in-action/honor-flights' },
       { label: 'Seminarian Bios', path: '/faith-in-action/seminarian-bios' },
     ],
