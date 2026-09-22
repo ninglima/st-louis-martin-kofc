@@ -199,15 +199,17 @@ function SuccessState(props: { redirectTo: string }) {
         the post-refresh claims. This runs once, right after a forced or
         voluntary password change, so the extra page load is a non-issue.
       */}
-      <a href={props.redirectTo}>
-        <Button variant={'outline'} className={'w-full'}>
-          <span>
-            <Trans i18nKey={'common.backToHomePage'} />
-          </span>
+      <Button
+        variant="outline"
+        className="w-full"
+        render={<a href={props.redirectTo} />}
+      >
+        <span>
+          <Trans i18nKey={'common.backToHomePage'} />
+        </span>
 
-          <ArrowRightIcon className={'ml-2 h-4'} />
-        </Button>
-      </a>
+        <ArrowRightIcon className={'ml-2 h-4'} />
+      </Button>
     </div>
   );
 }

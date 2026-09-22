@@ -49,6 +49,17 @@ export function CheckoutForm({ config }: { config: PublicPaymentConfig }) {
     paymentId: string;
   } | null>(null);
 
+  // Single source of truth for both the trigger's formatted label and the
+  // dropdown's options, so a fourth `payment_type` can't silently fall
+  // through to a hardcoded default the way a `switch` with a wildcard
+  // `default:` case would (see `payment-settings-form.tsx` for the same
+  // pattern applied to `PROVIDER_OPTIONS`/`ENVIRONMENT_OPTIONS`).
+  const PAYMENT_TYPE_OPTIONS = [
+    { value: 'dues', label: t('types.dues') },
+    { value: 'donation', label: t('types.donation') },
+    { value: 'event_fee', label: t('types.eventFee') },
+  ] as const;
+
   const form = useForm({
     resolver: zodResolver(CreatePaymentSchema),
     defaultValues: {
@@ -137,28 +148,20 @@ export function CheckoutForm({ config }: { config: PublicPaymentConfig }) {
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue>
-                          {(value: string | null) => {
-                            switch (value) {
-                              case 'donation':
-                                return t('types.donation');
-                              case 'event_fee':
-                                return t('types.eventFee');
-                              case 'dues':
-                              default:
-                                return t('types.dues');
-                            }
-                          }}
+                          {(value: string | null) =>
+                            PAYMENT_TYPE_OPTIONS.find(
+                              (option) => option.value === value,
+                            )?.label ?? value
+                          }
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="dues">{t('types.dues')}</SelectItem>
-                      <SelectItem value="donation">
-                        {t('types.donation')}
-                      </SelectItem>
-                      <SelectItem value="event_fee">
-                        {t('types.eventFee')}
-                      </SelectItem>
+                      {PAYMENT_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
