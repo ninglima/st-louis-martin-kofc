@@ -63,7 +63,12 @@
     "dashboard": "Dashboard",
     "settings": "Settings",
     "profile": "Profile",
-    "application": "Application"
+    "payments": "Payments",
+    "checkout": "Checkout",
+    "paymentSettings": "Payment Settings",
+    "application": "Application",
+    "users": "Users",
+    "roles": "Roles"
   },
   "roles": {
     "owner": {

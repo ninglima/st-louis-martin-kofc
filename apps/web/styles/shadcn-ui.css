@@ -1,106 +1,121 @@
 /*
 * shadcn-ui.css
 *
-* Update the below to customize your Shadcn UI CSS Colors.
+* Knights of Columbus brand theme
+* Navy (#003595), Gold (#faa514), Red (#fe0000), White (#ffffff)
+* Web-optimized navy variants: #112866 (primary), #0D1F50 (dark)
+*
 * Refer to https://ui.shadcn.com/themes for applying new colors.
-* NB: apply the hsl function to the colors copied from the theme.
- */
+*/
 
 @layer base {
   :root {
     --font-sans:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+      'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
       sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
     --font-heading: var(--font-sans);
 
+    /* KofC Navy on white */
     --background: var(--color-white);
-    --foreground: var(--color-neutral-950);
+    --foreground: #112866;
 
     --card: var(--color-white);
-    --card-foreground: var(--color-neutral-950);
+    --card-foreground: #112866;
 
     --popover: var(--color-white);
-    --popover-foreground: var(--color-neutral-950);
+    --popover-foreground: #112866;
 
-    --primary: var(--color-neutral-950);
+    /* Primary: KofC Navy */
+    --primary: #003595;
     --primary-foreground: var(--color-white);
 
-    --secondary: oklch(96.76% 0.0013 286.38);
-    --secondary-foreground: oklch(21.03% 0.0318 264.65);
+    /* Secondary: light navy tint */
+    --secondary: #e8edf7;
+    --secondary-foreground: #112866;
 
-    --muted: oklch(96.71% 0.0029 264.54);
-    --muted-foreground: oklch(55.13% 0.0233 264.36);
+    /* Muted: soft gray with blue undertone */
+    --muted: #f0f2f8;
+    --muted-foreground: #4a5578;
 
-    --accent: oklch(96.76% 0.0013 286.38);
-    --accent-foreground: oklch(21.03% 0.0318 264.65);
+    /* Accent: KofC Gold */
+    --accent: #faa514;
+    --accent-foreground: #112866;
 
-    --destructive: var(--color-red-500);
+    /* Destructive: KofC Red */
+    --destructive: #fe0000;
     --destructive-foreground: var(--color-white);
 
-    --border: var(--color-gray-100);
-    --input: var(--color-gray-200);
-    --ring: var(--color-neutral-800);
+    --border: #d4dae8;
+    --input: #c5cee0;
+    --ring: #003595;
 
     --radius: 0.5rem;
 
-    --chart-1: var(--color-orange-400);
-    --chart-2: var(--color-teal-600);
-    --chart-3: var(--color-green-800);
-    --chart-4: var(--color-yellow-200);
-    --chart-5: var(--color-orange-200);
+    /* Chart colors using KofC palette */
+    --chart-1: #003595;
+    --chart-2: #faa514;
+    --chart-3: #fe0000;
+    --chart-4: #112866;
+    --chart-5: #5a7bc4;
 
-    --sidebar-background: var(--color-neutral-50);
-    --sidebar-foreground: oklch(37.05% 0.012 285.8);
-    --sidebar-primary: var(--color-neutral-950);
+    /* Sidebar: navy-themed */
+    --sidebar-background: #f5f7fb;
+    --sidebar-foreground: #112866;
+    --sidebar-primary: #003595;
     --sidebar-primary-foreground: var(--color-white);
-    --sidebar-accent: var(--color-neutral-100);
-    --sidebar-accent-foreground: var(--color-neutral-950);
+    --sidebar-accent: #e8edf7;
+    --sidebar-accent-foreground: #112866;
     --sidebar-border: var(--border);
-    --sidebar-ring: var(--color-blue-500);
+    --sidebar-ring: #003595;
   }
 
   .dark {
-    --background: var(--color-neutral-900);
-    --foreground: var(--color-white);
+    /* Dark mode: deep navy backgrounds */
+    --background: #0D1F50;
+    --foreground: #e8edf7;
 
-    --card: var(--color-neutral-900);
-    --card-foreground: var(--color-white);
+    --card: #112866;
+    --card-foreground: #e8edf7;
 
-    --popover: var(--color-neutral-900);
-    --popover-foreground: var(--color-white);
+    --popover: #112866;
+    --popover-foreground: #e8edf7;
 
-    --primary: var(--color-white);
-    --primary-foreground: var(--color-neutral-900);
+    /* Primary: KofC Gold in dark mode for contrast */
+    --primary: #faa514;
+    --primary-foreground: #0D1F50;
 
-    --secondary: var(--color-neutral-800);
-    --secondary-foreground: oklch(98.43% 0.0017 247.84);
+    --secondary: #1a3478;
+    --secondary-foreground: #e8edf7;
 
-    --muted: var(--color-neutral-800);
-    --muted-foreground: oklch(71.19% 0.0129 286.07);
+    --muted: #1a3478;
+    --muted-foreground: #8da0c4;
 
-    --accent: var(--color-neutral-800);
-    --accent-foreground: oklch(98.48% 0 0);
+    /* Accent: Gold stays prominent */
+    --accent: #faa514;
+    --accent-foreground: #0D1F50;
 
-    --destructive: var(--color-red-700);
+    --destructive: #dc2626;
     --destructive-foreground: var(--color-white);
 
-    --border: var(--color-neutral-800);
-    --input: var(--color-neutral-700);
-    --ring: oklch(87.09% 0.0055 286.29);
+    --border: #1a3478;
+    --input: #253d82;
+    --ring: #faa514;
 
-    --chart-1: var(--color-blue-600);
-    --chart-2: var(--color-emerald-400);
-    --chart-3: var(--color-orange-400);
-    --chart-4: var(--color-purple-500);
-    --chart-5: var(--color-pink-500);
+    /* Chart colors adjusted for dark backgrounds */
+    --chart-1: #5a7bc4;
+    --chart-2: #faa514;
+    --chart-3: #f87171;
+    --chart-4: #93b5ff;
+    --chart-5: #fcd34d;
 
-    --sidebar-background: var(--color-neutral-900);
-    --sidebar-foreground: var(--color-white);
-    --sidebar-primary: var(--color-blue-500);
-    --sidebar-primary-foreground: var(--color-white);
-    --sidebar-accent: var(--color-neutral-800);
-    --sidebar-accent-foreground: var(--color-white);
+    /* Sidebar: darker navy */
+    --sidebar-background: #0D1F50;
+    --sidebar-foreground: #e8edf7;
+    --sidebar-primary: #faa514;
+    --sidebar-primary-foreground: #0D1F50;
+    --sidebar-accent: #1a3478;
+    --sidebar-accent-foreground: #e8edf7;
     --sidebar-border: var(--border);
-    --sidebar-ring: var(--color-blue-500);
+    --sidebar-ring: #faa514;
   }
 }

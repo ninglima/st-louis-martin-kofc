@@ -1,4 +1,12 @@
-import { Home, User } from 'lucide-react';
+import {
+  CreditCard,
+  Home,
+  Settings,
+  Shield,
+  User,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { z } from 'zod';
 
 import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
@@ -17,6 +25,22 @@ const routes = [
         Icon: <Home className={iconClasses} />,
         // exact match: do not stay highlighted on nested routes like /home/settings
         highlightMatch: `^${pathsConfig.app.home}$`,
+        section: 'home',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.payments',
+        path: pathsConfig.app.payments,
+        Icon: <CreditCard className={iconClasses} />,
+        section: 'payments',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.checkout',
+        path: pathsConfig.app.checkout,
+        Icon: <Wallet className={iconClasses} />,
+        section: 'checkout',
+        verb: 'view' as const,
       },
     ],
   },
@@ -27,6 +51,27 @@ const routes = [
         label: 'common.routes.profile',
         path: pathsConfig.app.profileSettings,
         Icon: <User className={iconClasses} />,
+      },
+      {
+        label: 'common.routes.paymentSettings',
+        path: pathsConfig.app.paymentSettings,
+        Icon: <Settings className={iconClasses} />,
+        section: 'payment_settings',
+        verb: 'manage' as const,
+      },
+      {
+        label: 'common.routes.users',
+        path: pathsConfig.app.users,
+        Icon: <Users className={iconClasses} />,
+        section: 'users',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.roles',
+        path: pathsConfig.app.roles,
+        Icon: <Shield className={iconClasses} />,
+        section: 'roles',
+        verb: 'view' as const,
       },
     ],
   },

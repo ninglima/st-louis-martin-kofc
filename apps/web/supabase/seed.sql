@@ -1,0 +1,37 @@
+-- ============================================================================
+-- Bootstrap the first administrator.
+-- ============================================================================
+--
+-- On a fresh database (a plain `supabase db reset`, which runs this file),
+-- zero users hold the `administrator` role. The rbac migration
+-- (20260922033217_rbac.sql) seeds the `administrator` and `member` roles
+-- themselves, but its backfill only promotes rows that already existed in
+-- the now-dropped `admin_users` table -- on a fresh database that table was
+-- empty, so nobody gets promoted. Self-signup
+-- (20260922055727_default_role_on_signup.sql) only assigns whichever role
+-- has `is_default` set, which is `member`, not `administrator`.
+--
+-- With zero administrators, `kit.count_active_user_admins()` returns 0, and
+-- the ban/deactivate trigger that depends on "at least one administrator
+-- remains" refuses ANY deactivation with a misleading "no active
+-- administrator" error, even for accounts that were never administrators.
+--
+-- This block cannot run here by itself: `auth.users` only gets a row once
+-- someone actually signs up (there is no user to reference yet on a bare
+-- reset). So:
+--
+--   1. `supabase db reset` (runs this seed as-is; the block below is a
+--      no-op the first time, because no matching auth.users row exists yet).
+--   2. Sign up for an account through the app, using the email you intend
+--      to be the first administrator.
+--   3. Edit the email below and re-run this block (e.g. paste it into the
+--      Supabase SQL editor, or `psql`/`supabase db execute`) to promote
+--      that account.
+--
+-- insert into public.user_roles (user_id, role_id)
+-- select u.id, r.id
+-- from auth.users u
+-- cross join public.roles r
+-- where u.email = '<first-admin@example.org>'
+--   and r.slug = 'administrator'
+-- on conflict (user_id) do update set role_id = excluded.role_id;

@@ -5,10 +5,14 @@ import {
 
 import { AppLogo } from '~/components/app-logo';
 import { ProfileAccountDropdownContainer } from '~/components/personal-account-dropdown-container';
-import { navigationConfig } from '~/config/navigation.config';
+import type { navigationConfig } from '~/config/navigation.config';
 
-export function HomeMenuNavigation() {
-  const routes = navigationConfig.routes.reduce<
+export function HomeMenuNavigation({
+  config,
+}: {
+  config: typeof navigationConfig;
+}) {
+  const routes = config.routes.reduce<
     Array<{
       path: string;
       label: string;

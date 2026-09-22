@@ -24,7 +24,7 @@ Optimize dropdowns for mobile
 .site-footer > .container:before {
   background: radial-gradient(
     62.87% 100% at 50% 100%,
-    var(--color-gray-200) 0%,
+    #d4dae8 0%,
     rgba(255, 255, 255, 0) 100%
   );
 
@@ -40,7 +40,7 @@ Optimize dropdowns for mobile
 .dark .site-footer > .container:before {
   background: radial-gradient(
     62.87% 100% at 50% 100%,
-    rgba(255, 255, 255, 0.1) 0%,
+    rgba(90, 123, 196, 0.2) 0%,
     rgba(255, 255, 255, 0) 100%
   );
 }

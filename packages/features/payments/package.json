@@ -1,0 +1,54 @@
+{
+  "name": "@kit/payments",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./types": "./src/types/payment.types.ts",
+    "./provider-types": "./src/types/payment-provider.ts",
+    "./schemas/*": "./src/schemas/*.ts",
+    "./server/*": "./src/server/*.ts",
+    "./providers/*": "./src/providers/*.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./hooks/*": "./src/hooks/*.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kit/i18n": "workspace:*",
+    "next-intl": "catalog:",
+    "square": "^42.1.0",
+    "stripe": "^17.7.0"
+  },
+  "devDependencies": {
+    "@hookform/resolvers": "catalog:",
+    "@kit/next": "workspace:*",
+    "@kit/rbac": "workspace:*",
+    "@kit/shared": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@stripe/react-stripe-js": "^3.6.0",
+    "@stripe/stripe-js": "^5.10.0",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "sonner": "catalog:",
+    "zod": "catalog:"
+  }
+}

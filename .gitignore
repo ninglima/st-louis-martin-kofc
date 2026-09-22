@@ -4,6 +4,7 @@
 node_modules
 .pnp
 .pnp.js
+.pnpm-store/
 
 # testing
 coverage
@@ -90,3 +91,8 @@ Temporary Items
 
 # prds
 .prds/
+
+# playwright / browser-automation artifacts
+.playwright-mcp/
+test-results/
+playwright-report/

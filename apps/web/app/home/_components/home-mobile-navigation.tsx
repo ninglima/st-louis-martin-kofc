@@ -15,16 +15,20 @@ import {
 } from '@kit/ui/dropdown-menu';
 import { Trans } from '@kit/ui/trans';
 
-import { navigationConfig } from '~/config/navigation.config';
+import type { navigationConfig } from '~/config/navigation.config';
 
 /**
  * Mobile navigation for the home page
  * @constructor
  */
-export function HomeMobileNavigation() {
+export function HomeMobileNavigation({
+  config,
+}: {
+  config: typeof navigationConfig;
+}) {
   const signOut = useSignOut();
 
-  const Links = navigationConfig.routes.map((item, index) => {
+  const Links = config.routes.map((item, index) => {
     if ('children' in item) {
       return item.children.map((child) => {
         return (

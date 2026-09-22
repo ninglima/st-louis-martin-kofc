@@ -17,6 +17,8 @@ const RouteSubChild = z.object({
   highlightMatch: z.string().optional(),
   renderAction: z.custom<React.ReactNode>().optional(),
   context: RouteContextSchema.optional(),
+  section: z.string().optional(),
+  verb: z.enum(['view', 'manage']).optional(),
 });
 
 const RouteChild = z.object({
@@ -29,6 +31,8 @@ const RouteChild = z.object({
   collapsed: z.boolean().default(false).optional(),
   renderAction: z.custom<React.ReactNode>().optional(),
   context: RouteContextSchema.optional(),
+  section: z.string().optional(),
+  verb: z.enum(['view', 'manage']).optional(),
 });
 
 const RouteGroup = z.object({
