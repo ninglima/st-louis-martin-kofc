@@ -88,20 +88,25 @@ function RoleCard({
 
   const onDelete = () => {
     startTransition(async () => {
+      const loadingToast = toast.loading(`Deleting ${role.name}…`);
+
       // The service already turns the on-delete-restrict foreign key
       // violation into "This role still has users assigned. Reassign them
       // first." -- and the database trigger may add "System roles cannot be
       // deleted" or "This change would leave no active administrator".
-      // Every one of those messages is the only way an admin learns why the
-      // delete was refused, so it must reach the toast verbatim.
-      const promise = deleteRoleAction({ id: role.id });
+      // deleteRoleAction returns those as `{ success: false, error }`
+      // rather than throwing, because Next.js redacts thrown Server Action
+      // error messages in production -- reading `result.error` is what
+      // lets the real message reach the toast verbatim.
+      const result = await deleteRoleAction({ id: role.id });
 
-      toast.promise(promise, {
-        loading: `Deleting ${role.name}…`,
-        success: `${role.name} deleted.`,
-        error: (error: unknown) =>
-          error instanceof Error ? error.message : 'Failed to delete role.',
-      });
+      toast.dismiss(loadingToast);
+
+      if (result.success) {
+        toast.success(`${role.name} deleted.`);
+      } else {
+        toast.error(result.error);
+      }
     });
   };
 

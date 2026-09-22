@@ -91,16 +91,28 @@ export function RoleFormDialog({
 
   const onSubmit = (values: RoleFormValues) => {
     startTransition(async () => {
-      const promise = saveRoleAction(values).then(() => {
-        setOpen(false);
-      });
+      const loadingToast = toast.loading(
+        role ? 'Saving role…' : 'Creating role…',
+      );
 
-      toast.promise(promise, {
-        loading: role ? 'Saving role…' : 'Creating role…',
-        success: role ? 'Role updated.' : 'Role created.',
-        error: (error: unknown) =>
-          error instanceof Error ? error.message : 'Failed to save role.',
-      });
+      // saveRoleAction never throws for an expected failure (bad
+      // permissions, a refused trigger) -- it returns a result, because
+      // Next.js redacts thrown Server Action error messages in production.
+      // Inspecting the result (rather than relying on toast.promise's
+      // `error` callback) is what lets the real message reach the admin.
+      const result = await saveRoleAction(values);
+
+      toast.dismiss(loadingToast);
+
+      if (result.success) {
+        toast.success(role ? 'Role updated.' : 'Role created.');
+        // Only close on success -- a refused save must leave the dialog
+        // open so the admin can see why and retry without losing their
+        // edits.
+        setOpen(false);
+      } else {
+        toast.error(result.error);
+      }
     });
   };
 
