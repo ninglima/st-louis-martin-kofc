@@ -1,6 +1,3 @@
-import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
-import { PageHeader } from '@kit/ui/page';
-
 import { requirePermission } from '~/lib/server/require-permission';
 
 /**
@@ -13,15 +10,17 @@ import { requirePermission } from '~/lib/server/require-permission';
  */
 export const instant = false;
 
+/**
+ * No `<PageHeader>` here: the parent `settings/layout.tsx` already renders one
+ * with `<AppBreadcrumbs />`, and this layout nests inside it, so rendering a
+ * second produced two identical breadcrumb bars stacked on /home/settings/users.
+ * The breadcrumbs derive from the path, so the parent's already reads
+ * "Home > Settings > Users".
+ */
 async function UsersLayout(props: React.PropsWithChildren) {
   await requirePermission('users', 'view');
 
-  return (
-    <>
-      <PageHeader description={<AppBreadcrumbs />} />
-      {props.children}
-    </>
-  );
+  return props.children;
 }
 
 export default UsersLayout;

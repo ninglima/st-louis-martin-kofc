@@ -92,7 +92,11 @@ function SidebarLayout({
   config,
 }: React.PropsWithChildren<{ config: typeof navigationConfig }>) {
   return (
-    <SidebarProvider defaultOpen={navigationConfig.sidebarCollapsed}>
+    // `defaultOpen` means "the sidebar starts expanded", which is the opposite
+    // of `sidebarCollapsed`. Passing the flag straight through inverted it, so
+    // the default config (sidebarCollapsed: false) rendered a collapsed,
+    // icon-only sidebar with no section labels.
+    <SidebarProvider defaultOpen={!navigationConfig.sidebarCollapsed}>
       <Page style={'sidebar'}>
         <PageNavigation>
           <HomeSidebar config={config} />
