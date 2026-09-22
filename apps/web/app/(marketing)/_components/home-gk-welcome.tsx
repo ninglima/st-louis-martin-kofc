@@ -19,13 +19,29 @@ const GK_SIGNATURE = '— Steve Shields, Grand Knight';
 
 const EMBLEM_SRC_LIGHT = '/images/brand/kofc_r_hz_rgb_pos.png';
 const EMBLEM_SRC_DARK = '/images/brand/kofc_r_hz_rgb_rev.png';
-const EMBLEM_ALT = 'Knights of Columbus';
 
 /**
  * The council publishes no photograph of the Grand Knight, so the emblem
  * carries the identity block on its own. The positive mark is drawn in dark
  * ink and the reversed mark in white, so each theme gets the variant that
- * actually reads against its background.
+ * actually reads against its background. The `h1` immediately below already
+ * states "Knights of Columbus" in text, so the emblem is decorative here
+ * (`alt=""`) rather than a duplicate announcement.
+ *
+ * Neither variant carries `priority`: which one is visible is decided by a
+ * `dark:` CSS class, not by anything Next can see at preload time, so a
+ * `priority` on one variant only preloaded an image that could never paint
+ * while the variant that DID paint was left to load lazily behind it, the
+ * worst of both orderings. Leaving both at the framework default treats the
+ * two variants identically regardless of theme.
+ *
+ * Verified with a cache-disabled browser trace: in light mode (the default
+ * theme) only the visible pos.png is requested, one fetch total. In dark
+ * mode both PNGs are still requested, because Chromium eagerly fetches the
+ * first `<img>` in DOM order even while it is `display:none`, and only
+ * lazy-skips a hidden image declared later. That ordering quirk is not
+ * something next/image's `priority`/`loading` props can override, so two
+ * small PNG fetches remain in dark mode; light mode already runs on one.
  */
 function CouncilEmblem() {
   const shared = 'h-auto w-full max-w-[18rem]';
@@ -33,19 +49,20 @@ function CouncilEmblem() {
   return (
     <>
       <Image
-        priority
         src={EMBLEM_SRC_LIGHT}
-        alt={EMBLEM_ALT}
+        alt=""
         width={1160}
         height={540}
+        sizes="288px"
         className={`${shared} dark:hidden`}
       />
 
       <Image
         src={EMBLEM_SRC_DARK}
-        alt={EMBLEM_ALT}
+        alt=""
         width={1160}
         height={540}
+        sizes="288px"
         className={`${shared} hidden dark:block`}
       />
     </>
@@ -70,13 +87,13 @@ export function HomeGkWelcome() {
           </h1>
         </div>
 
-        <div className="flex flex-col">
+        <div className="flex max-w-3xl flex-col">
           <h2 className="text-foreground mb-4 text-2xl font-semibold tracking-tight">
             A Message from Our Grand Knight
           </h2>
 
-          {GK_MESSAGE.map((paragraph) => (
-            <p key={paragraph} className="text-muted-foreground mb-4 leading-7">
+          {GK_MESSAGE.map((paragraph, index) => (
+            <p key={index} className="text-muted-foreground mb-4 leading-7">
               {paragraph}
             </p>
           ))}
