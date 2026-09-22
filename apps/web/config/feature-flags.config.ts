@@ -14,6 +14,9 @@ const FeatureFlagsSchema = z.object({
   enableVersionUpdater: z.boolean({
     error: 'Provide the variable NEXT_PUBLIC_ENABLE_VERSION_UPDATER',
   }),
+  enablePayments: z.boolean({
+    error: 'Provide the variable NEXT_PUBLIC_ENABLE_PAYMENTS',
+  }),
 });
 
 const featuresFlagConfig = FeatureFlagsSchema.parse({
@@ -26,6 +29,10 @@ const featuresFlagConfig = FeatureFlagsSchema.parse({
   enableVersionUpdater: getBoolean(
     process.env.NEXT_PUBLIC_ENABLE_VERSION_UPDATER,
     false,
+  ),
+  enablePayments: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_PAYMENTS,
+    true,
   ),
 } satisfies z.infer<typeof FeatureFlagsSchema>);
 

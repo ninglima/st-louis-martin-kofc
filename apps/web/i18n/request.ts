@@ -17,6 +17,7 @@ const namespaces = [
   'teams',
   'billing',
   'marketing',
+  'payments',
 ] as const;
 
 const isDevelopment = process.env.NODE_ENV === 'development';

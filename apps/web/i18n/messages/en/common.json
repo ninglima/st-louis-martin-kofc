@@ -63,6 +63,8 @@
     "dashboard": "Dashboard",
     "settings": "Settings",
     "profile": "Profile",
+    "payments": "Payments",
+    "paymentSettings": "Payment Settings",
     "application": "Application"
   },
   "roles": {

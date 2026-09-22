@@ -1,4 +1,4 @@
-import { Home, User } from 'lucide-react';
+import { CreditCard, Home, Settings, User } from 'lucide-react';
 import { z } from 'zod';
 
 import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
@@ -18,6 +18,11 @@ const routes = [
         // exact match: do not stay highlighted on nested routes like /home/settings
         highlightMatch: `^${pathsConfig.app.home}$`,
       },
+      {
+        label: 'common.routes.payments',
+        path: pathsConfig.app.payments,
+        Icon: <CreditCard className={iconClasses} />,
+      },
     ],
   },
   {
@@ -27,6 +32,11 @@ const routes = [
         label: 'common.routes.profile',
         path: pathsConfig.app.profileSettings,
         Icon: <User className={iconClasses} />,
+      },
+      {
+        label: 'common.routes.paymentSettings',
+        path: pathsConfig.app.paymentSettings,
+        Icon: <Settings className={iconClasses} />,
       },
     ],
   },
