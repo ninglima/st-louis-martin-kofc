@@ -94,4 +94,53 @@ describe('mapHeaders', () => {
       'Primary Email',
     ]);
   });
+
+  it('collapses internal double spaces in a required header instead of reporting it missing', () => {
+    const { index, missing } = mapHeaders([
+      'Membership  Number',
+      'First Name',
+      'Last Name',
+      'Primary Email',
+    ]);
+
+    expect(missing).toEqual([]);
+    expect(index.membershipNumber).toBe(0);
+  });
+
+  it('collapses internal double spaces in a non-required header instead of dropping it', () => {
+    const { index } = mapHeaders([
+      'Membership Number',
+      'First Name',
+      'Middle  Name',
+      'Last Name',
+      'Primary Email',
+    ]);
+
+    expect(index.middleName).toBe(2);
+  });
+
+  it('collapses a tab or newline between words to a single space', () => {
+    const { index, missing } = mapHeaders([
+      'Membership\tNumber',
+      'First Name',
+      'Last\nName',
+      'Primary Email',
+    ]);
+
+    expect(missing).toEqual([]);
+    expect(index.membershipNumber).toBe(0);
+    expect(index.lastName).toBe(2);
+  });
+
+  it('keeps the first occurrence when a header is duplicated', () => {
+    const { index } = mapHeaders([
+      'Membership Number',
+      'First Name',
+      'Last Name',
+      'Primary Email',
+      'First Name',
+    ]);
+
+    expect(index.firstName).toBe(1);
+  });
 });
