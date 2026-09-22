@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Supabase (local stack)" type="js.build_tools.npm" nameIsGenerated="false">
+    <package-json value="$PROJECT_DIR$/package.json" />
+    <command value="run" />
+    <scripts>
+      <script value="supabase:web:start" />
+    </scripts>
+    <node-interpreter value="project" />
+    <package-manager value="/opt/homebrew/lib/node_modules/pnpm" />
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>

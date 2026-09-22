@@ -37,7 +37,10 @@ import {
   PaymentConfigSchema,
   type PaymentConfigFormValues,
 } from '../schemas/payment-config.schema';
-import { savePaymentConfigAction, testConnectionAction } from '../server/server-actions';
+import {
+  savePaymentConfigAction,
+  testConnectionAction,
+} from '../server/server-actions';
 import type { PaymentConfig } from '../types/payment.types';
 
 const PROVIDER_OPTIONS = [
@@ -59,7 +62,10 @@ export function PaymentSettingsForm({
 }) {
   const t = useTranslations('payments');
   const [isPending, startTransition] = useTransition();
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   const form = useForm({
     resolver: zodResolver(PaymentConfigSchema),
@@ -76,7 +82,10 @@ export function PaymentSettingsForm({
     },
   });
 
-  const activeProvider = useWatch({ control: form.control, name: 'active_provider' });
+  const activeProvider = useWatch({
+    control: form.control,
+    name: 'active_provider',
+  });
 
   const onSubmit = (values: PaymentConfigFormValues) => {
     startTransition(async () => {
@@ -137,10 +146,7 @@ export function PaymentSettingsForm({
                     <FormLabel>
                       <Trans i18nKey="payments.activeProvider" />
                     </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue>
@@ -172,10 +178,7 @@ export function PaymentSettingsForm({
                     <FormLabel>
                       <Trans i18nKey="payments.environment" />
                     </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue>
@@ -209,7 +212,11 @@ export function PaymentSettingsForm({
                         <Trans i18nKey="payments.stripePublishableKey" />
                       </FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="pk_..." {...field} />
+                        <Input
+                          type="password"
+                          placeholder="pk_..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -223,7 +230,11 @@ export function PaymentSettingsForm({
                         <Trans i18nKey="payments.stripeSecretKey" />
                       </FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="sk_..." {...field} />
+                        <Input
+                          type="password"
+                          placeholder="sk_..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -237,7 +248,11 @@ export function PaymentSettingsForm({
                         <Trans i18nKey="payments.stripeWebhookSecret" />
                       </FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="whsec_..." {...field} />
+                        <Input
+                          type="password"
+                          placeholder="whsec_..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -254,7 +269,11 @@ export function PaymentSettingsForm({
                         <Trans i18nKey="payments.squareApplicationId" />
                       </FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="sq0idp-..." {...field} />
+                        <Input
+                          type="password"
+                          placeholder="sq0idp-..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -268,7 +287,11 @@ export function PaymentSettingsForm({
                         <Trans i18nKey="payments.squareAccessToken" />
                       </FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="EAA..." {...field} />
+                        <Input
+                          type="password"
+                          placeholder="EAA..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

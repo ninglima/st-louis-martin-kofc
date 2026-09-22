@@ -16,6 +16,26 @@ import { HomeMobileNavigation } from './_components/home-mobile-navigation';
 import { HomeSidebar } from './_components/home-sidebar';
 
 /**
+ * Everything this layout renders depends on who is asking: it awaits the
+ * session, may redirect on `must_change_password`, and filters the navigation
+ * by the caller's permissions. With Cache Components enabled there is no
+ * useful static shell to prerender ahead of knowing the user, so the correct
+ * answer is to let the segment block rather than to fake a cacheable shape.
+ *
+ * Without this, `next build` fails on every /home route with "encountered
+ * uncached data during prerendering", pointing at the awaited `connection()`
+ * in `requireUserInServerComponent`. That `connection()` is deliberate and
+ * must stay: it also keeps the Supabase client's `Math.random()` seed out of
+ * the prerender, which `instant = false` alone would NOT excuse -- synchronous
+ * IO fails a prerender regardless of this flag.
+ *
+ * `instant = false` marks the segment as allowed to block; it does not force
+ * the route to be dynamic. See next/dist/docs/01-app/02-guides/
+ * migrating-to-cache-components.md.
+ */
+export const instant = false;
+
+/**
  * The nav is filtered by the current user's permissions on every request
  * (getCurrentPermissions is React-cache()d, so this costs one query even
  * though the page guard behind each route also calls it). This is purely

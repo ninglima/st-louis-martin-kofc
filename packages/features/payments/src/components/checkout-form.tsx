@@ -141,10 +141,7 @@ export function CheckoutForm({ config }: { config: PublicPaymentConfig }) {
                   <FormLabel>
                     <Trans i18nKey="payments.paymentType" />
                   </FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue>
