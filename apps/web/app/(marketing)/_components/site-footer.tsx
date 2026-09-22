@@ -83,7 +83,12 @@ export async function SiteFooter() {
   const year = await getCopyrightYear();
 
   return (
-    <footer className="site-footer bg-muted/20 mt-auto w-full border-t py-10 xl:py-14">
+    // `relative` is load-bearing, not decoration: `styles/makerkit.css` draws
+    // the footer's top hairline as `.site-footer > .container::before` with
+    // `position: absolute; top: 0`. With no positioned ancestor anywhere up the
+    // tree it resolves against the initial containing block, so the hairline
+    // paints at the top of the document instead of the top of the footer.
+    <footer className="site-footer bg-muted/20 relative mt-auto w-full border-t py-10 xl:py-14">
       <div className="container">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-y-4">
@@ -159,12 +164,14 @@ export async function SiteFooter() {
                     className="text-muted-foreground hover:text-foreground text-sm transition-colors"
                   >
                     {social.label}
-                    {social.handle ? (
-                      <span className="text-muted-foreground/70">
-                        {' '}
-                        {social.handle}
-                      </span>
-                    ) : null}
+                    {/*
+                      The handle names the account, so it is content rather than
+                      decoration and has to clear 4.5:1 at 14px. A `/70` opacity
+                      modifier on `text-muted-foreground` measured 3.49:1 in
+                      light and 3.52:1 in dark; inheriting the link's own colour
+                      keeps it legible and makes it follow the hover state too.
+                    */}
+                    {social.handle ? <span> {social.handle}</span> : null}
                   </a>
                 </li>
               ))}

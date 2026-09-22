@@ -10,9 +10,15 @@ export interface NavItem {
 }
 
 /**
- * Single source of truth for the public site's navigation. A link-integrity
- * test walks this array and asserts every path has a matching route file, so
- * a renamed page cannot silently 404.
+ * Single source of truth for the public site's navigation. The site header and
+ * the footer's quick links both read from it, so there is only one copy of the
+ * site map to keep current.
+ *
+ * `site-navigation.config.test.ts` covers the array's shape only: every item
+ * has a `path` or `children`, every path is root-relative, no path appears
+ * twice. Nothing here is checked against the filesystem, so a renamed or
+ * deleted page will still 404 silently; the footer's "first child is the
+ * section landing page" assumption is likewise unenforced.
  *
  * Deliberate deviations from the WordPress site, all recorded in the spec:
  * "News" is omitted (no content, empty on the live site), "Grand Knight" is
