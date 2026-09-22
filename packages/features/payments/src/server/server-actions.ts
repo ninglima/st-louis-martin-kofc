@@ -38,6 +38,13 @@ async function assertCanManagePaymentSettings(userId: string) {
   return { authorized: true as const, client };
 }
 
+async function assertCanCheckout(userId: string) {
+  const client = getSupabaseServerAdminClient();
+  const perms = await loadPermissionsForUser(client, userId);
+
+  return hasPermission(perms, 'checkout', 'view');
+}
+
 export const savePaymentConfigAction = enhanceAction(
   async (data: unknown, user): Promise<ActionResult> => {
     // Re-checked here because server actions are reachable by direct POST,
@@ -78,6 +85,21 @@ export const testConnectionAction = enhanceAction(
 
 export const createPaymentAction = enhanceAction(
   async (data: unknown, user) => {
+    // Re-checked here because server actions are reachable by direct POST,
+    // not only through our UI (same rationale as the checks above). Unlike
+    // those, this one throws rather than returning an ActionResult: the
+    // caller (`checkout-form.tsx`) only branches on
+    // `result.clientSecret`/`result.paymentId` and otherwise treats the
+    // resolved value as a success (pushing to the checkout success page).
+    // A returned `{ success: false }` shape has neither field, so it would
+    // silently fall into that success branch. Throwing lets the existing
+    // try/catch in `onSubmit` show `t('paymentError')` instead, matching
+    // how validation errors from `CreatePaymentSchema.parse` below and
+    // provider errors from `createPayment` are already handled.
+    if (!(await assertCanCheckout(user.id))) {
+      throw new Error('You do not have permission to make a payment.');
+    }
+
     const parsed = CreatePaymentSchema.parse(data);
     const adminClient = getSupabaseServerAdminClient();
 

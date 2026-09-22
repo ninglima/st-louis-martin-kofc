@@ -42,25 +42,24 @@ export class RbacPageObject {
    * `admin_users` table, and a later migration
    * (`20260922052753_rbac_cutover.sql`) drops that table entirely. So the
    * seeded `administrator` and `member` roles exist, but nobody holds
-   * either of them.
+   * `administrator` -- there is no admin to promote this user through the
+   * UI, hence going straight to the service-role key.
    *
-   * It might look like a brand-new signup should land in `member`
-   * automatically, since `public.roles.is_default` exists and is surfaced
-   * in the Roles UI ("Default" badge, the "Default role" switch in
-   * `role-form-dialog.tsx`). It does not: the only trigger that fires on
-   * `auth.users` insert is `kit.new_user_created_setup()`
-   * (`20241219010757_schema.sql`), and it only creates the `public.accounts`
-   * row -- it never touches `public.user_roles`. Confirmed by reading every
-   * migration in `apps/web/supabase/migrations` and everywhere
-   * `is_default` is referenced in `packages/features/rbac/src` -- nothing
-   * consumes the flag to assign a role on signup. So a fresh signup has
-   * *no* row in `user_roles` at all, and `loadPermissionsForUser`
-   * (`packages/features/rbac/src/server/permissions.service.ts`) resolves
-   * that to `{}` -- zero permissions, not the member defaults.
+   * A fresh signup is *not* roleless, though: `kit.new_user_created_setup()`
+   * (`20241219010757_schema.sql`, extended by
+   * `20260922055727_default_role_on_signup.sql`) creates the
+   * `public.accounts` row and then assigns whichever role has
+   * `public.roles.is_default` set -- `member`, per the seed data in
+   * `20260922033217_rbac.sql`. So this call is a promotion/overwrite, not a
+   * first assignment: the upsert's `on conflict (user_id) do
+   * merge-duplicates` replaces that just-assigned `member` row with
+   * `administrator` (the column is `user_roles.user_id primary key`, one
+   * role per user, so there is nothing to reconcile beyond swapping
+   * `role_id`).
    *
    * This has not been run against a live database. It is based on reading
    * the migrations and the permission-loading code, not on observing the
-   * actual failure/success of a plain sign-up in this scenario.
+   * actual behaviour of a plain sign-up in this scenario.
    *
    * The upsert below looks up the just-signed-up user's id from
    * `public.accounts` (populated by that same signup trigger, keyed by the

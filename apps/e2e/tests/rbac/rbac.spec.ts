@@ -145,5 +145,15 @@ test.describe('RBAC permission enforcement', () => {
     await memberPage.goto('/home');
 
     await member.expectSidebarToHide(['Payments']);
+
+    // The sidebar link disappearing is cosmetic only -- it does not by
+    // itself prove enforcement. Confirm the page guard
+    // (`requirePermission('payments', 'view')` in
+    // `apps/web/app/home/payments/page.tsx`) also redirects direct
+    // navigation, the same way scenario 4 confirms it for /settings/roles.
+    await memberPage.goto('/home/payments');
+
+    await memberPage.waitForURL('**/home');
+    expect(memberPage.url()).not.toContain('/payments');
   });
 });

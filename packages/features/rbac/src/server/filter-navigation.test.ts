@@ -58,4 +58,44 @@ describe('filterRoutesByPermission', () => {
 
     expect(result[0]).toEqual({ divider: true });
   });
+
+  it('filters gated sub-children nested under a route child', () => {
+    const routesWithSubChildren = [
+      {
+        label: 'Application',
+        children: [
+          {
+            label: 'Payments',
+            path: '/home/payments',
+            section: 'payments',
+            verb: 'view' as const,
+            children: [
+              {
+                label: 'History',
+                path: '/home/payments/history',
+                section: 'payments',
+                verb: 'view' as const,
+              },
+              {
+                label: 'All Members',
+                path: '/home/payments/all',
+                section: 'payments',
+                verb: 'manage' as const,
+              },
+              { label: 'Export', path: '/home/payments/export' },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const perms = { payments: { canView: true, canManage: false } };
+    const result = filterRoutesByPermission(routesWithSubChildren, perms);
+
+    const payments = result[0]?.children.find((c) => c.label === 'Payments');
+
+    expect(
+      (payments?.children as Array<{ label: string }>).map((c) => c.label),
+    ).toEqual(['History', 'Export']);
+  });
 });

@@ -41,7 +41,8 @@ export const SECTIONS = [
   {
     key: 'roles',
     label: 'Roles',
-    description: 'View: see roles. Manage: create, edit, delete roles',
+    description:
+      'View: see roles. Manage is equivalent to full administrator access: a holder can edit any role (including their own) and grant any permission, on any role, to anyone — including themselves.',
     verbs: ['view', 'manage'],
   },
 ] as const satisfies readonly SectionDef[];

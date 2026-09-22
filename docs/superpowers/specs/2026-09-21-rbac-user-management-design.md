@@ -11,6 +11,34 @@ configurable from the UI, and each role toggles site sections on or off.
 This replaces the flat `admin_users` table and `kit.is_admin()` helper built
 for the payments feature.
 
+## Prerequisites
+
+A fresh database has zero administrators. The rbac migration's backfill only
+promotes rows already present in the now-dropped `admin_users` table (empty
+on a fresh database), and self-signup only assigns the role marked
+`is_default` (`member`), never `administrator`. With no administrator,
+`kit.count_active_user_admins()` returns 0, which makes the
+deactivate/ban trigger refuse *any* deactivation with a misleading "no
+active administrator" error.
+
+After the first account signs up through the app, promote it manually by
+running the commented block in `apps/web/supabase/seed.sql` (edit the email,
+then run it against the database -- e.g. via the Supabase SQL editor or
+`psql`):
+
+```sql
+insert into public.user_roles (user_id, role_id)
+select u.id, r.id
+from auth.users u
+cross join public.roles r
+where u.email = '<first-admin@example.org>'
+  and r.slug = 'administrator'
+on conflict (user_id) do update set role_id = excluded.role_id;
+```
+
+This has to run *after* signup, not as part of the seed itself, because it
+references an `auth.users` row that does not exist until someone signs up.
+
 ## Decisions
 
 | Decision | Choice | Rationale |

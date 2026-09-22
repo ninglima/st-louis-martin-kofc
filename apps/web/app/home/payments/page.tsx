@@ -11,7 +11,10 @@ import { PaymentHistoryTable } from '@kit/payments/components/payment-history-ta
 import { PaymentService } from '@kit/payments/server/payment.service';
 import { hasPermission } from '@kit/rbac/types';
 import { Delayed } from '~/components/skeletons/page-skeletons';
-import { getCurrentPermissions } from '~/lib/server/require-permission';
+import {
+  getCurrentPermissions,
+  requirePermission,
+} from '~/lib/server/require-permission';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 export const generateMetadata = async () => {
@@ -35,6 +38,8 @@ function PaymentsPage() {
 }
 
 async function PaymentsContent() {
+  await requirePermission('payments', 'view');
+
   const user = await requireUserInServerComponent();
   const adminClient = getSupabaseServerAdminClient();
 

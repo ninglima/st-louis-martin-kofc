@@ -1,4 +1,12 @@
-import { CreditCard, Home, Settings, Shield, User, Users } from 'lucide-react';
+import {
+  CreditCard,
+  Home,
+  Settings,
+  Shield,
+  User,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { z } from 'zod';
 
 import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
@@ -25,6 +33,13 @@ const routes = [
         path: pathsConfig.app.payments,
         Icon: <CreditCard className={iconClasses} />,
         section: 'payments',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.checkout',
+        path: pathsConfig.app.checkout,
+        Icon: <Wallet className={iconClasses} />,
+        section: 'checkout',
         verb: 'view' as const,
       },
     ],

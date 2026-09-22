@@ -9,7 +9,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 
 import { CheckoutForm } from '@kit/payments/components/checkout-form';
 import { Delayed } from '~/components/skeletons/page-skeletons';
-import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
+import { requirePermission } from '~/lib/server/require-permission';
 
 import type { PublicPaymentConfig } from '@kit/payments/types';
 
@@ -34,7 +34,7 @@ function CheckoutPage() {
 }
 
 async function CheckoutContent() {
-  await requireUserInServerComponent();
+  await requirePermission('checkout', 'view');
   const adminClient = getSupabaseServerAdminClient();
 
   const { data: configData } = await adminClient
