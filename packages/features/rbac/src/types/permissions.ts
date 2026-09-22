@@ -13,7 +13,8 @@ export function emptyPermissions(): PermissionMap {
 
 /**
  * `manage` implies `view`. Encoded here only, so the two can never disagree.
- * Mirrors the CASE expression in kit.has_permission().
+ * Mirrors the CASE expression in kit.has_permission(), including its
+ * `else false` branch for any verb that is neither `manage` nor `view`.
  */
 export function hasPermission(
   perms: PermissionMap,
@@ -26,5 +27,13 @@ export function hasPermission(
     return false;
   }
 
-  return verb === 'manage' ? grant.canManage : grant.canView || grant.canManage;
+  if (verb === 'manage') {
+    return grant.canManage;
+  }
+
+  if (verb === 'view') {
+    return grant.canView || grant.canManage;
+  }
+
+  return false;
 }
