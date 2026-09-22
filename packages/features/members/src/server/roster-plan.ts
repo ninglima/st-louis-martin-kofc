@@ -44,6 +44,15 @@ export interface PlanConflict {
 export interface PlanRow {
   membershipNumber: string;
   displayName: string;
+  /**
+   * The row number the officer sees in Excel, so a reported row can actually
+   * be found in a 372-row spreadsheet. Carried on every row and especially on
+   * skips, which are the rows somebody has to go and look at: "two rows in
+   * the file share this email" is unactionable without it.
+   *
+   * Optional because a `PlanRow` need not have a source file behind it.
+   */
+  sourceRow?: number;
   action: PlanAction;
   reason?: string;
   conflicts: PlanConflict[];
@@ -175,7 +184,14 @@ export function buildPlan(
 
   for (const record of records) {
     const displayName = `${record.firstName} ${record.lastName}`.trim();
-    const base = { membershipNumber: record.membershipNumber, displayName };
+    // Taken from the record under examination, not from the row being built,
+    // so a skip points at the offending row rather than the one that kept the
+    // membership number.
+    const base = {
+      membershipNumber: record.membershipNumber,
+      displayName,
+      sourceRow: record.sourceRow,
+    };
     const incomingEmail = emailKey(record.primaryEmail);
 
     // A skipped row deliberately carries no `record`: nothing downstream can

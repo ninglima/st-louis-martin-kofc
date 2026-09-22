@@ -748,6 +748,108 @@ describe('buildPlan', () => {
     expect(buildPlan(records, stored).counts).toEqual(plan.counts);
   });
 
+  // --- Every row says where in the file it came from ---
+
+  it('carries the source row of the record behind a create, update and nochange', () => {
+    const plan = buildPlan(
+      [
+        record({ membershipNumber: '1000001', sourceRow: 12 }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'two@example.com',
+          sourceRow: 34,
+        }),
+        record({
+          membershipNumber: '1000003',
+          primaryEmail: 'three@example.com',
+          sourceRow: 56,
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '1000002',
+          primaryEmail: 'two@example.com',
+          filledFields: ['city'],
+        }),
+        existing({
+          membershipNumber: '1000003',
+          primaryEmail: 'three@example.com',
+          filledFields: ALL_FILLED,
+        }),
+      ],
+    );
+
+    expect(plan.rows.map((r) => [r.action, r.sourceRow])).toEqual([
+      ['create', 12],
+      ['update', 34],
+      ['nochange', 56],
+    ]);
+  });
+
+  it('points a duplicate-number skip at the duplicate row, not the first occurrence', () => {
+    // The officer has to delete the offending row. Sending them to the row
+    // that was kept would have them remove the member's good data.
+    const plan = buildPlan(
+      [record({ sourceRow: 4 }), record({ sourceRow: 19 })],
+      [],
+    );
+
+    expect(plan.rows[0]?.sourceRow).toBe(4);
+    expect(plan.rows[1]?.action).toBe('skip');
+    expect(plan.rows[1]?.sourceRow).toBe(19);
+  });
+
+  it('gives both contested-email skips their own row number', () => {
+    // Neither row is adjudicable, so the officer must look at both -- and
+    // cannot, if they share one row number or carry none.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '9999999',
+          primaryEmail: 'peter@example.com',
+          sourceRow: 7,
+        }),
+        record({
+          membershipNumber: '1000004',
+          primaryEmail: 'peter@example.com',
+          sourceRow: 250,
+        }),
+      ],
+      [],
+    );
+
+    expect(plan.rows.every((r) => r.action === 'skip')).toBe(true);
+    expect(plan.rows.map((r) => r.sourceRow)).toEqual([7, 250]);
+  });
+
+  it('pins the fixture rows to the row numbers Excel actually shows', async () => {
+    // A sourceRow that is present but wrong is worse than one that is absent:
+    // it sends the officer to an innocent member's row. Pinned to literal
+    // numbers against the real fixture rather than asserted to be defined.
+    const records = await fixtureRecords();
+    const plan = buildPlan(records, []);
+    const at = (n: string) =>
+      plan.rows.filter((r) => r.membershipNumber === n).map((r) => r.sourceRow);
+
+    // Header is row 1, so the first data row is 2. Peter Nolan is the 4th
+    // data row and the row repeating his email is the 8th; the row repeating
+    // membership number 1000001 is the 7th.
+    expect(at('1000004')).toEqual([5]);
+    expect(at('1000007')).toEqual([9]);
+    expect(at('1000001')).toEqual([2, 8]);
+
+    const duplicateNumber = plan.rows.find(
+      (r) => r.displayName === 'Duplicate Number',
+    );
+
+    expect(duplicateNumber?.reason).toBe('Duplicate row in file');
+    expect(duplicateNumber?.sourceRow).toBe(8);
+    // And it agrees with what the parser recorded, so the two cannot drift.
+    expect(
+      records.filter((r) => r.membershipNumber === '1000001')[1]?.sourceRow,
+    ).toBe(8);
+  });
+
   // --- A blank stored email is a fill, not a silent no-change ---
 
   it('plans a blank stored email with an incoming one as an update', () => {
