@@ -163,7 +163,118 @@ describe('buildPlan', () => {
     );
 
     expect(plan.rows[1]?.action).toBe('skip');
-    expect(plan.rows[1]?.reason).toBe('Duplicate email in file');
+    // The council knows neither number, so there is no basis on which to
+    // prefer one row over the other and BOTH are skipped -- see the
+    // order-independence test below for why picking the first is not safe.
+    expect(plan.rows[1]?.reason).toBe('Two rows in the file share this email');
+    expect(plan.rows[0]?.action).toBe('skip');
+  });
+
+  it('prefers the membership number the council already knows when two rows share an email', () => {
+    const stored = [
+      existing({
+        membershipNumber: '1000004',
+        primaryEmail: 'peter@example.com',
+      }),
+    ];
+    const bogus = record({
+      membershipNumber: '9999999',
+      primaryEmail: 'peter@example.com',
+      lastName: 'Bogus',
+    });
+    const real = record({
+      membershipNumber: '1000004',
+      primaryEmail: 'peter@example.com',
+      lastName: 'Nolan',
+      sourceRow: 3,
+    });
+
+    for (const rows of [
+      [bogus, real],
+      [real, bogus],
+    ]) {
+      const plan = buildPlan(rows, stored);
+      const realRow = plan.rows.find((r) => r.membershipNumber === '1000004');
+      const bogusRow = plan.rows.find((r) => r.membershipNumber === '9999999');
+
+      expect(realRow?.action).not.toBe('skip');
+      expect(bogusRow?.action).toBe('skip');
+      expect(bogusRow?.reason).toBe('Duplicate email in file');
+    }
+  });
+
+  it('skips both rows, in either order, when the council knows neither number', () => {
+    // The go-live import runs against an EMPTY council, so the stored-owner
+    // check has nothing to consult and pure spreadsheet order would otherwise
+    // decide which member is real. A stale row for a transferred-out member
+    // sorting above the current member's row would drop the current member
+    // and create the impostor.
+    const bogus = record({
+      membershipNumber: '9999999',
+      primaryEmail: 'peter@example.com',
+      lastName: 'Bogus',
+    });
+    const real = record({
+      membershipNumber: '1000004',
+      primaryEmail: 'peter@example.com',
+      lastName: 'Nolan',
+      sourceRow: 3,
+    });
+
+    for (const rows of [
+      [bogus, real],
+      [real, bogus],
+    ]) {
+      const plan = buildPlan(rows, []);
+
+      expect(plan.counts).toEqual({
+        create: 0,
+        update: 0,
+        nochange: 0,
+        skip: 2,
+      });
+      for (const row of plan.rows) {
+        expect(row.reason).toBe('Two rows in the file share this email');
+      }
+    }
+  });
+
+  it('lets a member keep their own good row after an earlier row is skipped for its email', () => {
+    // The earlier row was never planned, so it must not consume the
+    // membership number. Reported as a duplicate of a row that does not exist,
+    // the member vanishes AND the stated reason is false.
+    const plan = buildPlan(
+      [
+        record({ membershipNumber: '1000001', primaryEmail: 'a@example.com' }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'a@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'b@example.com',
+          city: 'Sterling',
+          sourceRow: 4,
+        }),
+      ],
+      [],
+    );
+
+    const good = plan.rows[2]!;
+
+    expect(good.action).toBe('create');
+    expect(good.reason).toBeUndefined();
+    expect(plan.rows.filter((r) => r.action === 'skip')).toHaveLength(2);
+  });
+
+  it('still calls a repeated membership number a duplicate row, not a shared email', () => {
+    // Same number AND same email is one member listed twice, which the
+    // membership-number check owns. Only DIFFERENT numbers contest an email.
+    const plan = buildPlan([record(), record({ sourceRow: 3 })], []);
+
+    expect(plan.rows[0]?.action).toBe('create');
+    expect(plan.rows[1]?.reason).toBe('Duplicate row in file');
   });
 
   it('skips an email that belongs to a different member number', () => {
@@ -201,6 +312,7 @@ describe('buildPlan', () => {
     expect(row.action).not.toBe('skip');
     expect(row.conflicts).toContainEqual({
       field: 'primaryEmail',
+      kind: 'value-differs',
       incoming: 'new.address@example.com',
       stored: 'old.address@example.com',
     });
@@ -344,11 +456,22 @@ describe('buildPlan', () => {
   it('carries no record on a skipped row, so a skip cannot be applied', () => {
     // An apply loop reads `row.record`. A skip that still carried one would
     // be written by any caller filtering on anything other than the action.
+    // One skip of each reason: a repeated membership number, and two rows
+    // contesting an email that the council cannot adjudicate.
     const plan = buildPlan(
       [
         record(),
         record({ sourceRow: 3 }),
-        record({ membershipNumber: '1000002', sourceRow: 4 }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'shared@example.com',
+          sourceRow: 4,
+        }),
+        record({
+          membershipNumber: '1000003',
+          primaryEmail: 'shared@example.com',
+          sourceRow: 5,
+        }),
       ],
       [],
     );
@@ -357,7 +480,14 @@ describe('buildPlan', () => {
       if (row.action === 'skip') expect(row.record).toBeUndefined();
     }
 
-    expect(plan.counts.skip).toBe(2);
+    expect(plan.counts.skip).toBe(3);
+    expect(new Set(plan.rows.map((r) => r.reason))).toEqual(
+      new Set([
+        undefined,
+        'Duplicate row in file',
+        'Two rows in the file share this email',
+      ]),
+    );
   });
 
   it('counts every row exactly once', () => {
@@ -376,8 +506,13 @@ describe('buildPlan', () => {
         }),
         record({
           membershipNumber: '1000005',
-          primaryEmail: 'a@example.com',
+          primaryEmail: 'e@example.com',
           sourceRow: 5,
+        }),
+        record({
+          membershipNumber: '1000006',
+          primaryEmail: 'e@example.com',
+          sourceRow: 6,
         }),
       ],
       [
@@ -404,7 +539,7 @@ describe('buildPlan', () => {
       create: 1,
       update: 1,
       nochange: 0,
-      skip: 2,
+      skip: 3,
     });
     expect(plan.absentFromFile).toEqual(['9999999']);
   });
@@ -493,6 +628,7 @@ describe('buildPlan', () => {
     expect(row.action).not.toBe('create');
     expect(row.conflicts).toContainEqual({
       field: 'primaryEmail',
+      kind: 'owned-by-another-member',
       incoming: 'taken@example.com',
       stored: '(already belongs to member 1000001)',
     });
@@ -527,24 +663,50 @@ describe('buildPlan', () => {
       records.find((r) => r.membershipNumber === '1000004')?.primaryEmail,
     ).toBe('peter@example.com');
 
-    const plan = buildPlan(records, []);
-    const row = plan.rows.find((r) => r.membershipNumber === '1000007');
+    // Against a council that already knows the real member, the impostor row
+    // is the one skipped and the real one survives.
+    const known = buildPlan(records, [
+      existing({
+        membershipNumber: '1000004',
+        primaryEmail: 'peter@example.com',
+      }),
+    ]);
 
-    expect(row?.action).toBe('skip');
-    expect(row?.reason).toBe('Duplicate email in file');
+    expect(
+      known.rows.find((r) => r.membershipNumber === '1000007')?.action,
+    ).toBe('skip');
+    expect(
+      known.rows.find((r) => r.membershipNumber === '1000007')?.reason,
+    ).toBe('Duplicate email in file');
+    expect(
+      known.rows.find((r) => r.membershipNumber === '1000004')?.action,
+    ).not.toBe('skip');
+
+    // Against an empty council there is no basis to prefer either, so both go.
+    const blind = buildPlan(records, []);
+
+    for (const number of ['1000004', '1000007']) {
+      const row = blind.rows.find((r) => r.membershipNumber === number);
+
+      expect(row?.action).toBe('skip');
+      expect(row?.reason).toBe('Two rows in the file share this email');
+    }
   });
 
   it('plans the whole fixture against an empty council', async () => {
     const plan = buildPlan(await fixtureRecords(), []);
 
     // 11 fixture rows; the parser drops 3 (no email, blank number, malformed
-    // email), leaving 8 planned: 6 creates and the 2 duplicates.
+    // email), leaving 8 planned. 5 creates and 3 skips: the repeated
+    // membership number, plus BOTH rows sharing peter@example.com -- on an
+    // empty council nothing distinguishes the real member from the impostor,
+    // and creating the wrong one is worse than creating neither.
     expect(plan.rows).toHaveLength(8);
     expect(plan.counts).toEqual({
-      create: 6,
+      create: 5,
       update: 0,
       nochange: 0,
-      skip: 2,
+      skip: 3,
     });
     expect(plan.absentFromFile).toEqual([]);
   });
@@ -577,6 +739,142 @@ describe('buildPlan', () => {
     expect(plan.counts.create).toBe(0);
     expect(plan.counts.update).toBe(0);
     expect(plan.counts.nochange).toBe(6);
+    expect(plan.counts.skip).toBe(2);
     expect(plan.absentFromFile).toEqual([]);
+
+    // A third pass over the same inputs must be identical, not merely small:
+    // a planner that converged on the second run and drifted on the third
+    // would still pass the assertion above.
+    expect(buildPlan(records, stored).counts).toEqual(plan.counts);
+  });
+
+  // --- A blank stored email is a fill, not a silent no-change ---
+
+  it('plans a blank stored email with an incoming one as an update', () => {
+    // Rule 3 governs a CHANGED email. Nothing has changed here -- there is
+    // simply nothing on file -- so rule 1 owns it. Left out of the decision
+    // the row lands in `nochange`, which the apply step skips, so the member
+    // could never acquire an address and nothing anywhere would say so.
+    const plan = buildPlan(
+      [record({ primaryEmail: 'john@example.com' })],
+      [existing({ primaryEmail: null, filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.action).toBe('update');
+  });
+
+  it('does not fill a blank stored email with an address another member holds', () => {
+    // Filling a blank with somebody else's address is exactly the merge the
+    // collision check exists to prevent, so this must stay out of the write
+    // decision -- but be reported, not silent.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '1000002',
+          primaryEmail: null,
+          filledFields: ALL_FILLED,
+        }),
+        existing({
+          membershipNumber: '1000001',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
+    );
+
+    expect(plan.rows[0]?.action).toBe('nochange');
+    expect(
+      plan.rows[0]?.conflicts.some((c) => c.kind === 'owned-by-another-member'),
+    ).toBe(true);
+  });
+
+  // --- Conflicts carry a machine-readable kind ---
+
+  it('labels an already-populated field differently from a real disagreement', () => {
+    // A zero-write re-import of the real roster emits thousands of
+    // `already-set` entries. If the preview cannot separate them from the
+    // handful of genuine disagreements by anything but string-matching a
+    // sentence in this file, the genuine ones get scrolled past.
+    const plan = buildPlan(
+      [record({ lastName: 'Smythe' })],
+      [existing({ lastName: 'Smith', filledFields: ALL_FILLED })],
+    );
+
+    const conflicts = plan.rows[0]!.conflicts;
+    const byKind = (kind: string) => conflicts.filter((c) => c.kind === kind);
+
+    expect(byKind('value-differs')).toEqual([
+      {
+        field: 'lastName',
+        kind: 'value-differs',
+        incoming: 'Smythe',
+        stored: 'Smith',
+      },
+    ]);
+    expect(byKind('already-set')).toHaveLength(ALL_FILLED.length);
+    expect(
+      byKind('already-set').every((c) => c.stored === '(already set)'),
+    ).toBe(true);
+  });
+
+  it('keeps both primaryEmail conflicts distinguishable when a row has each kind', () => {
+    // One row can legitimately carry two conflicts on the same field with
+    // different meanings: the stored value differs, AND the incoming address
+    // is somebody else's. Keyed by field name alone they collapse.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '1000002',
+          primaryEmail: 'old@example.com',
+        }),
+        existing({
+          membershipNumber: '1000001',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
+    );
+
+    const emailConflicts = plan.rows[0]!.conflicts.filter(
+      (c) => c.field === 'primaryEmail',
+    );
+
+    expect(emailConflicts).toHaveLength(2);
+    expect(emailConflicts.map((c) => c.kind).sort()).toEqual([
+      'owned-by-another-member',
+      'value-differs',
+    ]);
+    // Same field, same incoming value, different `stored` semantics -- which
+    // is precisely why the kind has to carry the distinction.
+    expect(new Set(emailConflicts.map((c) => c.stored)).size).toBe(2);
+  });
+
+  it('gives every conflict a kind', () => {
+    const plan = buildPlan(
+      [record({ lastName: 'Smythe' })],
+      [existing({ lastName: 'Smith', filledFields: ALL_FILLED })],
+    );
+    const kinds = new Set(
+      plan.rows.flatMap((r) => r.conflicts.map((c) => c.kind)),
+    );
+
+    expect(kinds.size).toBeGreaterThan(0);
+    for (const kind of kinds) {
+      expect([
+        'already-set',
+        'value-differs',
+        'owned-by-another-member',
+      ]).toContain(kind);
+    }
   });
 });
