@@ -79,6 +79,11 @@ export class AuthPageObject {
     });
 
     await this.visitConfirmEmailLink(email);
+
+    // Returned so callers that need to act on this specific user afterwards
+    // (e.g. promoting them to administrator by a direct DB write) don't have
+    // to re-derive or duplicate the random email generation themselves.
+    return email;
   }
 
   async updatePassword(password: string) {
