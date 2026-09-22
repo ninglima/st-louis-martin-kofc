@@ -91,3 +91,8 @@ Temporary Items
 
 # prds
 .prds/
+
+# playwright / browser-automation artifacts
+.playwright-mcp/
+test-results/
+playwright-report/
