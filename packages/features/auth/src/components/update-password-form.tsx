@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 
-import Link from 'next/link';
-
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRightIcon, Check, TriangleAlert } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -184,7 +182,24 @@ function SuccessState(props: { redirectTo: string }) {
         </AlertDescription>
       </Alert>
 
-      <Link href={props.redirectTo}>
+      {/*
+        A plain <a> rather than next/link's <Link>, deliberately. `<Link>`
+        prefetches the target RSC payload on render/hover and serves it from
+        the client Router Cache on click -- a SOFT navigation. Immediately
+        after this component mounts, the browser can still be holding the
+        *old* session cookie (the new one lands via `refreshSession()`'s
+        `Set-Cookie`, which is a side effect, not something React waits on
+        before painting), so that prefetch races the cookie swap. When the
+        prefetch wins, `<Link>`'s soft nav replays a cached `/home` RSC
+        response that was fetched under the stale cookie -- `HomeLayout`
+        still sees `must_change_password: true` in that payload and redirects
+        straight back to `/update-password`, bouncing the user in a loop.
+        A full document load re-sends the (by-then-current) cookie on a
+        fresh request and can't be served from that cache, so it always sees
+        the post-refresh claims. This runs once, right after a forced or
+        voluntary password change, so the extra page load is a non-issue.
+      */}
+      <a href={props.redirectTo}>
         <Button variant={'outline'} className={'w-full'}>
           <span>
             <Trans i18nKey={'common.backToHomePage'} />
@@ -192,7 +207,7 @@ function SuccessState(props: { redirectTo: string }) {
 
           <ArrowRightIcon className={'ml-2 h-4'} />
         </Button>
-      </Link>
+      </a>
     </div>
   );
 }
