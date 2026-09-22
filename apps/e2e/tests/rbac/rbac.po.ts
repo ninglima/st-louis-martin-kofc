@@ -139,17 +139,47 @@ export class RbacPageObject {
    * forced rotation so the caller always ends up on `/home`.
    *
    * The "fill password fields, submit, click the Back to Home Page link"
-   * sequence below mirrors `password-reset.spec.ts`'s already-working
-   * flow through the same `UpdatePasswordForm` component (same locator for
-   * the link: `page.locator('a', { hasText: 'Back to Home Page' })`), so
-   * that part is on solid footing. What is NOT verified is the premise
-   * that gets a member here at all: that `apps/web/app/home/layout.tsx`
-   * redirects an admin-created password-mode user to `/update-password`
-   * on their very first sign-in, before `/home` (and the sidebar scenario
-   * 3 needs) ever renders. That is read from the `must_change_password`
-   * check in that layout, not observed. If this flakes, the URL race
-   * between `/home` and `/update-password` right after sign-in is the
-   * first place to look.
+   * sequence below goes through the same `UpdatePasswordForm` component as
+   * `password-reset.spec.ts` (same locator for the link:
+   * `page.locator('a', { hasText: 'Back to Home Page' })`), but fills the
+   * password fields itself rather than delegating to the shared
+   * `AuthPageObject.updatePassword`: that helper's selectors
+   * (`[name="password"]`, `[name="repeatPassword"]`) are unscoped, and here
+   * -- unlike in the password-reset flow -- the sign-in form can still be
+   * mounted (mid soft-navigation to `/update-password`) with a `password`
+   * field of its own, so an unscoped fill can hit the wrong form. Only the
+   * update-password form has a `repeatPassword` field, so scope to the
+   * `<form>` that contains one.
+   *
+   * CONFIRMED (not just suspected -- reproduced via trace.zip inspection of
+   * an actual failing run, `apps/e2e/test-results/.../trace.zip`'s
+   * `test.trace` action log): this used to decide whether a rotation was
+   * needed with
+   *
+   *   await this.page.waitForURL(/\/(home|update-password)/);
+   *   if (this.page.url().includes('/update-password')) { ... }
+   *
+   * which races Next.js's client router. After sign-in, `PasswordSignInForm`
+   * soft-navigates to `/home`; the router updates the *address bar*
+   * optimistically to `/home` before the RSC response (which is actually a
+   * server-side `redirect()` to `/update-password`, because
+   * `must_change_password` is still true) has been applied. The regex
+   * above matches that transient `/home` URL and resolves immediately, so
+   * the very next line -- `this.page.url().includes('/update-password')`
+   * -- can read the stale, pre-correction URL and evaluate to `false`,
+   * skipping the entire rotation block. Confirmed by the trace: the action
+   * log shows `input[name="email"]` fill, `input[name="password"]` fill,
+   * `button[type="submit"]` click, and then -- nothing else -- straight
+   * into the failing `expectSidebarToShow` assertion. No
+   * `repeatPassword` fill, no second submit, no "Back to Home Page" click
+   * ever ran, and the final screenshot showed a pristine, empty
+   * `/update-password` form (the real redirect, landed on *after* the
+   * skipped block, once the router finished correcting the URL).
+   *
+   * Fixed by racing on rendered DOM content instead of the URL string: the
+   * router only ever paints one of "update-password form" or "home
+   * sidebar", never both, so waiting for whichever appears first is immune
+   * to the address bar's optimistic intermediate state.
    */
   async signInHandlingForcedPasswordChange(params: {
     email: string;
@@ -162,11 +192,35 @@ export class RbacPageObject {
       password: params.password,
     });
 
-    await this.page.waitForURL(/\/(home|update-password)/);
+    // Only the update-password form has a `repeatPassword` field, so scope
+    // to the `<form>` that contains one -- see the doc comment above for
+    // why this also protects against the still-mounted sign-in form.
+    const updatePasswordForm = this.page.locator('form').filter({
+      has: this.page.locator('[name="repeatPassword"]'),
+    });
 
-    if (this.page.url().includes('/update-password')) {
-      await this.auth.updatePassword(params.newPassword);
+    const homeSidebarLink = this.sidebarContent().getByRole('link', {
+      name: 'Home',
+    });
 
+    await Promise.race([
+      updatePasswordForm.waitFor({ state: 'visible' }),
+      homeSidebarLink.waitFor({ state: 'visible' }),
+    ]);
+
+    if (await updatePasswordForm.isVisible()) {
+      await updatePasswordForm
+        .locator('[name="password"]')
+        .fill(params.newPassword);
+      await updatePasswordForm
+        .locator('[name="repeatPassword"]')
+        .fill(params.newPassword);
+      await updatePasswordForm.locator('[type="submit"]').click();
+
+      // The "Back to Home Page" link only renders once the post-update
+      // `refreshSession()` resolves (see `UpdatePasswordForm`'s
+      // `sessionRefreshed` state) -- `.click()`'s default actionability
+      // wait is what actually waits out that async gap.
       await this.page
         .locator('a', { hasText: 'Back to Home Page' })
         .click();
