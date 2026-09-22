@@ -1,0 +1,41 @@
+{
+  "name": "@kit/members",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./types": "./src/types/roster.ts",
+    "./server/*": "./src/server/*.ts",
+    "./components/*": "./src/components/*.tsx"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@kit/i18n": "workspace:*",
+    "exceljs": "^4.4.0",
+    "next-intl": "catalog:"
+  },
+  "devDependencies": {
+    "@kit/next": "workspace:*",
+    "@kit/rbac": "workspace:*",
+    "@kit/supabase": "workspace:*",
+    "@kit/tsconfig": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}
