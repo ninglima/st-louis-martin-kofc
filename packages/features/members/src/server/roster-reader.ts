@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+
 import ExcelJS from 'exceljs';
 
 export class RosterReadError extends Error {
@@ -29,6 +31,54 @@ function padRow(row: string[]): string[] {
 }
 
 /**
+ * Reads every row of a worksheet's used range as string arrays, padded to
+ * MIN_COLUMNS. The loop only walks the sheet's own column count — padRow is
+ * what actually guarantees the floor, so a sheet narrower than MIN_COLUMNS
+ * (a short CSV with a short header, for instance) still comes back aligned.
+ */
+function readSheetRows(sheet: ExcelJS.Worksheet): string[][] {
+  const rows: string[][] = [];
+
+  sheet.eachRow({ includeEmpty: false }, (row) => {
+    const values: string[] = [];
+    // ExcelJS row values are 1-based with a leading hole at index 0.
+    for (let column = 1; column <= sheet.columnCount; column++) {
+      values.push(cellToString(row.getCell(column).value));
+    }
+    rows.push(padRow(values));
+  });
+
+  return rows;
+}
+
+/**
+ * Reads a CSV buffer through ExcelJS's own CSV reader (fast-csv underneath)
+ * rather than a hand-rolled `split(',')`, so quoted commas, escaped quotes,
+ * and quoted empty fields are handled by a solved parser instead of silently
+ * shifting every subsequent column.
+ */
+async function readCsv(buffer: Buffer): Promise<string[][]> {
+  const workbook = new ExcelJS.Workbook();
+
+  let sheet: ExcelJS.Worksheet;
+
+  try {
+    sheet = await workbook.csv.read(Readable.from(buffer), {
+      // Identity map: skip fast-csv's default number/date coercion so every
+      // cell stays a string, matching the .xlsx path's contract.
+      map: (value: string) => value,
+      parserOptions: { trim: true },
+    });
+  } catch {
+    throw new RosterReadError(
+      'That file could not be read as CSV. Re-export it from Officers Online and try again.',
+    );
+  }
+
+  return readSheetRows(sheet);
+}
+
+/**
  * First sheet only, header row included. Every cell is returned as a string:
  * a membership number is an identifier, not a quantity, and letting Excel
  * hand back `1000001` as a number invites precision and formatting surprises.
@@ -40,11 +90,7 @@ export async function readRoster(
   const lower = filename.toLowerCase();
 
   if (lower.endsWith('.csv')) {
-    return buffer
-      .toString('utf8')
-      .split(/\r?\n/)
-      .filter((line) => line.trim() !== '')
-      .map((line) => padRow(line.split(',').map((cell) => cell.trim())));
+    return readCsv(buffer);
   }
 
   if (!lower.endsWith('.xlsx')) {
@@ -69,20 +115,5 @@ export async function readRoster(
     throw new RosterReadError('That spreadsheet has no sheets.');
   }
 
-  const rows: string[][] = [];
-
-  sheet.eachRow({ includeEmpty: false }, (row) => {
-    const values: string[] = [];
-    // ExcelJS row values are 1-based with a leading hole at index 0.
-    for (
-      let column = 1;
-      column <= Math.max(sheet.columnCount, MIN_COLUMNS);
-      column++
-    ) {
-      values.push(cellToString(row.getCell(column).value));
-    }
-    rows.push(padRow(values));
-  });
-
-  return rows;
+  return readSheetRows(sheet);
 }
