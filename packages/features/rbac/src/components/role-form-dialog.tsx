@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 
@@ -69,6 +70,7 @@ export function RoleFormDialog({
   role?: RoleWithPermissions;
   trigger: React.ReactElement;
 }) {
+  const t = useTranslations('rbac');
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const isSystemRole = Boolean(role?.is_system);
@@ -130,7 +132,9 @@ export function RoleFormDialog({
         className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
       >
         <DialogHeader>
-          <DialogTitle>{role ? `Edit ${role.name}` : 'Create role'}</DialogTitle>
+          <DialogTitle>
+            {role ? t('roles.editRole', { name: role.name }) : t('roles.create')}
+          </DialogTitle>
           <DialogDescription>
             Choose what this role can view and manage across the site.
           </DialogDescription>
@@ -238,7 +242,7 @@ export function RoleFormDialog({
                     >
                       <div className="flex flex-col gap-y-0.5">
                         <span className="text-sm font-medium">
-                          {section.label}
+                          {t(`sections.${section.key}`)}
                         </span>
                         <span className="text-muted-foreground text-xs">
                           {section.description}
@@ -263,7 +267,7 @@ export function RoleFormDialog({
                                   />
                                 </FormControl>
                                 <FormLabel className="text-sm font-normal">
-                                  View
+                                  {t('verbs.view')}
                                 </FormLabel>
                                 <FormMessage />
                               </FormItem>
@@ -296,7 +300,7 @@ export function RoleFormDialog({
                                   />
                                 </FormControl>
                                 <FormLabel className="text-sm font-normal">
-                                  Manage
+                                  {t('verbs.manage')}
                                 </FormLabel>
                                 <FormMessage />
                               </FormItem>
@@ -321,7 +325,7 @@ export function RoleFormDialog({
                 Cancel
               </Button>
               <Button type="submit" data-test="save-role" disabled={isPending}>
-                {role ? 'Save changes' : 'Create role'}
+                {role ? 'Save changes' : t('roles.create')}
               </Button>
             </DialogFooter>
           </form>

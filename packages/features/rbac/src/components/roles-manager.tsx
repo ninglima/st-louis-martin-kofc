@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import {
@@ -58,12 +59,16 @@ export function RolesManager({
   roles: RoleWithPermissions[];
   canManage: boolean;
 }) {
+  const t = useTranslations('rbac');
+
   return (
     <div className="flex flex-col gap-y-4">
       <If condition={canManage}>
         <div className="flex justify-end">
           <RoleFormDialog
-            trigger={<Button data-test="create-role">Create role</Button>}
+            trigger={
+              <Button data-test="create-role">{t('roles.create')}</Button>
+            }
           />
         </div>
       </If>
@@ -84,6 +89,7 @@ function RoleCard({
   role: RoleWithPermissions;
   canManage: boolean;
 }) {
+  const t = useTranslations('rbac');
   const [isPending, startTransition] = useTransition();
 
   const onDelete = () => {
@@ -118,15 +124,17 @@ function RoleCard({
             <CardTitle className="flex flex-wrap items-center gap-x-2">
               {role.name}
               <If condition={role.is_system}>
-                <Badge variant="outline">System</Badge>
+                <Badge variant="outline">{t('roles.systemRoleBadge')}</Badge>
               </If>
               <If condition={role.is_default}>
-                <Badge className={badgeExtras.info}>Default</Badge>
+                <Badge className={badgeExtras.info}>
+                  {t('roles.defaultRoleBadge')}
+                </Badge>
               </If>
             </CardTitle>
             <CardDescription>
-              {role.slug} · {role.user_count}{' '}
-              {role.user_count === 1 ? 'member' : 'members'}
+              {role.slug} ·{' '}
+              {t('roles.userCount', { count: role.user_count })}
             </CardDescription>
           </div>
 
@@ -164,7 +172,9 @@ function RoleCard({
 
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete {role.name}?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {t('roles.deleteConfirm', { name: role.name })}
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
                         This cannot be undone. Members currently assigned this
                         role must be reassigned before it can be deleted.

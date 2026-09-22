@@ -1,0 +1,35 @@
+{
+  "roles": {
+    "title": "Roles",
+    "create": "Create role",
+    "editRole": "Edit {name}",
+    "deleteConfirm": "Delete {name}?",
+    "systemRoleBadge": "System",
+    "defaultRoleBadge": "Default",
+    "userCount": "{count, plural, one {# member} other {# members}}"
+  },
+  "users": {
+    "title": "Users",
+    "createUser": "Create user",
+    "inviteMode": "Invite",
+    "passwordMode": "Set password",
+    "smtpHint": "Invites require SMTP to be configured in Supabase. The built-in sandbox mailer is rate-limited and is not viable in production.",
+    "active": "Active",
+    "inactive": "Inactive",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "cannotEditSelf": "You cannot change your own role or status."
+  },
+  "sections": {
+    "home": "Home",
+    "payments": "Payments",
+    "checkout": "Checkout",
+    "payment_settings": "Payment Settings",
+    "users": "User Management",
+    "roles": "Roles"
+  },
+  "verbs": {
+    "view": "View",
+    "manage": "Manage"
+  }
+}

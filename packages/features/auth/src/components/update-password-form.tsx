@@ -58,6 +58,11 @@ export function UpdatePasswordForm(params: { redirectTo: string }) {
           onSubmit={form.handleSubmit(({ password }) => {
             return updateUser.mutateAsync({
               password,
+              // Clears the forced-rotation flag `UsersService` sets on
+              // admin-created accounts. Without this, `/home/layout.tsx`
+              // would redirect back here forever after the password is
+              // changed.
+              data: { must_change_password: false },
               redirectTo: params.redirectTo,
             });
           })}

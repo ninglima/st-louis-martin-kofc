@@ -1,10 +1,14 @@
+import { redirect } from 'next/navigation';
+
 import { filterRoutesByPermission } from '@kit/rbac/server/filter-navigation';
 import { Page, PageMobileNavigation, PageNavigation } from '@kit/ui/page';
 import { SidebarProvider } from '@kit/ui/sidebar';
 
 import { AppLogo } from '~/components/app-logo';
+import pathsConfig from '~/config/paths.config';
 import { navigationConfig } from '~/config/navigation.config';
 import { getCurrentPermissions } from '~/lib/server/require-permission';
+import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 // home imports
 import { HomeMenuNavigation } from './_components/home-menu-navigation';
@@ -21,6 +25,32 @@ import { HomeSidebar } from './_components/home-sidebar';
  * missing.
  */
 async function HomeLayout({ children }: React.PropsWithChildren) {
+  // requireUserInServerComponent() is React-cache()d and is also called
+  // internally by getCurrentPermissions() below, so reading the user here
+  // as well costs nothing extra.
+  //
+  // `user` is the JWT claims payload (from `supabase.auth.getClaims()`),
+  // which -- per @supabase/auth-js's documented `getClaims()` response
+  // shape and the `JwtPayload` type -- includes `user_metadata` as a claim
+  // by default (no custom access-token hook changes that in this project).
+  // That is what `UsersService.createUserWithPassword` sets
+  // `must_change_password: true` on, so it is safe to read it directly off
+  // the claims rather than making an extra `getUser()` round trip.
+  const user = await requireUserInServerComponent();
+
+  const mustChangePassword = Boolean(
+    (user.user_metadata as { must_change_password?: boolean } | undefined)
+      ?.must_change_password,
+  );
+
+  // /update-password lives outside /home, so this can never loop: once
+  // there, this layout no longer runs. The flag is cleared alongside the
+  // password change in `UpdatePasswordForm` (packages/features/auth), which
+  // is the only way back into /home from here.
+  if (mustChangePassword) {
+    redirect(pathsConfig.auth.passwordUpdate);
+  }
+
   const permissions = await getCurrentPermissions();
 
   const filteredConfig = {
