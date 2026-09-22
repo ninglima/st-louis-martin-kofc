@@ -164,7 +164,12 @@ export function CreateUserDialog({
                   >
                     <FormControl>
                       <SelectTrigger data-test="user-role" className="w-full">
-                        <SelectValue placeholder="Select a role" />
+                        <SelectValue placeholder="Select a role">
+                          {(value: string | null) =>
+                            roles.find((role) => role.id === value)?.name ??
+                            'Select a role'
+                          }
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -192,7 +197,13 @@ export function CreateUserDialog({
                   >
                     <FormControl>
                       <SelectTrigger data-test="user-mode" className="w-full">
-                        <SelectValue />
+                        <SelectValue>
+                          {(value: string | null) =>
+                            value === 'password'
+                              ? t('users.passwordMode')
+                              : t('users.inviteMode')
+                          }
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

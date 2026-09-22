@@ -138,7 +138,19 @@ export function CheckoutForm({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {(value: string | null) => {
+                            switch (value) {
+                              case 'donation':
+                                return t('types.donation');
+                              case 'event_fee':
+                                return t('types.eventFee');
+                              case 'dues':
+                              default:
+                                return t('types.dues');
+                            }
+                          }}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

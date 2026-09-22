@@ -40,6 +40,16 @@ import {
 import { savePaymentConfigAction, testConnectionAction } from '../server/server-actions';
 import type { PaymentConfig } from '../types/payment.types';
 
+const PROVIDER_OPTIONS = [
+  { value: 'square', label: 'Square' },
+  { value: 'stripe', label: 'Stripe' },
+] as const;
+
+const ENVIRONMENT_OPTIONS = [
+  { value: 'sandbox', label: 'Sandbox' },
+  { value: 'production', label: 'Production' },
+] as const;
+
 export function PaymentSettingsForm({
   config,
   webhookBaseUrl,
@@ -133,12 +143,21 @@ export function PaymentSettingsForm({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue>
+                            {(value: string | null) =>
+                              PROVIDER_OPTIONS.find(
+                                (option) => option.value === value,
+                              )?.label ?? value
+                            }
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="square">Square</SelectItem>
-                        <SelectItem value="stripe">Stripe</SelectItem>
+                        {PROVIDER_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -159,12 +178,21 @@ export function PaymentSettingsForm({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue>
+                            {(value: string | null) =>
+                              ENVIRONMENT_OPTIONS.find(
+                                (option) => option.value === value,
+                              )?.label ?? value
+                            }
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="sandbox">Sandbox</SelectItem>
-                        <SelectItem value="production">Production</SelectItem>
+                        {ENVIRONMENT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

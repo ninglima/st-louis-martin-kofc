@@ -166,7 +166,13 @@ function UserRow({
         size="sm"
         className="w-40"
       >
-        <SelectValue placeholder={user.role_name ?? '—'} />
+        <SelectValue placeholder={user.role_name ?? '—'}>
+          {(value: string | null) =>
+            roles.find((role) => role.id === value)?.name ??
+            user.role_name ??
+            '—'
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {roles.map((role) => (
