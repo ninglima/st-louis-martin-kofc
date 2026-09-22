@@ -46,7 +46,19 @@ export function HomeStatsBar() {
                 {stat.value}
               </dd>
 
-              <dd className="text-muted-foreground order-3 max-w-sm text-sm leading-6">
+              {/*
+                `text-foreground/80`, not `text-muted-foreground`. The muted
+                pair is defined against `--background`, and this is the one
+                surface on the public site painted in solid `bg-muted` rather
+                than a `bg-muted/20`-style tint. In dark mode that puts
+                `--muted-foreground` (#8da0c4) on `--muted` (#1a3478) for a
+                4.41:1 ratio -- under the 4.5:1 AA floor for text this size,
+                measured in the browser. Dimming the foreground token instead
+                composites over whatever the band is actually painted in, which
+                holds at 6.9:1 in both themes while keeping the description
+                visibly lighter than the label above it.
+              */}
+              <dd className="text-foreground/80 order-3 max-w-sm text-sm leading-6">
                 {stat.description}
               </dd>
             </div>
