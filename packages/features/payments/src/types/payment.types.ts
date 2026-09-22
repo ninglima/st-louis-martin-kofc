@@ -1,6 +1,12 @@
 export type PaymentProvider = 'stripe' | 'square';
 export type PaymentType = 'dues' | 'donation' | 'event_fee';
-export type PaymentStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'refunded' | 'cancelled';
+export type PaymentStatus =
+  | 'pending'
+  | 'processing'
+  | 'succeeded'
+  | 'failed'
+  | 'refunded'
+  | 'cancelled';
 export type PaymentEnvironment = 'sandbox' | 'production';
 
 export interface PaymentConfig {
@@ -72,5 +78,12 @@ export interface WebhookEvent {
 export interface PublicPaymentConfig {
   activeProvider: PaymentProvider;
   publishableKey: string | null;
+  /**
+   * The Square location id. Required client-side by the Square Web Payments
+   * SDK to initialize `Square.payments(applicationId, locationId)` -- it is
+   * not a secret, only `square_access_token` and the webhook signature key
+   * are. Null/unused when `activeProvider` is `stripe`.
+   */
+  locationId: string | null;
   environment: PaymentEnvironment;
 }

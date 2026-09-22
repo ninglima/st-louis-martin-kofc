@@ -1,8 +1,21 @@
-import { Square, SquareClient, SquareEnvironment, WebhooksHelper } from 'square';
+import {
+  Square,
+  SquareClient,
+  SquareEnvironment,
+  WebhooksHelper,
+} from 'square';
 import { randomUUID } from 'crypto';
 
-import type { PaymentProviderInterface } from '../types/payment-provider';
-import type { CreatePaymentParams, PaymentResult, PaymentStatus, WebhookEvent } from '../types/payment.types';
+import type {
+  ChargeWithTokenParams,
+  PaymentProviderInterface,
+} from '../types/payment-provider';
+import type {
+  CreatePaymentParams,
+  PaymentResult,
+  PaymentStatus,
+  WebhookEvent,
+} from '../types/payment.types';
 
 export class SquareProvider implements PaymentProviderInterface {
   private client: SquareClient;
@@ -19,30 +32,48 @@ export class SquareProvider implements PaymentProviderInterface {
   ) {
     this.client = new SquareClient({
       token: accessToken,
-      environment: sandbox ? SquareEnvironment.Sandbox : SquareEnvironment.Production,
+      environment: sandbox
+        ? SquareEnvironment.Sandbox
+        : SquareEnvironment.Production,
     });
     this.locationId = locationId;
     this.webhookSignatureKey = webhookSignatureKey;
     this.notificationUrl = notificationUrl ?? '';
   }
 
-  async createPayment(params: CreatePaymentParams & { userId: string }): Promise<PaymentResult> {
+  /**
+   * Square's Web Payments SDK only produces a card token client-side, after
+   * the browser has rendered the card form -- there is no token yet at the
+   * point `createPayment` runs (it is what creates the local `payments` row
+   * the client then attaches a token to). So this must NOT call the Square
+   * API: doing so previously used `sourceId: 'EXTERNAL'`, which records a
+   * payment taken *outside* Square (e.g. cash) rather than actually
+   * charging a card -- the member's card was never charged. The real charge
+   * happens in `chargeWithToken` once the client has a token.
+   */
+  async createPayment(
+    _params: CreatePaymentParams & { userId: string },
+  ): Promise<PaymentResult> {
+    const idempotencyKey = randomUUID();
+
+    return {
+      paymentId: idempotencyKey,
+      status: 'pending',
+    };
+  }
+
+  async chargeWithToken(params: ChargeWithTokenParams): Promise<PaymentResult> {
     const idempotencyKey = randomUUID();
 
     const response = await this.client.payments.create({
       idempotencyKey,
-      sourceId: 'EXTERNAL',
+      sourceId: params.sourceToken,
       amountMoney: {
         amount: BigInt(params.amount),
         currency: (params.currency ?? 'USD').toUpperCase() as Square.Currency,
       },
       locationId: this.locationId,
-      referenceId: params.userId,
-      note: params.description ?? undefined,
-      externalDetails: {
-        type: 'OTHER',
-        source: 'KofC Online Payment',
-      },
+      note: params.note ?? undefined,
     });
 
     const payment = response.payment;
@@ -54,11 +85,16 @@ export class SquareProvider implements PaymentProviderInterface {
   }
 
   async getPaymentStatus(providerPaymentId: string): Promise<PaymentStatus> {
-    const response = await this.client.payments.get({ paymentId: providerPaymentId });
+    const response = await this.client.payments.get({
+      paymentId: providerPaymentId,
+    });
     return mapSquareStatus(response.payment?.status);
   }
 
-  async verifyWebhookSignature(payload: string, signature: string): Promise<boolean> {
+  async verifyWebhookSignature(
+    payload: string,
+    signature: string,
+  ): Promise<boolean> {
     if (!this.webhookSignatureKey) return false;
 
     return WebhooksHelper.verifySignature({

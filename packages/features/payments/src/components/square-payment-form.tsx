@@ -6,14 +6,10 @@ import Script from 'next/script';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@kit/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@kit/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 import { Trans } from '@kit/ui/trans';
 
+import { confirmSquarePaymentAction } from '../server/server-actions';
 import type { PaymentEnvironment } from '../types/payment.types';
 
 declare global {
@@ -30,7 +26,11 @@ interface SquarePayments {
 
 interface SquareCard {
   attach: (selector: string) => Promise<void>;
-  tokenize: () => Promise<{ status: string; token?: string; errors?: Array<{ message: string }> }>;
+  tokenize: () => Promise<{
+    status: string;
+    token?: string;
+    errors?: Array<{ message: string }>;
+  }>;
 }
 
 export function SquarePaymentForm({
@@ -51,9 +51,10 @@ export function SquarePaymentForm({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const scriptUrl = environment === 'sandbox'
-    ? 'https://sandbox.web.squarecdn.com/v1/square.js'
-    : 'https://web.squarecdn.com/v1/square.js';
+  const scriptUrl =
+    environment === 'sandbox'
+      ? 'https://sandbox.web.squarecdn.com/v1/square.js'
+      : 'https://web.squarecdn.com/v1/square.js';
 
   const initializeSquare = async () => {
     if (!window.Square) return;
@@ -81,7 +82,16 @@ export function SquarePaymentForm({
       const result = await cardRef.current.tokenize();
 
       if (result.status === 'OK' && result.token) {
-        router.push('/home/checkout/success');
+        const confirmResult = await confirmSquarePaymentAction({
+          paymentId,
+          sourceToken: result.token,
+        });
+
+        if (confirmResult.success) {
+          router.push('/home/checkout/success');
+        } else {
+          setErrorMessage(confirmResult.error);
+        }
       } else {
         const message = result.errors?.[0]?.message ?? t('paymentError');
         setErrorMessage(message);
@@ -95,7 +105,12 @@ export function SquarePaymentForm({
 
   return (
     <>
-      <Script src={scriptUrl} onReady={() => { initializeSquare(); }} />
+      <Script
+        src={scriptUrl}
+        onReady={() => {
+          initializeSquare();
+        }}
+      />
       <Card>
         <CardHeader>
           <CardTitle>

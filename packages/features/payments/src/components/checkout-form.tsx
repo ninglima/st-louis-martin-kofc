@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
@@ -42,13 +41,8 @@ import type { PublicPaymentConfig } from '../types/payment.types';
 import { StripePaymentForm } from './stripe-payment-form';
 import { SquarePaymentForm } from './square-payment-form';
 
-export function CheckoutForm({
-  config,
-}: {
-  config: PublicPaymentConfig;
-}) {
+export function CheckoutForm({ config }: { config: PublicPaymentConfig }) {
   const t = useTranslations('payments');
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [paymentIntent, setPaymentIntent] = useState<{
     clientSecret?: string;
@@ -75,14 +69,18 @@ export function CheckoutForm({
           amount: amountInCents,
         });
 
-        if (result.clientSecret) {
-          setPaymentIntent({
-            clientSecret: result.clientSecret,
-            paymentId: result.paymentId,
-          });
-        } else {
-          router.push('/home/checkout/success');
-        }
+        // Both providers require a further client-side step before the
+        // payment is actually complete -- Stripe confirms the
+        // PaymentIntent via Elements, Square tokenizes the card and calls
+        // `confirmSquarePaymentAction` -- so this only stores the pending
+        // payment info and lets the render branches below pick the right
+        // form. Neither provider can succeed synchronously here, so there
+        // is no case where redirecting straight to the success page would
+        // be correct.
+        setPaymentIntent({
+          clientSecret: result.clientSecret,
+          paymentId: result.paymentId,
+        });
       } catch {
         toast.error(t('paymentError'));
       }
@@ -102,7 +100,7 @@ export function CheckoutForm({
     return (
       <SquarePaymentForm
         applicationId={config.publishableKey ?? ''}
-        locationId=""
+        locationId={config.locationId ?? ''}
         paymentId={paymentIntent.paymentId}
         environment={config.environment}
       />
@@ -154,9 +152,7 @@ export function CheckoutForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="dues">
-                        {t('types.dues')}
-                      </SelectItem>
+                      <SelectItem value="dues">{t('types.dues')}</SelectItem>
                       <SelectItem value="donation">
                         {t('types.donation')}
                       </SelectItem>
@@ -184,7 +180,9 @@ export function CheckoutForm({
                       min="0.50"
                       placeholder="0.00"
                       {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      onChange={(e) =>
+                        field.onChange(parseFloat(e.target.value) || 0)
+                      }
                     />
                   </FormControl>
                   <FormMessage />

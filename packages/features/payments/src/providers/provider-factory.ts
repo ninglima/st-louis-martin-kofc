@@ -3,13 +3,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@kit/supabase/database';
 
 import type { PaymentProviderInterface } from '../types/payment-provider';
-import type { PaymentConfig, PublicPaymentConfig } from '../types/payment.types';
+import type {
+  PaymentConfig,
+  PublicPaymentConfig,
+} from '../types/payment.types';
 import { StripeProvider } from './stripe.provider';
 import { SquareProvider } from './square.provider';
 
 type PaymentsClient = SupabaseClient<Database>;
 
-export async function getPaymentProvider(adminClient: PaymentsClient): Promise<PaymentProviderInterface> {
+export async function getPaymentProvider(
+  adminClient: PaymentsClient,
+): Promise<PaymentProviderInterface> {
   const config = await getPaymentConfig(adminClient);
 
   if (config.active_provider === 'stripe') {
@@ -33,7 +38,9 @@ export async function getPaymentProvider(adminClient: PaymentsClient): Promise<P
   );
 }
 
-export async function getPaymentConfig(adminClient: PaymentsClient): Promise<PaymentConfig> {
+export async function getPaymentConfig(
+  adminClient: PaymentsClient,
+): Promise<PaymentConfig> {
   const { data, error } = await adminClient
     .from('payment_config')
     .select('*')
@@ -46,14 +53,18 @@ export async function getPaymentConfig(adminClient: PaymentsClient): Promise<Pay
   return data as PaymentConfig;
 }
 
-export async function getPublicPaymentConfig(adminClient: PaymentsClient): Promise<PublicPaymentConfig> {
+export async function getPublicPaymentConfig(
+  adminClient: PaymentsClient,
+): Promise<PublicPaymentConfig> {
   const config = await getPaymentConfig(adminClient);
 
   return {
     activeProvider: config.active_provider,
-    publishableKey: config.active_provider === 'stripe'
-      ? config.stripe_publishable_key
-      : config.square_application_id,
+    publishableKey:
+      config.active_provider === 'stripe'
+        ? config.stripe_publishable_key
+        : config.square_application_id,
+    locationId: config.square_location_id,
     environment: config.environment,
   };
 }

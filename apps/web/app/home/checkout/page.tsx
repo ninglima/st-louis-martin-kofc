@@ -39,15 +39,19 @@ async function CheckoutContent() {
 
   const { data: configData } = await adminClient
     .from('payment_config')
-    .select('active_provider, stripe_publishable_key, square_application_id, environment')
+    .select(
+      'active_provider, stripe_publishable_key, square_application_id, square_location_id, environment',
+    )
     .single();
 
   const config: PublicPaymentConfig = {
     activeProvider: (configData?.active_provider ??
       'square') as PublicPaymentConfig['activeProvider'],
-    publishableKey: configData?.active_provider === 'stripe'
-      ? configData?.stripe_publishable_key ?? null
-      : configData?.square_application_id ?? null,
+    publishableKey:
+      configData?.active_provider === 'stripe'
+        ? (configData?.stripe_publishable_key ?? null)
+        : (configData?.square_application_id ?? null),
+    locationId: configData?.square_location_id ?? null,
     environment: (configData?.environment ??
       'sandbox') as PublicPaymentConfig['environment'],
   };
