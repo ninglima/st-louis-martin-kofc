@@ -8,7 +8,7 @@ import { SiteNavigation } from './site-navigation';
 export function SiteHeader() {
   return (
     <Header
-      logo={<AppLogo />}
+      logo={<AppLogo eager />}
       navigation={<SiteNavigation />}
       actions={<SiteHeaderAccountSection />}
     />
