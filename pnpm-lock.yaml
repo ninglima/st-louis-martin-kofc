@@ -215,6 +215,9 @@ importers:
 
   apps/e2e:
     devDependencies:
+      '@kit/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/typescript
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.62.1
@@ -224,6 +227,9 @@ importers:
       node-html-parser:
         specifier: 'catalog:'
         version: 7.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   apps/web:
     dependencies:
