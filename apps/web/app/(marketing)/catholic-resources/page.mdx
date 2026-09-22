@@ -1,6 +1,11 @@
-export const metadata = {
+import { createPageMetadata } from '~/lib/page-metadata';
+
+export const metadata = createPageMetadata({
   title: 'Catholic Resources',
-};
+  description:
+    'Saint Louis Martin Council is pleased to share the following Catholic resources for prayer, education, and spiritual growth.',
+  path: '/catholic-resources',
+});
 
 # Catholic Resources
 

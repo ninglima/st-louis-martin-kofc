@@ -120,3 +120,22 @@ export const PUBLIC_ROUTES: readonly string[] = [
   ...LEGAL_LINKS.map((link) => link.path),
   ...UNLISTED_ROUTES,
 ];
+
+/**
+ * What `app/sitemap.xml/route.ts` submits to search engines. Derived from
+ * `PUBLIC_ROUTES` rather than listed again: the route handler shipped with a
+ * hand-maintained array of five paths, so the nineteen content pages this site
+ * exists to serve were advertised to no crawler while three unfinished legal
+ * stubs were. A fourth copy of the site map is the same defect the footer's
+ * inline legal paths already were.
+ *
+ * `LEGAL_LINKS` is subtracted because those three pages still render MakerKit
+ * placeholder bodies and carry `robots: { index: false }` until the council
+ * supplies real copy -- listing a `noindex` page in a sitemap asks a crawler to
+ * fetch something it is then told to discard. They stay linked from the footer,
+ * which is where a visitor looking for them expects them. Delete this filter
+ * when the placeholder copy is replaced and the `noindex` comes off.
+ */
+export const SITEMAP_ROUTES: readonly string[] = PUBLIC_ROUTES.filter(
+  (route) => !LEGAL_LINKS.some((link) => link.path === route),
+);

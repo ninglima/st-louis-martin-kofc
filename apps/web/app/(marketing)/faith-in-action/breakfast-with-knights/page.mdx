@@ -1,6 +1,11 @@
-export const metadata = {
+import { createPageMetadata } from '~/lib/page-metadata';
+
+export const metadata = createPageMetadata({
   title: 'Breakfast with the Knights',
-};
+  description:
+    'A monthly pancake breakfast served after Sunday Masses from September through May. Each breakfast benefits a different local charity, and the suggested donation is $10 per adult and $5 per child.',
+  path: '/faith-in-action/breakfast-with-knights',
+});
 
 # Breakfast with the Knights
 

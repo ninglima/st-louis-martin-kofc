@@ -286,6 +286,50 @@ test.describe('public site', () => {
     await expect(main.locator('li a')).toHaveCount(entries.length);
   });
 
+  test('Pay Dues sends a member to the council checkout', async ({ page }) => {
+    // The one cross-feature dependency the site-copy spec names, and it
+    // shipped pointing at a bare `/auth/sign-in`, which drops a member on
+    // `/home` two navigations away from the checkout he came to reach.
+    // Asserted on the rendered anchor rather than on the .mdx source: the link
+    // passes through `mdx-components.tsx`'s `a` mapping, which rewrites
+    // internal hrefs, so the source and the destination are not the same
+    // thing.
+    const response = await page.goto('/get-involved/pay-dues');
+
+    expect(
+      response?.status(),
+      '/get-involved/pay-dues did not return 200',
+    ).toBe(200);
+
+    const duesLink = page.getByRole('main').getByRole('link', {
+      name: /pay your dues/i,
+    });
+
+    await expect(duesLink).toHaveCount(1);
+
+    const href = await duesLink.getAttribute('href');
+
+    // The destination has to survive the sign-in bounce. `/home/checkout`
+    // alone does not: the auth guard redirects an anonymous visitor to a
+    // `next`-less `/auth/sign-in`.
+    expect(
+      href,
+      'the Pay Dues link does not carry the checkout as its destination',
+    ).toContain('/home/checkout');
+
+    await duesLink.click();
+
+    // Signed out, so this lands on the sign-in page -- but carrying the
+    // checkout, which is what `sign-in-methods-container.tsx` replays after a
+    // successful sign-in.
+    await page.waitForURL('**/auth/sign-in**');
+
+    expect(
+      new URL(page.url()).searchParams.get('next'),
+      'the sign-in page was reached without the checkout as its `next`',
+    ).toBe('/home/checkout');
+  });
+
   test('Sign In is reachable from a phone viewport', async ({ page }) => {
     // The live WordPress council site carries a permanent "Member Login", so
     // losing Sign In on a phone is a regression against the site being

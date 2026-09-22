@@ -1,6 +1,11 @@
-export const metadata = {
+import { createPageMetadata } from '~/lib/page-metadata';
+
+export const metadata = createPageMetadata({
   title: 'Upcoming Events',
-};
+  description:
+    'Saint Louis Martin Council hosts regular meetings, service projects, and social events throughout the year, including the monthly business meeting, the monthly food drive and Breakfast with the Knights.',
+  path: '/events',
+});
 
 # Upcoming Events
 

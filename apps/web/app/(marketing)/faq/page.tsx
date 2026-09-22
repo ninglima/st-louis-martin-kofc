@@ -1,13 +1,18 @@
 import { getTranslations } from 'next-intl/server';
 
 import { SitePageHeader } from '~/(marketing)/_components/site-page-header';
+import { createPageMetadata } from '~/lib/page-metadata';
 
 export const generateMetadata = async () => {
   const t = await getTranslations();
 
-  return {
+  // The description is the subtitle the page itself renders, so the search
+  // result and the page agree rather than drifting apart.
+  return createPageMetadata({
     title: t('marketing.faq'),
-  };
+    description: t('marketing.faqSubtitle'),
+    path: '/faq',
+  });
 };
 
 const H2_CLASS =

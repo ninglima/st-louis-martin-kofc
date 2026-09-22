@@ -1,6 +1,11 @@
-export const metadata = {
+import { createPageMetadata } from '~/lib/page-metadata';
+
+export const metadata = createPageMetadata({
   title: 'Loudoun Food Pantry',
-};
+  description:
+    'Saint Louis Martin Council operates a monthly food drive delivering approximately 5,000 pounds of food each month to the Catholic Charities Loudoun Food Pantry in Sterling, VA.',
+  path: '/faith-in-action/food-pantry',
+});
 
 # Loudoun Food Pantry
 

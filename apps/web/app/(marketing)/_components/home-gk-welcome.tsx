@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { AppLogo } from '~/components/app-logo';
 
 /**
  * The Grand Knight's welcome message.
@@ -17,64 +17,42 @@ const GK_MESSAGE = [
 
 const GK_SIGNATURE = '— Steve Shields, Grand Knight';
 
-const EMBLEM_SRC_LIGHT = '/images/brand/kofc_r_hz_rgb_pos.png';
-const EMBLEM_SRC_DARK = '/images/brand/kofc_r_hz_rgb_rev.png';
-
-/**
- * The council publishes no photograph of the Grand Knight, so the emblem
- * carries the identity block on its own. The positive mark is drawn in dark
- * ink and the reversed mark in white, so each theme gets the variant that
- * actually reads against its background. The `h1` immediately below already
- * states "Knights of Columbus" in text, so the emblem is decorative here
- * (`alt=""`) rather than a duplicate announcement.
- *
- * Neither variant carries `priority`: which one is visible is decided by a
- * `dark:` CSS class, not by anything Next can see at preload time, so a
- * `priority` on one variant only preloaded an image that could never paint
- * while the variant that DID paint was left to load lazily behind it, the
- * worst of both orderings. Leaving both at the framework default treats the
- * two variants identically regardless of theme.
- *
- * Verified with a cache-disabled browser trace: in light mode (the default
- * theme) only the visible pos.png is requested, one fetch total. In dark
- * mode both PNGs are still requested, because Chromium eagerly fetches the
- * first `<img>` in DOM order even while it is `display:none`, and only
- * lazy-skips a hidden image declared later. That ordering quirk is not
- * something next/image's `priority`/`loading` props can override, so two
- * small PNG fetches remain in dark mode; light mode already runs on one.
- */
-function CouncilEmblem() {
-  const shared = 'h-auto w-full max-w-[18rem]';
-
-  return (
-    <>
-      <Image
-        src={EMBLEM_SRC_LIGHT}
-        alt=""
-        width={1160}
-        height={540}
-        sizes="288px"
-        className={`${shared} dark:hidden`}
-      />
-
-      <Image
-        src={EMBLEM_SRC_DARK}
-        alt=""
-        width={1160}
-        height={540}
-        sizes="288px"
-        className={`${shared} hidden dark:block`}
-      />
-    </>
-  );
-}
-
 export function HomeGkWelcome() {
   return (
     <section className="border-b py-12 lg:py-16">
       <div className="container grid items-start gap-10 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-16">
         <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
-          <CouncilEmblem />
+          {/*
+           * The council publishes no photograph of the Grand Knight, so the
+           * mark carries the identity block on its own. This used to be a
+           * local `CouncilEmblem` that re-implemented `AppLogo`'s dual-theme
+           * rendering over *the same two PNGs*, under `EMBLEM_SRC_*` names
+           * that described the square emblem rather than the horizontal
+           * lockup these files actually are. One component now, so an
+           * improvement to the mark cannot land on 23 routes and miss the
+           * busiest one.
+           *
+           * `href={null}` keeps it unlinked: the `h1` immediately below names
+           * the council in text, and `AppLogo` renders `alt=""` on both
+           * variants, so a link here would announce the brand twice.
+           *
+           * `eager` because this mark is the homepage's LCP element and sits
+           * above the fold. Doing that was only safe once the mark moved onto
+           * `AppLogo`: React 19 emits a `<link rel="preload" as="image">` for
+           * every non-lazy `<img>`, which on two theme variants preloads the
+           * one that can never paint, at preload priority, against the one
+           * that does. `ThemedMark` suppresses that by wrapping each variant
+           * in `<picture className="contents">` -- see the comment on it in
+           * `components/app-logo.tsx`. Measured on `/`: 0
+           * `rel="preload" as="image"` links before this change and 0 after,
+           * with the mark going from `loading="lazy"` to `loading="eager"`.
+           */}
+          <AppLogo
+            href={null}
+            className="w-full max-w-[18rem]"
+            sizes="288px"
+            eager
+          />
 
           <h1 className="text-foreground text-3xl font-bold tracking-tight lg:text-4xl">
             <span className="text-muted-foreground block text-base font-medium tracking-normal">

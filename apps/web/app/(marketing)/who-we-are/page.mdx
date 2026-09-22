@@ -1,6 +1,11 @@
-export const metadata = {
+import { createPageMetadata } from '~/lib/page-metadata';
+
+export const metadata = createPageMetadata({
   title: 'About Our Council',
-};
+  description:
+    "The Knights of Columbus is a Catholic men's fraternal society dedicated to supporting those in need. Saint Louis Martin Council 15256 was established at St. Theresa Catholic Church in Ashburn, Virginia in April 2011 and has grown to over 300 members.",
+  path: '/who-we-are',
+});
 
 # About Saint Louis Martin Council
 

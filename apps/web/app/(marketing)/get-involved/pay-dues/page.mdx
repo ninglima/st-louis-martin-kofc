@@ -1,10 +1,33 @@
-export const metadata = {
+import { createPageMetadata } from '~/lib/page-metadata';
+/**
+ * The dues link below carries `?next=/home/checkout` rather than pointing at
+ * `/home/checkout` directly. Each destination is right for one visitor and
+ * wrong for the other, so the choice is which visitor this page serves:
+ *
+ * - `/home/checkout` alone works for a member who is already signed in. A
+ *   signed-out one is bounced by `requireUser` (packages/supabase) to a bare
+ *   `/auth/sign-in` carrying no return path, and lands on `/home` -- the
+ *   two-navigations-from-checkout dead end this page exists to remove. Almost
+ *   everyone reading a public marketing page is signed out.
+ * - `?next=` is honoured today with no change to the auth flow:
+ *   `sign-in-methods-container.tsx` reads `useSearchParams().get('next')` and
+ *   `router.replace()`s to it after a successful sign-in, and
+ *   `app/auth/callback` threads the same parameter for the magic-link and
+ *   OAuth paths.
+ *
+ * If the auth guard is ever taught to preserve the requested path, link
+ * `/home/checkout` directly instead and drop the parameter.
+ */
+export const metadata = createPageMetadata({
   title: 'Pay Council Dues',
-};
+  description:
+    'Members can pay their annual council dues online by credit or debit card, or by check through the council treasurer.',
+  path: '/get-involved/pay-dues',
+});
 
 # Pay Council Dues
 
-Members can pay their annual council dues online by credit or debit card. [Sign in to your account](/auth/sign-in) to pay dues and view your payment history.
+Members can pay their annual council dues online by credit or debit card. [Sign in to pay your dues](/auth/sign-in?next=/home/checkout) and go straight to the council checkout, where you can also view your payment history.
 
 ## Paying by Check
 

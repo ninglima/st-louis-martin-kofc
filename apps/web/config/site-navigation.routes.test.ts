@@ -1,11 +1,23 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { PUBLIC_ROUTES } from './site-navigation.config';
+import {
+  LEGAL_LINKS,
+  PUBLIC_ROUTES,
+  SITEMAP_ROUTES,
+} from './site-navigation.config';
 
 const MARKETING_DIR = join(__dirname, '..', 'app', '(marketing)');
+
+const SITEMAP_ROUTE_FILE = join(
+  __dirname,
+  '..',
+  'app',
+  'sitemap.xml',
+  'route.ts',
+);
 
 /**
  * Routes that live outside the (marketing) group or are not .mdx pages.
@@ -92,5 +104,51 @@ describe('navigation link integrity', () => {
     const uncovered = routesOnDisk().filter((route) => !covered.has(route));
 
     expect(uncovered).toEqual([]);
+  });
+});
+
+/**
+ * The sitemap is the one list on this site that no human ever reads, so a page
+ * missing from it fails silently and forever. It shipped as a hand-maintained
+ * array of five paths -- `/`, `/faq` and the three legal stubs -- while the
+ * nineteen content pages the port exists to serve were submitted to no search
+ * engine at all.
+ *
+ * Two assertions, because either one alone is escapable. The first pins the
+ * contents of `SITEMAP_ROUTES`; the second pins the sitemap route handler to
+ * `SITEMAP_ROUTES`, so re-inlining a literal array in `route.ts` fails here
+ * rather than quietly reintroducing the original defect with a green suite.
+ */
+describe('sitemap coverage', () => {
+  const legalPaths = new Set(LEGAL_LINKS.map((link) => link.path));
+
+  it.each(PUBLIC_ROUTES.filter((route) => !legalPaths.has(route)))(
+    'submits %s to search engines',
+    (path) => {
+      expect(SITEMAP_ROUTES).toContain(path);
+    },
+  );
+
+  /**
+   * The three legal routes render MakerKit placeholder bodies and are
+   * `noindex` until the council supplies real copy. Submitting them would ask
+   * a crawler to fetch a page it is then told to discard -- and, as shipped,
+   * they were three of the only five URLs the site advertised.
+   */
+  it.each(LEGAL_LINKS.map((link) => link.path))(
+    'keeps the placeholder legal page %s out of the sitemap',
+    (path) => {
+      expect(SITEMAP_ROUTES).not.toContain(path);
+    },
+  );
+
+  it('derives app/sitemap.xml/route.ts from SITEMAP_ROUTES', () => {
+    const source = readFileSync(SITEMAP_ROUTE_FILE, 'utf8');
+
+    expect(source).toContain(
+      `import { SITEMAP_ROUTES } from '~/config/site-navigation.config'`,
+    );
+
+    expect(source).toContain('SITEMAP_ROUTES.map(');
   });
 });

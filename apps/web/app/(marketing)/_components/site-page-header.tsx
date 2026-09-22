@@ -18,9 +18,17 @@ export function SitePageHeader({
       <div
         className={cn('flex flex-col space-y-2 lg:space-y-4', containerClass)}
       >
+        {/*
+         * `text-foreground`, not `dark:text-white`: this `h1` renders on
+         * `/faq` and the three legal pages, which sit directly beside the 19
+         * MDX pages in the navigation, and those render their `h1` in
+         * `text-foreground`. Hardcoded white made the same element two
+         * different whites on adjacent pages, and opted these four out of any
+         * future revision of the council's dark palette.
+         */}
         <h1
           className={
-            'font-heading text-3xl font-medium tracking-tighter xl:text-5xl dark:text-white'
+            'text-foreground font-heading text-3xl font-medium tracking-tighter xl:text-5xl'
           }
         >
           {title}
