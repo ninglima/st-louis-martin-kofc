@@ -72,6 +72,7 @@ interface DbOptions {
   importSelectError?: { message: string };
   /** Plan `roster_import_load_plan` hands back. Default: null. */
   plan?: unknown;
+  loadPlanError?: { message: string };
   previousResults?: unknown;
   canManage?: boolean;
   /** `members_can_manage` answers with an error instead of a boolean. */
@@ -160,17 +161,29 @@ function fakeDb(options: DbOptions = {}) {
           if (options.canManageThrows !== undefined)
             return Promise.reject(new Error(options.canManageThrows));
 
+          // `data` and `error` are set INDEPENDENTLY. Deriving one from the
+          // other looks tidier and makes a whole class of condition
+          // untestable: while `canManageError` forced `data: null`, no test
+          // could produce `{ data: false, error: <something> }`, so the
+          // `error === null` half of `wasRefused` was unobservable and a
+          // mutant that deleted it passed the entire suite. Correlating two
+          // knobs by construction means one of them is not really a knob.
           return Promise.resolve({
-            data: options.canManageError ? null : (options.canManage ?? true),
+            data: options.canManage ?? (options.canManageError ? null : true),
             error: options.canManageError ?? null,
           });
         case 'roster_import_load_plan':
-          return Promise.resolve({ data: options.plan ?? null, error: null });
+          return Promise.resolve({
+            data: options.plan ?? null,
+            error: options.loadPlanError ?? null,
+          });
+        // Independent for the same reason: a read that errors while still
+        // handing back usable-looking data is the case that proves the error
+        // is respected on its own account, not merely because the data was
+        // missing.
         case 'roster_import_load_results':
           return Promise.resolve({
-            data: options.loadResultsError
-              ? null
-              : (options.previousResults ?? null),
+            data: options.previousResults ?? null,
             error: options.loadResultsError ?? null,
           });
         case 'roster_import_save_results':
@@ -587,6 +600,72 @@ describe('applyRosterChunkAction', () => {
     expect(officer.tables.filter((c) => c.kind === 'update')).toEqual([]);
   });
 
+  it('reports a plan that could not be read, rather than calling it missing', async () => {
+    // A read that FAILED and a plan that is ABSENT are different facts, and
+    // the officer's next move differs: retry one, re-upload the other. Without
+    // its own check the error falls through to the null-plan guard and every
+    // transport hiccup tells them to upload the file again.
+    const { officer } = install({
+      plan: plan(30),
+      loadPlanError: { message: 'statement timeout' },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'statement timeout',
+      denied: false,
+    });
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'member_upsert_from_roster',
+    );
+  });
+
+  it('reports a plan whose rows are not a list as having no plan', async () => {
+    // `roster_import_load_plan` returns arbitrary `jsonb`, so "there is a
+    // plan" and "the plan has rows this code can walk" are two questions.
+    // `.slice` on the second answer being wrong is a crash, and a crashed
+    // Server Action reaches the officer as a redacted digest.
+    const { officer } = install({
+      plan: { rows: 'not-a-list', counts: {}, absentFromFile: [] },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toMatchObject({ success: false, denied: false });
+    expect((result as { error: string }).error).toContain('no saved plan');
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'member_upsert_from_roster',
+    );
+  });
+
+  it('survives stored results whose failures are not a list', async () => {
+    const { officer } = install({
+      plan: plan(CHUNK_SIZE + 5),
+      previousResults: { applied: 10, failures: 'corrupted' },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: CHUNK_SIZE,
+    });
+
+    expect(result).toMatchObject({ success: true, applied: 5, done: true });
+
+    const saved = rpcArgs(officer.rpcs, 'roster_import_save_results');
+
+    // The corrupt value is dropped rather than spread — spreading a string
+    // would file this chunk's history as nine single characters.
+    expect(saved.p_results).toEqual({ applied: 15, failures: [] });
+  });
+
   it('reports a denied chunk as a refusal, not as one failure per row', async () => {
     // `applyChunk` THROWS when the grant has gone, before it touches auth. That
     // is one fact about the whole run, not 30 data problems: filing it as
@@ -798,6 +877,54 @@ describe('applyRosterChunkAction', () => {
     expect(officer.rpcs.map((c) => c.name)).not.toContain(
       'roster_import_save_results',
     );
+  });
+
+  it('does not read a probe that errored as a definite refusal', async () => {
+    // The probe answers `false` AND reports an error. Only the pair says
+    // anything: a `false` that arrived alongside a failed round trip is not
+    // the database saying "this officer may not manage members", it is the
+    // database not answering. Calling that a withdrawn grant sends an officer
+    // to ask for a role they already hold, and stops a loop that should retry.
+    //
+    // This case was unreachable until the fake stopped deriving `data` from
+    // `error`, which is why `wasRefused`'s `error === null` conjunct survived
+    // a whole round of mutation testing.
+    const { officer } = install({
+      plan: plan(30),
+      canManage: false,
+      canManageError: { message: 'statement timeout' },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error: 'statement timeout',
+    });
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'roster_import_save_results',
+    );
+  });
+
+  it('falls back to a readable message when the failure carries none', async () => {
+    // An `Error` with an empty message would otherwise reach the officer as an
+    // empty string, which is the redacted digest by another route.
+    install({ plan: plan(30), canManageThrows: '' });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error: 'That chunk could not be applied.',
+    });
   });
 
   it('survives a permission probe that rejects inside the error handler', async () => {
