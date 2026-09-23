@@ -1,3 +1,15 @@
+/**
+ * Plan rows applied per call to `applyRosterChunkAction`.
+ *
+ * It lives here rather than beside the action for two reasons. A `'use server'`
+ * module may only export async functions, so the action cannot export a number
+ * at all. And the browser's apply loop has to advance by exactly the figure the
+ * action slices by: a loop that steps further than the action applied silently
+ * skips members, and one that steps less never terminates. One exported
+ * constant makes those two numbers the same number.
+ */
+export const CHUNK_SIZE = 25;
+
 /** One roster row after normalization. All fields trimmed; empty means null. */
 export interface RosterRecord {
   membershipNumber: string;
