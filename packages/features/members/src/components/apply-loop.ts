@@ -11,6 +11,14 @@ export interface ApplyProgress {
   examined: number;
   /** Rows the database actually wrote, as reported by the action. */
   applied: number;
+  /**
+   * Every row that failed so far, carried on the progress rather than only in
+   * the loop's return value. If the transport dies on chunk 8 the return value
+   * never arrives, and the members who failed in chunks 1-7 would vanish with
+   * it -- reported nowhere, on a screen whose whole purpose is that nothing
+   * about an import is invisible.
+   */
+  failures: ApplyFailure[];
 }
 
 /**
@@ -111,7 +119,13 @@ export async function runApplyLoop(
     failures.push(...result.failures);
     offset += CHUNK_SIZE;
 
-    onProgress({ examined: Math.min(offset, totalRows), applied });
+    onProgress({
+      examined: Math.min(offset, totalRows),
+      applied,
+      // Copied, not aliased: the caller keeps these across iterations and a
+      // shared array would let a later chunk rewrite what it was already told.
+      failures: [...failures],
+    });
 
     // `done` is the action's own answer and is authoritative. The offset test
     // beside it is a belt: a `done` that never arrives -- a plan that grew, a

@@ -146,10 +146,45 @@ describe('runApplyLoop', () => {
     expect(outcome.failures.map((f) => f.membershipNumber)).toEqual(['1', '2']);
     expect(outcome.applied).toBe(CHUNK_SIZE + 1);
     expect(seen).toEqual([
-      { examined: CHUNK_SIZE, applied: CHUNK_SIZE - 1 },
+      {
+        examined: CHUNK_SIZE,
+        applied: CHUNK_SIZE - 1,
+        failures: [{ membershipNumber: '1', error: 'boom' }],
+      },
       // Clamped: a last part-chunk must not report more rows than the file has.
-      { examined: CHUNK_SIZE + 2, applied: CHUNK_SIZE + 1 },
+      {
+        examined: CHUNK_SIZE + 2,
+        applied: CHUNK_SIZE + 1,
+        failures: [
+          { membershipNumber: '1', error: 'boom' },
+          { membershipNumber: '2', error: 'bang' },
+        ],
+      },
     ]);
+  });
+
+  it('carries the failures so far on the progress, not only in the result', async () => {
+    const seen: ApplyProgress[] = [];
+
+    // The caller's `catch` is the only thing left when the transport dies
+    // mid-run, and it has no return value to read. Without the failures on the
+    // progress, the members who failed in the chunks that DID complete are
+    // reported nowhere at all.
+    const { apply } = recorder([
+      ok(0, false, [{ membershipNumber: '7', error: 'boom' }]),
+    ]);
+
+    await runApplyLoop(CHUNK_SIZE * 2, apply, (progress) =>
+      seen.push(progress),
+    );
+
+    expect(seen[0]?.failures).toEqual([
+      { membershipNumber: '7', error: 'boom' },
+    ]);
+
+    // A snapshot, not a live alias: a later chunk must not be able to rewrite
+    // what an earlier progress report already told the caller.
+    expect(seen[0]?.failures).not.toBe(seen[1]?.failures);
   });
 });
 

@@ -184,6 +184,18 @@ describe('summarizePlan', () => {
           conflicts: [],
           record: record({ membershipNumber: '4' }),
         },
+        {
+          // The row the apply step skips entirely. Present BECAUSE it must not
+          // be counted: on a steady-state re-import almost the whole roster is
+          // `nochange`, so counting it would promise the officer "372 rows will
+          // be written" on a run that writes none.
+          membershipNumber: '5',
+          displayName: 'Nothing To Do',
+          action: 'nochange',
+          fillsPrimaryEmail: false,
+          conflicts: [],
+          record: record({ membershipNumber: '5' }),
+        },
       ]),
     );
 

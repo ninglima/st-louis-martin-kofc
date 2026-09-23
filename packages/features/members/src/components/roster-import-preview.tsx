@@ -3,7 +3,6 @@
 import { useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@kit/ui/alert';
-import { alertExtras } from '@kit/ui/alert-extras';
 import { Button } from '@kit/ui/button';
 import {
   Card,
@@ -33,8 +32,13 @@ import { cn } from '@kit/ui/utils';
 import { applyRosterChunkAction } from '../server/roster-actions';
 import type { PreviewPlan } from '../server/roster-actions';
 import type { PlanRow } from '../server/roster-plan';
-import { needsAccountReassignment, runApplyLoop } from './apply-loop';
+import { runApplyLoop } from './apply-loop';
 import type { ApplyOutcome, ApplyProgress } from './apply-loop';
+import {
+  describeOutcome,
+  quantify,
+  RosterImportOutcome,
+} from './roster-import-outcome';
 import { CONFLICT_LABELS, summarizePlan } from './plan-summary';
 
 function sourceRowLabel(row: { sourceRow?: number }) {
@@ -56,11 +60,6 @@ const SCROLLER = 'max-h-96 overflow-auto rounded-lg border';
  * written, so the long columns are allowed to wrap instead.
  */
 const WRAP = 'whitespace-normal break-words';
-
-/** `1 member`, `2 members`. A report that says "1 members" reads as a bug. */
-function quantify(value: number, singular: string, plural = `${singular}s`) {
-  return `${value} ${value === 1 ? singular : plural}`;
-}
 
 function Count({
   label,
@@ -112,11 +111,13 @@ export function RosterImportPreview({
 
     setApplying(true);
     setOutcome(null);
-    setProgress({ examined: 0, applied: 0 });
+    setProgress({ examined: 0, applied: 0, failures: [] });
 
     // Mirrored outside React state so the catch below can still say how many
-    // members landed; a `setState` written a moment ago is not readable here.
-    let latest: ApplyProgress = { examined: 0, applied: 0 };
+    // members landed and which ones did not; a `setState` written a moment ago
+    // is not readable here, and on that path the loop's return value -- the
+    // only other carrier of both facts -- never arrives.
+    let latest: ApplyProgress = { examined: 0, applied: 0, failures: [] };
 
     try {
       const result = await runApplyLoop(
@@ -130,11 +131,13 @@ export function RosterImportPreview({
 
       setOutcome(result);
 
-      if (result.status === 'complete') {
-        toast.success(`Imported ${result.applied} rows from ${filename}.`);
-      } else {
-        toast.error(result.error ?? 'The import stopped.');
-      }
+      // Through `describeOutcome` rather than a `status === 'complete'` test
+      // written here: a finished loop is not the same thing as a run where
+      // every member landed, and the toast is the element an officer actually
+      // reads. One decision, shared with the alert below it.
+      const notice = describeOutcome(result, filename);
+
+      toast[notice.tone](notice.message);
     } catch (cause) {
       // Every expected failure is RETURNED by the action, so reaching here
       // means something outside it broke -- the network, or a Server Action
@@ -143,7 +146,10 @@ export function RosterImportPreview({
       setOutcome({
         status: 'halted',
         applied: latest.applied,
-        failures: [],
+        // From the mirror, not empty: rows that failed in earlier chunks are
+        // real failures an officer has to see, and the loop's return value --
+        // which would have carried them -- never arrived.
+        failures: latest.failures,
         error:
           cause instanceof Error && cause.message !== ''
             ? cause.message
@@ -155,14 +161,6 @@ export function RosterImportPreview({
       setApplying(false);
     }
   };
-
-  const recurringFailures = (outcome?.failures ?? []).filter(
-    needsAccountReassignment,
-  );
-
-  const otherFailures = (outcome?.failures ?? []).filter(
-    (failure) => !needsAccountReassignment(failure),
-  );
 
   return (
     <div className="flex flex-col gap-y-6" data-test="roster-preview">
@@ -552,10 +550,10 @@ export function RosterImportPreview({
 
           <If condition={outcome}>
             {(result) => (
-              <ApplyOutcomeReport
+              <RosterImportOutcome
                 outcome={result}
-                recurringFailures={recurringFailures}
-                otherFailures={otherFailures}
+                scroller={SCROLLER}
+                wrap={WRAP}
               />
             )}
           </If>
@@ -640,161 +638,5 @@ function AlreadySetDisclosure({
         </CardContent>
       </Collapsible>
     </Card>
-  );
-}
-
-function ApplyOutcomeReport({
-  outcome,
-  recurringFailures,
-  otherFailures,
-}: {
-  outcome: ApplyOutcome;
-  recurringFailures: ApplyOutcome['failures'];
-  otherFailures: ApplyOutcome['failures'];
-}) {
-  return (
-    <div className="flex flex-col gap-y-4">
-      {/*
-        A withdrawn grant and a broken run are both `success: false`, and they
-        ask for opposite things. This one is "ask for your role back"; sending
-        the officer to audit the spreadsheet instead costs them an afternoon
-        and fixes nothing.
-      */}
-      <If condition={outcome.status === 'denied'}>
-        <Alert variant="destructive" data-test="roster-denied">
-          <AlertTitle>Your permission to import was withdrawn</AlertTitle>
-
-          <AlertDescription>
-            <p>{outcome.error}</p>
-
-            <p>
-              There is nothing wrong with the spreadsheet. Ask an administrator
-              to restore your permission to manage members, then run the import
-              again.
-            </p>
-
-            {/*
-              Only when something landed. "0 rows were written and they are
-              already saved" is noise on the run that never started, and the
-              officer reading this one needs the count, not the reassurance.
-            */}
-            <If condition={outcome.applied > 0}>
-              <p>
-                {quantify(outcome.applied, 'row')} had already been written
-                before this happened, and{' '}
-                {outcome.applied === 1 ? 'it is' : 'they are'} saved. Running
-                the import again once your permission is back is safe.
-              </p>
-            </If>
-          </AlertDescription>
-        </Alert>
-      </If>
-
-      {/*
-        The action's own sentence, unedited. When the write succeeded and only
-        the record-keeping failed, that sentence says the members landed and a
-        re-run is safe -- which is exactly what a summary word like "failed"
-        would destroy.
-      */}
-      <If condition={outcome.status === 'halted'}>
-        <Alert variant="destructive" data-test="roster-halted">
-          <AlertTitle>The import stopped before it finished</AlertTitle>
-
-          <AlertDescription>
-            <p>{outcome.error}</p>
-
-            <p>No further rows were sent.</p>
-          </AlertDescription>
-        </Alert>
-      </If>
-
-      {/*
-        Green only when every row landed. A run that finished with members
-        missing is not a success an officer should be able to skim past.
-      */}
-      <If condition={outcome.status === 'complete'}>
-        <Alert
-          className={
-            outcome.failures.length > 0
-              ? alertExtras.warning
-              : alertExtras.success
-          }
-          data-test="roster-complete"
-        >
-          <AlertTitle>Import finished</AlertTitle>
-
-          <AlertDescription>
-            {quantify(outcome.applied, 'row')} written
-            {outcome.failures.length > 0
-              ? `, ${outcome.failures.length} could not be applied.`
-              : '.'}
-          </AlertDescription>
-        </Alert>
-      </If>
-
-      {/*
-        These rows fail identically on every future import, so they cannot be
-        left in a list a monthly reader has learned to skim. Somebody has to
-        reassign the account by hand; until they do, this import and the next
-        one and the one after report the same members.
-      */}
-      <If condition={recurringFailures.length > 0}>
-        <Alert
-          className={alertExtras.warning}
-          data-test="roster-recurring-failures"
-        >
-          <AlertTitle>
-            {quantify(recurringFailures.length, 'member')}{' '}
-            {recurringFailures.length === 1 ? 'needs' : 'need'} their account
-            reassigned by hand
-          </AlertTitle>
-
-          <AlertDescription>
-            <p>
-              The sign-in account for each address below already belongs to a
-              different member, and one member may hold only one account.
-              Re-running the import will not clear these — they will fail the
-              same way every month until an administrator moves the account to
-              the right member.
-            </p>
-
-            <ul className="list-disc pl-5">
-              {recurringFailures.map((failure) => (
-                <li key={failure.membershipNumber}>
-                  Member {failure.membershipNumber}
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      </If>
-
-      <If condition={otherFailures.length > 0}>
-        <div className={SCROLLER} data-test="roster-failures">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>What went wrong</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {otherFailures.map((failure, index) => (
-                <TableRow
-                  key={`${failure.membershipNumber}-${index}`}
-                  data-test="roster-failure-row"
-                >
-                  <TableCell>{failure.membershipNumber}</TableCell>
-                  <TableCell className={cn('text-muted-foreground', WRAP)}>
-                    {failure.error}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </If>
-    </div>
   );
 }
