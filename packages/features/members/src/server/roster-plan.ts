@@ -62,6 +62,23 @@ export interface PlanRow {
   sourceRow?: number;
   action: PlanAction;
   reason?: string;
+  /**
+   * This row will give a known member the address the council does not hold —
+   * and therefore, for the first time, an account they can sign in with.
+   *
+   * Decided here rather than re-derived by the apply step, for three reasons.
+   * It already requires `!collision`, so it can never hand a member an address
+   * another member owns. It is persisted with the plan, so the preview can say
+   * "will create an account" before anybody presses apply — which is the whole
+   * point of a preview, and which asking "does this row have an email?" at
+   * apply time cannot do. And it is narrow: the alternative fires a
+   * `createUser` for all 372 rows into Supabase's auth rate limit every month,
+   * 370 of them doomed.
+   *
+   * Absent on `create` rows, which acquire an account by being creates, and on
+   * rows for members who already have an address on file.
+   */
+  fillsPrimaryEmail?: boolean;
   conflicts: PlanConflict[];
   record?: RosterRecord;
 }
@@ -467,6 +484,9 @@ export function buildPlan(
 
     rows.push({
       ...base,
+      // Carried into the plan rather than recomputed downstream: this is the
+      // only signal that says a member is about to become an account holder.
+      fillsPrimaryEmail,
       action:
         hasSomethingToFill || badAddressChanged || fillsPrimaryEmail
           ? 'update'

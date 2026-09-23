@@ -1393,6 +1393,74 @@ describe('buildPlan', () => {
     ).toBe(true);
   });
 
+  // --- The row that turns a member into an account holder ---
+
+  it('marks the row that gives a member their first address', () => {
+    // The apply step creates an account off this flag. Recomputing it there
+    // instead would either be wrong or would fire a createUser for all 372
+    // rows every month; carrying it lets the preview say "will create an
+    // account" before anybody presses apply.
+    const plan = buildPlan(
+      [record({ primaryEmail: 'john@example.com' })],
+      [existing({ primaryEmail: null, filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.fillsPrimaryEmail).toBe(true);
+  });
+
+  it('does not mark a member who already has an address on file', () => {
+    const plan = buildPlan(
+      [record({ primaryEmail: 'john@example.com' })],
+      [
+        existing({
+          primaryEmail: 'john@example.com',
+          filledFields: ALL_FILLED,
+        }),
+      ],
+    );
+
+    expect(plan.rows[0]?.fillsPrimaryEmail).toBe(false);
+  });
+
+  it('does not mark a fill of an address another member owns', () => {
+    // This is what keeps the account-on-fill decision from widening the
+    // one-account-per-member hole: a row that would attach somebody else's
+    // address must never be the row that resolves somebody else's account.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '1000002',
+          primaryEmail: null,
+          filledFields: ALL_FILLED,
+        }),
+        existing({
+          membershipNumber: '1000001',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
+    );
+
+    expect(plan.rows[0]?.fillsPrimaryEmail).toBe(false);
+  });
+
+  it('does not mark a member whose stored address is only whitespace as unchanged', () => {
+    // A whitespace-only stored address is blank, so this member has no
+    // account either and the fill is real.
+    const plan = buildPlan(
+      [record({ primaryEmail: 'john@example.com' })],
+      [existing({ primaryEmail: '   ', filledFields: ALL_FILLED })],
+    );
+
+    expect(plan.rows[0]?.fillsPrimaryEmail).toBe(true);
+    expect(plan.rows[0]?.action).toBe('update');
+  });
+
   // --- Conflicts carry a machine-readable kind ---
 
   it('labels an already-populated field differently from a real disagreement', () => {

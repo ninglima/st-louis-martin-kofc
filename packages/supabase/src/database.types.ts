@@ -392,6 +392,7 @@ export type Database = {
     }
     Functions: {
       member_upsert_from_roster: { Args: { p: Json }; Returns: string }
+      members_can_manage: { Args: never; Returns: boolean }
       members_list: {
         Args: { p_limit?: number; p_offset?: number; p_search?: string }
         // HAND-CORRECTED, do not regenerate away: Supabase's generator types

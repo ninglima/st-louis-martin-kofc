@@ -29,28 +29,53 @@ export type CreateUserOutcome =
   | { id: string }
   | { error: { message: string; code?: string } };
 
+/**
+ * Every interaction in the order it happened. The only way to assert that the
+ * permission probe ran BEFORE an irreversible account creation — which is the
+ * whole of F1 — is to look at the order, not at the counts.
+ */
+export type Interaction =
+  | 'members_can_manage'
+  | 'rpc'
+  | 'select'
+  | 'createUser'
+  | 'listUsers'
+  | 'inviteUserByEmail';
+
 export interface FakeClientOptions {
   /** Rows returned by `from('members').select(...)`. */
   rows?: Record<string, unknown>[];
   selectError?: { message: string };
-  /** Per-call result for `rpc()`, keyed by call order; default is success. */
+  /**
+   * Per-call result for `rpc()`, keyed by call order; default is success. The
+   * permission probe is not counted, so indexes line up with the member rows.
+   */
   rpcError?: (call: RpcCall, index: number) => { message: string } | null;
   rpcData?: unknown;
-  rpcThrows?: { message: string } | null;
+  /** The answer `members_can_manage` gives. Defaults to true. */
+  canManage?: boolean;
+  canManageError?: { message: string };
   /** Consumed in order by `auth.admin.createUser`. */
   createUser?: CreateUserOutcome[];
   /** The auth directory `auth.admin.listUsers` pages through. */
   authUsers?: AuthUserStub[];
   listUsersError?: { message: string };
+  /** A deployment that silently returns fewer users than `perPage` asked for. */
+  authPerPageCap?: number;
+  /** Every page comes back full, so the listing never ends. */
+  authAlwaysFull?: boolean;
 }
 
 export interface FakeClient {
   client: SupabaseClient<Database>;
   selects: SelectCall[];
+  /** Every `rpc()` call EXCEPT the permission probe. */
   rpcs: RpcCall[];
+  canManageCalls: number;
   createUserEmails: string[];
   listUsersPages: { page?: number; perPage?: number }[];
   inviteCalls: string[];
+  order: Interaction[];
 }
 
 export function fakeClient(options: FakeClientOptions = {}): FakeClient {
@@ -59,6 +84,8 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
   const createUserEmails: string[] = [];
   const listUsersPages: { page?: number; perPage?: number }[] = [];
   const inviteCalls: string[] = [];
+  const order: Interaction[] = [];
+  const state = { canManageCalls: 0 };
 
   const createUserOutcomes = [...(options.createUser ?? [])];
   const authUsers = options.authUsers ?? [];
@@ -68,6 +95,7 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
       return {
         select(columns: string) {
           selects.push({ table, columns });
+          order.push('select');
 
           return Promise.resolve(
             options.selectError
@@ -79,12 +107,22 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
     },
 
     rpc(name: string, args: Record<string, unknown>) {
+      if (name === 'members_can_manage') {
+        state.canManageCalls++;
+        order.push('members_can_manage');
+
+        return Promise.resolve(
+          options.canManageError
+            ? { data: null, error: options.canManageError }
+            : { data: options.canManage ?? true, error: null },
+        );
+      }
+
       const call = { name, args };
       const index = rpcs.length;
 
       rpcs.push(call);
-
-      if (options.rpcThrows) throw new Error(options.rpcThrows.message);
+      order.push('rpc');
 
       const error = options.rpcError?.(call, index) ?? null;
 
@@ -95,6 +133,7 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
       admin: {
         createUser({ email }: { email: string }) {
           createUserEmails.push(email);
+          order.push('createUser');
 
           const outcome = createUserOutcomes.shift() ?? {
             id: `created-${createUserEmails.length}`,
@@ -112,6 +151,7 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
 
         listUsers(params?: { page?: number; perPage?: number }) {
           listUsersPages.push(params ?? {});
+          order.push('listUsers');
 
           if (options.listUsersError)
             return Promise.resolve({
@@ -119,9 +159,25 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
               error: options.listUsersError,
             });
 
-          const perPage = params?.perPage ?? 50;
+          const requested = params?.perPage ?? 50;
+          // A deployment may hand back fewer than were asked for.
+          const perPage = Math.min(
+            requested,
+            options.authPerPageCap ?? requested,
+          );
           const page = params?.page ?? 1;
           const start = (page - 1) * perPage;
+
+          if (options.authAlwaysFull)
+            return Promise.resolve({
+              data: {
+                users: Array.from({ length: perPage }, (_, i) => ({
+                  id: `filler-${start + i}`,
+                  email: `filler${start + i}@example.com`,
+                })),
+              },
+              error: null,
+            });
 
           return Promise.resolve({
             data: { users: authUsers.slice(start, start + perPage) },
@@ -131,6 +187,7 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
 
         inviteUserByEmail(email: string) {
           inviteCalls.push(email);
+          order.push('inviteUserByEmail');
 
           return Promise.resolve({ data: { user: null }, error: null });
         },
@@ -142,9 +199,13 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
     client: client as unknown as SupabaseClient<Database>,
     selects,
     rpcs,
+    get canManageCalls() {
+      return state.canManageCalls;
+    },
     createUserEmails,
     listUsersPages,
     inviteCalls,
+    order,
   };
 }
 

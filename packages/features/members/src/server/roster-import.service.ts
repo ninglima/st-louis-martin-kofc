@@ -52,8 +52,16 @@ export class RosterImportService {
    * Applies one chunk. A row that fails is collected rather than thrown, so
    * one bad row cannot cost the rest of the chunk — and because the plan is
    * persisted, re-running processes what did not land and no-ops on what did.
+   *
+   * Permission is re-probed here, on every chunk, BEFORE anything irreversible
+   * happens. An unauthorised chunk throws rather than reporting per-row
+   * failures: a revoked grant is not 372 data problems for an officer to
+   * reconcile, it is one fact about the whole run, and a caller that keeps
+   * feeding chunks to a denied import is doing nothing useful.
    */
   async applyChunk(rows: PlanRow[], sourceFile: string): Promise<ChunkResult> {
+    await this.assertCanManage();
+
     const failures: ChunkResult['failures'] = [];
     let applied = 0;
 
@@ -62,10 +70,16 @@ export class RosterImportService {
         continue;
 
       try {
+        const email = row.record.primaryEmail;
+        // A create always brings an account. So does an update that fills a
+        // blank stored address, which is the only way the members who have
+        // never given the council an email ever become account holders — the
+        // planner decided that in `fillsPrimaryEmail` and it is carried in the
+        // plan, so the preview can say so before anybody presses apply.
+        const needsAccount =
+          row.action === 'create' || row.fillsPrimaryEmail === true;
         const userId =
-          row.action === 'create' && row.record.primaryEmail
-            ? await this.ensureAuthUser(row.record.primaryEmail)
-            : null;
+          needsAccount && email ? await this.ensureAuthUser(email) : null;
 
         const { error } = await this.client.rpc('member_upsert_from_roster', {
           p: {
@@ -87,6 +101,31 @@ export class RosterImportService {
     }
 
     return { applied, failures };
+  }
+
+  /**
+   * The authoritative check lives inside `member_upsert_from_roster`, but it
+   * runs per row and therefore AFTER `ensureAuthUser` has already created a
+   * real, durable, sign-in-capable account for a real member. A grant revoked
+   * between the preview and a later chunk would leave those accounts behind
+   * for every remaining row and then report 42501 — a denied import that
+   * nevertheless created up to 372 auth users, none of which a failed row
+   * rolls back or a re-run cleans up.
+   *
+   * So the same question is asked first, through a side-effect-free wrapper,
+   * and refused loudly. This does not replace the RPC's own gate: that one is
+   * still what actually protects the table, and it closes the window between
+   * this probe and the write.
+   */
+  private async assertCanManage(): Promise<void> {
+    const { data, error } = await this.client.rpc('members_can_manage');
+
+    if (error) throw new Error(error.message);
+
+    if (data !== true)
+      throw new Error(
+        'insufficient_privilege: members.manage is required to apply a roster import',
+      );
   }
 
   /**
@@ -145,11 +184,23 @@ export class RosterImportService {
   /**
    * GoTrue's admin API has no lookup-by-email, so the directory is paged in
    * once. Paging stops on a short page rather than on the response's
-   * `nextPage`, which auth-js parses one character wide and so gets wrong from
-   * page 10 on.
+   * `nextPage`, which auth-js parses one character wide
+   * (`parseInt(...).substring(0, 1)`) and so reads page 10 as 1.
+   *
+   * "Short" is measured against the PREVIOUS page, not against what was asked
+   * for. A deployment may cap `perPage` below `AUTH_PAGE_SIZE` and hand back a
+   * page that merely looks short; stopping there truncates the directory at
+   * the cap, and a truncated directory is not harmless — it makes a registered
+   * address look unregistered, which is the null this service exists to avoid.
+   * Comparing against what the server last gave costs one extra request at the
+   * end and removes the assumption entirely.
+   *
+   * And if the pages never run out, that is reported rather than absorbed: a
+   * quietly truncated listing at `AUTH_PAGE_LIMIT` would do the same damage.
    */
   private async loadAuthUserIds(): Promise<Map<string, string>> {
     const byEmail = new Map<string, string>();
+    let previousPage: number | null = null;
 
     for (let page = 1; page <= AUTH_PAGE_LIMIT; page++) {
       const { data, error } = await this.client.auth.admin.listUsers({
@@ -165,10 +216,16 @@ export class RosterImportService {
         if (key !== '' && !byEmail.has(key)) byEmail.set(key, user.id);
       }
 
-      if (data.users.length < AUTH_PAGE_SIZE) break;
+      if (data.users.length === 0) return byEmail;
+      if (previousPage !== null && data.users.length < previousPage)
+        return byEmail;
+
+      previousPage = data.users.length;
     }
 
-    return byEmail;
+    throw new Error(
+      `Auth directory did not end within ${AUTH_PAGE_LIMIT} pages; refusing to resolve an account against a truncated listing`,
+    );
   }
 
   /**
