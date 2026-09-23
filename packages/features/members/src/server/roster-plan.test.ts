@@ -105,6 +105,17 @@ const ALL_FILLED = [
   'phoneCell',
 ];
 
+/** Every ordering of `items`. Used to prove verdicts are order-independent. */
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+
+  return items.flatMap((item, index) =>
+    permutations([...items.slice(0, index), ...items.slice(index + 1)]).map(
+      (rest) => [item, ...rest],
+    ),
+  );
+}
+
 /** The shared fixture, read and parsed exactly as an upload would be. */
 async function fixtureRecords(): Promise<RosterRecord[]> {
   const buffer = Buffer.from(await buildFixtureWorkbook().xlsx.writeBuffer());
@@ -265,7 +276,12 @@ describe('buildPlan', () => {
 
     expect(good.action).toBe('create');
     expect(good.reason).toBeUndefined();
-    expect(plan.rows.filter((r) => r.action === 'skip')).toHaveLength(2);
+    // Updated in round 5 (R26). The first row is 1000001's ONLY address, and
+    // 1000002 gives two, so a@example.com is awarded to 1000001 rather than
+    // skipped for both: sole-address beats multi-address. Previously both
+    // rows for a@ were skipped and only 1000002's good row survived.
+    expect(plan.rows[0]?.action).toBe('create');
+    expect(plan.rows.filter((r) => r.action === 'skip')).toHaveLength(1);
   });
 
   it('still calls a repeated membership number a duplicate row, not a shared email', () => {
@@ -778,47 +794,162 @@ describe('buildPlan', () => {
     expect(plan.rows[2]?.reason).toBe('Duplicate row in file');
   });
 
-  it('reaches the same verdict wherever the innocent row sits in the file', () => {
-    // The only ordering that can matter is which row is a number's FIRST, so
-    // moving an unrelated member's row must not change anyone's fate.
-    const first = record({
-      membershipNumber: '1000001',
-      primaryEmail: 'a@example.com',
+  it('reaches the same verdict under every ordering of the same file', () => {
+    // Re-grounded in round 5 (R28). This used to assert that moving the
+    // innocent row changed nobody's fate -- true of these three rows, false
+    // in general, so it was certifying luck rather than a property. Under
+    // R26 the verdict is computed from sets, so EVERY ordering agrees, and
+    // that is what is asserted now: all six permutations, not the two that
+    // happened to work.
+    const rows = [
+      record({ membershipNumber: '1000001', primaryEmail: 'a@example.com' }),
+      record({
+        membershipNumber: '1000002',
+        primaryEmail: 'b@example.com',
+        sourceRow: 3,
+      }),
+      record({
+        membershipNumber: '1000001',
+        primaryEmail: 'b@example.com',
+        sourceRow: 4,
+      }),
+    ];
+    const verdicts = permutations(rows).map((order) =>
+      buildPlan(order, [])
+        .rows.filter((r) => r.action !== 'skip')
+        .map((r) => `${r.membershipNumber}=${r.record?.primaryEmail}`)
+        .sort()
+        .join(' '),
+    );
+
+    expect(verdicts).toHaveLength(6);
+    expect(new Set(verdicts).size).toBe(1);
+    // Both members are created, and 1000001 keeps the address it claims once
+    // rather than the one it contests with 1000002.
+    expect(verdicts[0]).toBe('1000001=a@example.com 1000002=b@example.com');
+  });
+
+  it('never lets a twice-listed member take a sole-listed member’s address', () => {
+    // Round 5, the scenario that broke the previous rule. 2000001 is listed
+    // twice under two addresses, each shared with a member who lists only
+    // that one. Under first-wins, 2000001 was created holding 2000003's
+    // address -- and at go-live that address is the auth identity, so the
+    // wrong person would own the account. 2000003's was their only row.
+    const shared = record({
+      membershipNumber: '2000001',
+      primaryEmail: 's@example.com',
     });
-    const innocent = record({
-      membershipNumber: '1000002',
-      primaryEmail: 'b@example.com',
+    const soleS = record({
+      membershipNumber: '2000002',
+      primaryEmail: 's@example.com',
       sourceRow: 3,
     });
-    const doomed = record({
-      membershipNumber: '1000001',
-      primaryEmail: 'b@example.com',
+    const other = record({
+      membershipNumber: '2000001',
+      primaryEmail: 'o@example.com',
       sourceRow: 4,
+    });
+    const soleO = record({
+      membershipNumber: '2000003',
+      primaryEmail: 'o@example.com',
+      sourceRow: 5,
     });
 
     for (const rows of [
-      [first, innocent, doomed],
-      [innocent, first, doomed],
+      [shared, soleS, other, soleO],
+      [soleO, other, soleS, shared],
+      [other, soleO, shared, soleS],
     ]) {
       const plan = buildPlan(rows, []);
-      const verdict = Object.fromEntries(
-        plan.rows.map((r) => [
-          `${r.membershipNumber}@${r.sourceRow}`,
-          r.action,
-        ]),
-      );
+      const planned = plan.rows.filter((r) => r.action !== 'skip');
 
-      expect(verdict).toEqual({
-        '1000001@2': 'create',
-        '1000002@3': 'create',
-        '1000001@4': 'skip',
-      });
+      expect(
+        planned
+          .map((r) => `${r.membershipNumber}=${r.record?.primaryEmail}`)
+          .sort(),
+      ).toEqual(['2000002=s@example.com', '2000003=o@example.com']);
+      expect(
+        plan.rows
+          .filter((r) => r.membershipNumber === '2000001')
+          .every((r) => r.action === 'skip'),
+      ).toBe(true);
     }
   });
 
-  it('still skips both when a genuine contested pair are each their own first row', () => {
-    // The F7 fix must not weaken the rule into uselessness: two DIFFERENT
-    // members, one row each, sharing an address is still unadjudicable.
+  it('lets the council’s own record outrank a sole-address claimant', () => {
+    // Rule (a) beats rule (b). The council knows 2000001 owns this address;
+    // 2000007 claims it and claims nothing else, so sole-address alone would
+    // hand it to 2000007. What the roster already holds outranks what the
+    // file asserts.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '2000001',
+          primaryEmail: 'known@example.com',
+        }),
+        record({
+          membershipNumber: '2000001',
+          primaryEmail: 'second@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '2000007',
+          primaryEmail: 'known@example.com',
+          sourceRow: 4,
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '2000001',
+          primaryEmail: 'known@example.com',
+        }),
+      ],
+    );
+
+    expect(plan.rows[0]?.action).not.toBe('skip');
+    expect(plan.rows[2]?.action).toBe('skip');
+    expect(plan.rows[2]?.reason).toBe('Duplicate email in file');
+  });
+
+  it('skips everyone when no claimant gives only that address', () => {
+    // Rule (c), the "or none is" half. Both members are listed twice under
+    // the same two addresses, so neither is making a coherent claim and
+    // there is nothing to prefer.
+    const plan = buildPlan(
+      [
+        record({ membershipNumber: '3000001', primaryEmail: 'x@example.com' }),
+        record({
+          membershipNumber: '3000001',
+          primaryEmail: 'y@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '3000002',
+          primaryEmail: 'x@example.com',
+          sourceRow: 4,
+        }),
+        record({
+          membershipNumber: '3000002',
+          primaryEmail: 'y@example.com',
+          sourceRow: 5,
+        }),
+      ],
+      [],
+    );
+
+    expect(plan.counts).toEqual({
+      create: 0,
+      update: 0,
+      nochange: 0,
+      skip: 4,
+    });
+    expect(plan.rows[0]?.reason).toBe('Two rows in the file share this email');
+  });
+
+  it('still skips both when a genuine contested pair each give only that address', () => {
+    // Rule (c), the "two or more sole-address claimants" half. The rule must
+    // not be weakened into uselessness: two DIFFERENT members, one row each,
+    // sharing an address is still unadjudicable.
     const plan = buildPlan(
       [
         record({
@@ -845,11 +976,12 @@ describe('buildPlan', () => {
     }
   });
 
-  it('never plans two rows holding the same email', () => {
-    // A row promoted to be its number's claimant -- because that number's
-    // first row was itself skipped -- never stood in the contested vote. The
-    // backstop is what keeps it from walking off with an address another
-    // planned row already holds.
+  it('awards a contested email to the claimant giving only that address', () => {
+    // Updated in round 5 (R26). 1000002 claims two addresses and 1000001 and
+    // 1000003 claim one each, so both single-address members are created and
+    // the two-address member gets neither. Before R26 the winner was decided
+    // by file order, and 1000002 walked off with 1000003's address -- whose
+    // only row it was, and which at go-live is their auth identity.
     const plan = buildPlan(
       [
         record({ membershipNumber: '1000001', primaryEmail: 'a@example.com' }),
@@ -872,12 +1004,86 @@ describe('buildPlan', () => {
       [],
     );
 
-    const planned = plan.rows.filter((r) => r.action !== 'skip');
-    const emails = planned.map((r) => r.record?.primaryEmail);
+    expect(plan.rows.map((r) => [r.membershipNumber, r.action])).toEqual([
+      ['1000001', 'create'],
+      ['1000002', 'skip'],
+      ['1000002', 'skip'],
+      ['1000003', 'create'],
+    ]);
+  });
 
-    expect(new Set(emails).size).toBe(emails.length);
-    expect(plan.rows[3]?.action).toBe('skip');
-    expect(plan.rows[3]?.reason).toBe('Duplicate email in file');
+  it('never plans two rows holding the same email, under any row order', () => {
+    // The structural invariant, and the reason the old first-wins backstop
+    // could be removed rather than patched: when an address is claimed by two
+    // numbers it is contested, and at most one number can pass the gate.
+    // Checked exhaustively over every ordering of a file built to tangle --
+    // two shared addresses, one member listed twice -- against both an empty
+    // and a populated council.
+    const rows = [
+      record({ membershipNumber: '2000001', primaryEmail: 's@example.com' }),
+      record({
+        membershipNumber: '2000002',
+        primaryEmail: 's@example.com',
+        sourceRow: 3,
+      }),
+      record({
+        membershipNumber: '2000001',
+        primaryEmail: 'o@example.com',
+        sourceRow: 4,
+      }),
+      record({
+        membershipNumber: '2000003',
+        primaryEmail: 'o@example.com',
+        sourceRow: 5,
+      }),
+      record({
+        membershipNumber: '2000004',
+        primaryEmail: 'alone@example.com',
+        sourceRow: 6,
+      }),
+      record({
+        membershipNumber: '2000005',
+        primaryEmail: 'o@example.com',
+        sourceRow: 7,
+      }),
+    ];
+    const councils = [
+      [],
+      [
+        existing({
+          membershipNumber: '2000003',
+          primaryEmail: 'o@example.com',
+        }),
+      ],
+    ];
+    const plannedNumbers = new Map<string, string>();
+
+    let checked = 0;
+
+    for (const council of councils) {
+      for (const order of permutations(rows)) {
+        const plan = buildPlan(order, council);
+        const planned = plan.rows.filter((r) => r.action !== 'skip');
+        const emails = planned.map((r) => r.record?.primaryEmail);
+
+        // No two planned rows hold the same address, ever.
+        expect(new Set(emails).size).toBe(emails.length);
+
+        // And WHICH members are planned does not depend on row order: the
+        // whole point of R26. Recorded once per council, compared thereafter.
+        const key = String(councils.indexOf(council));
+        const fate = [...new Set(planned.map((r) => r.membershipNumber))]
+          .sort()
+          .join(',');
+
+        if (!plannedNumbers.has(key)) plannedNumbers.set(key, fate);
+
+        expect(fate).toBe(plannedNumbers.get(key));
+        checked++;
+      }
+    }
+
+    expect(checked).toBe(1440);
   });
 
   it('treats a whitespace-only stored email as blank, not as a disagreement', () => {

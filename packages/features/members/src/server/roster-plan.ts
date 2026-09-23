@@ -130,26 +130,39 @@ function emailKey(value: string | null | undefined): string | null {
  * Rows sharing an email AND a membership number are not contested — that is
  * one member listed twice, which the membership-number check handles.
  *
- * Only the FIRST row for each membership number gets a vote, matching the
- * first-wins order the duplicate-number check already applies. A later row
- * for a number some earlier row already holds is going to be discarded
- * whatever happens, so it must not get a say in whether somebody else's email
- * is contested: without this, a second listing of member A carrying a typo of
- * member B's address costs B their go-live create, and B had only one row.
+ * Adjudicated in three steps, over EVERY listing rather than each number's
+ * first one:
+ *
+ *   (a) if the council already knows an owner among the claimants, the owner
+ *       wins — the stored roster outranks anything the file asserts;
+ *   (b) otherwise the winner is the unique claimant for whom this is its ONLY
+ *       address in the file. A member who appears once, giving one address, is
+ *       making a coherent claim; a member listed twice under two different
+ *       addresses is not, and must not cost the coherent one their import;
+ *   (c) if two or more claimants are sole-address claimants, or none is, skip
+ *       them all. Creating the wrong member is worse than creating neither.
+ *
+ * Every input is a set, so the verdict does not depend on row order at all —
+ * which member ends up created is now a property of the file's contents rather
+ * than of how the spreadsheet happened to be sorted. Earlier attempts weighed
+ * only each number's first listing, which fixed one injustice by creating
+ * another: a promoted repeat listing could outrank another member's sole
+ * listing and walk off with their address, and at go-live that address is the
+ * auth identity.
+ *
+ * What remains genuinely undecidable is narrower, and it is a property of the
+ * data rather than of this rule: the file does not say which of a twice-listed
+ * member's addresses is the real one. Which MEMBER is created is not
+ * undecidable, and is settled here.
  */
 function contestedEmails(
   records: RosterRecord[],
   byEmail: Map<string, ExistingMember>,
 ): Map<string, string | null> {
   const numbersByEmail = new Map<string, Set<string>>();
-  const voted = new Set<string>();
+  const emailsByNumber = new Map<string, Set<string>>();
 
   for (const record of records) {
-    if (voted.has(record.membershipNumber)) continue;
-    // Claimed before the email is read, so a number whose first row carries no
-    // usable email does not get a second bite through a later row.
-    voted.add(record.membershipNumber);
-
     const key = emailKey(record.primaryEmail);
     if (key === null) continue;
 
@@ -157,21 +170,34 @@ function contestedEmails(
 
     numbers.add(record.membershipNumber);
     numbersByEmail.set(key, numbers);
+
+    const emails =
+      emailsByNumber.get(record.membershipNumber) ?? new Set<string>();
+
+    emails.add(key);
+    emailsByNumber.set(record.membershipNumber, emails);
   }
 
   const contested = new Map<string, string | null>();
 
-  for (const [key, numbers] of numbersByEmail) {
-    if (numbers.size < 2) continue;
+  for (const [key, claimants] of numbersByEmail) {
+    if (claimants.size < 2) continue;
 
+    // (a) The council already knows whose address this is.
     const owner = byEmail.get(key);
 
-    contested.set(
-      key,
-      owner && numbers.has(owner.membershipNumber)
-        ? owner.membershipNumber
-        : null,
+    if (owner && claimants.has(owner.membershipNumber)) {
+      contested.set(key, owner.membershipNumber);
+      continue;
+    }
+
+    // (b) A claimant giving exactly one address is making a coherent claim.
+    const soleAddress = [...claimants].filter(
+      (number) => emailsByNumber.get(number)?.size === 1,
     );
+
+    // (c) Unless exactly one claimant qualifies, nobody gets it.
+    contested.set(key, soleAddress.length === 1 ? soleAddress[0]! : null);
   }
 
   return contested;
@@ -193,8 +219,6 @@ export function buildPlan(
   const contested = contestedEmails(records, byEmail);
 
   const seenNumbers = new Set<string>();
-  /** Email -> the membership number of the planned row already holding it. */
-  const claimedEmails = new Map<string, string>();
   const rows: PlanRow[] = [];
 
   for (const record of records) {
@@ -223,8 +247,12 @@ export function buildPlan(
         rows.push({
           ...base,
           action: 'skip',
-          reason:
-            winner === null
+          // A row whose number an earlier row already claimed is a repeat
+          // listing first and an email loser second. The officer needs the
+          // reason that tells them what to do with the row.
+          reason: seenNumbers.has(record.membershipNumber)
+            ? 'Duplicate row in file'
+            : winner === null
               ? 'Two rows in the file share this email'
               : 'Duplicate email in file',
           conflicts: [],
@@ -241,27 +269,6 @@ export function buildPlan(
         conflicts: [],
       });
       continue;
-    }
-
-    // Backstop, after the number check so a repeat listing is reported for
-    // what it is rather than for whose address it happened to carry. The vote
-    // above only weighs each number's FIRST row, so a row promoted to be its
-    // number's claimant -- because that first row was itself skipped -- never
-    // stood for election. This is what keeps two planned rows from ever
-    // holding the same address. Before the number is claimed, for the same
-    // reason the contested check is.
-    if (incomingEmail !== null) {
-      const claimant = claimedEmails.get(incomingEmail);
-
-      if (claimant !== undefined && claimant !== record.membershipNumber) {
-        rows.push({
-          ...base,
-          action: 'skip',
-          reason: 'Duplicate email in file',
-          conflicts: [],
-        });
-        continue;
-      }
     }
 
     seenNumbers.add(record.membershipNumber);
@@ -285,11 +292,6 @@ export function buildPlan(
       });
       continue;
     }
-
-    // Past every skip, so this row is going to be planned and its address is
-    // now spoken for.
-    if (incomingEmail !== null)
-      claimedEmails.set(incomingEmail, record.membershipNumber);
 
     if (!match) {
       rows.push({ ...base, action: 'create', conflicts: [], record });
