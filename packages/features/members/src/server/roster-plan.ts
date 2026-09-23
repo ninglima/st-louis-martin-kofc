@@ -32,7 +32,14 @@ export interface ExistingMember {
 export type PlanConflictKind =
   | 'already-set'
   | 'value-differs'
-  | 'owned-by-another-member';
+  | 'owned-by-another-member'
+  /**
+   * Two membership numbers in the file claimed this address and the planner
+   * awarded it here on a tie-break it cannot verify. Reported on the WINNING
+   * row: the officer knows which of their members transferred out, and this
+   * is the only place that fact can enter the decision.
+   */
+  | 'awarded-contested-email';
 
 export interface PlanConflict {
   field: string;
@@ -115,6 +122,19 @@ function emailKey(value: string | null | undefined): string | null {
   return trimmed === '' ? null : trimmed;
 }
 
+interface EmailVerdict {
+  /** The membership number allowed to keep the address, or null for nobody. */
+  winner: string | null;
+  /**
+   * The rival claimants to disclose on the winning row — populated ONLY when
+   * the winner was chosen by a tie-break this module cannot verify. Empty
+   * when the council's own record decided it (nothing was guessed) and when
+   * nobody won (nothing was awarded), so a non-empty list means exactly one
+   * thing: a guess was made and the officer needs to see it.
+   */
+  disclose: string[];
+}
+
 /**
  * Emails claimed by more than one membership number in the same file, mapped
  * to the single number allowed to keep it — or `null` when nobody is.
@@ -143,22 +163,37 @@ function emailKey(value: string | null | undefined): string | null {
  *       them all. Creating the wrong member is worse than creating neither.
  *
  * Every input is a set, so the verdict does not depend on row order at all —
- * which member ends up created is now a property of the file's contents rather
+ * which member ends up created is a property of the file's contents rather
  * than of how the spreadsheet happened to be sorted. Earlier attempts weighed
  * only each number's first listing, which fixed one injustice by creating
  * another: a promoted repeat listing could outrank another member's sole
  * listing and walk off with their address, and at go-live that address is the
  * auth identity.
  *
- * What remains genuinely undecidable is narrower, and it is a property of the
- * data rather than of this rule: the file does not say which of a twice-listed
- * member's addresses is the real one. Which MEMBER is created is not
- * undecidable, and is settled here.
+ * (a) and (c) are decisions. **(b) is a policy tie-break, and it can be
+ * wrong.** It assumes a number listed once is likelier to own the address than
+ * a number listed twice — but a stale row for a transferred-out member is
+ * exactly the thing that appears once, and a current member with a typo'd
+ * second listing is exactly the thing that appears twice. Those two have
+ * IDENTICAL shape in the file, so no rule can separate them, and dropping (b)
+ * simply moves the harm onto the honest single-listed member instead.
+ *
+ * So (b) guesses, deterministically, and then SAYS SO: every award under (b)
+ * puts an `awarded-contested-email` conflict on the winning row naming the
+ * rival claimant. The officer knows which of their members transferred out and
+ * this module cannot; giving them the fact is the whole point of a preview.
+ * Do not let this become silent again — a clean-looking `create` that quietly
+ * handed one member's address to another is the exact failure this reports.
+ *
+ * What is genuinely undecidable, as a property of the data rather than of this
+ * rule: the file does not say which of a twice-listed member's addresses is
+ * the real one, nor which of two identically-shaped claimants is the live
+ * member.
  */
 function contestedEmails(
   records: RosterRecord[],
   byEmail: Map<string, ExistingMember>,
-): Map<string, string | null> {
+): Map<string, EmailVerdict> {
   const numbersByEmail = new Map<string, Set<string>>();
   const emailsByNumber = new Map<string, Set<string>>();
 
@@ -178,16 +213,17 @@ function contestedEmails(
     emailsByNumber.set(record.membershipNumber, emails);
   }
 
-  const contested = new Map<string, string | null>();
+  const contested = new Map<string, EmailVerdict>();
 
   for (const [key, claimants] of numbersByEmail) {
     if (claimants.size < 2) continue;
 
-    // (a) The council already knows whose address this is.
+    // (a) The council already knows whose address this is. Established, not
+    // guessed, so there is nothing to disclose on the winner.
     const owner = byEmail.get(key);
 
     if (owner && claimants.has(owner.membershipNumber)) {
-      contested.set(key, owner.membershipNumber);
+      contested.set(key, { winner: owner.membershipNumber, disclose: [] });
       continue;
     }
 
@@ -196,8 +232,20 @@ function contestedEmails(
       (number) => emailsByNumber.get(number)?.size === 1,
     );
 
-    // (c) Unless exactly one claimant qualifies, nobody gets it.
-    contested.set(key, soleAddress.length === 1 ? soleAddress[0]! : null);
+    if (soleAddress.length === 1) {
+      const winner = soleAddress[0]!;
+
+      contested.set(key, {
+        winner,
+        // The tie-break cannot be verified from the file, so it is disclosed.
+        disclose: [...claimants].filter((number) => number !== winner).sort(),
+      });
+      continue;
+    }
+
+    // (c) Two claimants qualify, or none does: nobody gets it, so nothing is
+    // awarded and there is nothing to disclose.
+    contested.set(key, { winner: null, disclose: [] });
   }
 
   return contested;
@@ -240,10 +288,14 @@ export function buildPlan(
     // A row skipped here was never planned, so it must not consume its number
     // -- otherwise the member's own good row, further down the file, is
     // skipped afterwards as a "duplicate" of a row that does not exist.
-    if (incomingEmail !== null && contested.has(incomingEmail)) {
-      const winner = contested.get(incomingEmail) ?? null;
+    // Set when this row WINS a contested address on a tie-break the planner
+    // cannot verify, so the award travels with the row it benefits.
+    let awarded: PlanConflict | null = null;
 
-      if (winner !== record.membershipNumber) {
+    if (incomingEmail !== null && contested.has(incomingEmail)) {
+      const verdict = contested.get(incomingEmail)!;
+
+      if (verdict.winner !== record.membershipNumber) {
         rows.push({
           ...base,
           action: 'skip',
@@ -252,12 +304,21 @@ export function buildPlan(
           // reason that tells them what to do with the row.
           reason: seenNumbers.has(record.membershipNumber)
             ? 'Duplicate row in file'
-            : winner === null
+            : verdict.winner === null
               ? 'Two rows in the file share this email'
               : 'Duplicate email in file',
           conflicts: [],
         });
         continue;
+      }
+
+      if (verdict.disclose.length > 0 && record.primaryEmail !== null) {
+        awarded = {
+          field: 'primaryEmail',
+          kind: 'awarded-contested-email',
+          incoming: record.primaryEmail,
+          stored: `(also claimed in this file by member ${verdict.disclose.join(', ')})`,
+        };
       }
     }
 
@@ -294,11 +355,16 @@ export function buildPlan(
     }
 
     if (!match) {
-      rows.push({ ...base, action: 'create', conflicts: [], record });
+      rows.push({
+        ...base,
+        action: 'create',
+        conflicts: awarded ? [awarded] : [],
+        record,
+      });
       continue;
     }
 
-    const conflicts: PlanConflict[] = [];
+    const conflicts: PlanConflict[] = awarded ? [awarded] : [];
 
     for (const field of NEVER_AUTO_UPDATED) {
       const incoming = record[field];

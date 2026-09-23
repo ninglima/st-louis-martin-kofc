@@ -876,6 +876,153 @@ describe('buildPlan', () => {
     }
   });
 
+  it('reports on the winning row when a contested address is awarded on a guess', () => {
+    // The shape rule (b) cannot see through. John Smith is listed twice --
+    // his real address and a typo -- and a stale row for a transferred-out
+    // member is listed once, carrying John's real address. Sole-address
+    // hands it to the stale row, and at go-live that address becomes the auth
+    // identity of a membership number that is not John's, so John can never
+    // be invited. A stale row and an innocent single-lister are IDENTICAL in
+    // the file, so the tie-break cannot be made correct -- but it must not be
+    // silent, because the officer knows who transferred out and this module
+    // does not.
+    const rows = [
+      record({
+        membershipNumber: '1111111',
+        primaryEmail: 'john@example.com',
+      }),
+      record({
+        membershipNumber: '1111111',
+        primaryEmail: 'jonh@example.com',
+        sourceRow: 3,
+      }),
+      record({
+        membershipNumber: '2222222',
+        lastName: 'Stale',
+        primaryEmail: 'john@example.com',
+        sourceRow: 4,
+      }),
+    ];
+
+    for (const order of permutations(rows)) {
+      const plan = buildPlan(order, []);
+      const winner = plan.rows.find(
+        (r) => r.membershipNumber === '2222222' && r.action !== 'skip',
+      );
+
+      // The award itself is unchanged -- this is not a re-litigation of the
+      // tie-break, which has no correct answer from the file alone.
+      expect(winner).toBeDefined();
+      // But the winning row no longer looks clean.
+      expect(winner?.conflicts).toContainEqual({
+        field: 'primaryEmail',
+        kind: 'awarded-contested-email',
+        incoming: 'john@example.com',
+        stored: '(also claimed in this file by member 1111111)',
+      });
+    }
+  });
+
+  it('reports an award on a winning row that is an update or a no-change', () => {
+    // The winner is not always a create. An existing member whose stored
+    // address differs can win a contested one on the same tie-break, and the
+    // disclosure has to travel with that row too -- it was reaching only the
+    // create branch, which a mutation caught and no test did.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '6000001',
+          primaryEmail: 'contested@example.com',
+        }),
+        record({
+          membershipNumber: '6000002',
+          primaryEmail: 'contested@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '6000002',
+          primaryEmail: 'second@example.com',
+          sourceRow: 4,
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '6000001',
+          primaryEmail: 'old@example.com',
+          filledFields: ALL_FILLED,
+        }),
+      ],
+    );
+
+    const winner = plan.rows[0]!;
+
+    // Nothing to write, so the award must not have changed the action.
+    expect(winner.action).toBe('nochange');
+    expect(winner.conflicts).toContainEqual({
+      field: 'primaryEmail',
+      kind: 'awarded-contested-email',
+      incoming: 'contested@example.com',
+      stored: '(also claimed in this file by member 6000002)',
+    });
+  });
+
+  it('does not report an award when the council’s own record decided it', () => {
+    // Rule (a) is not a guess -- the stored roster already says whose address
+    // this is -- so nothing is flagged on the winner. Reporting it would bury
+    // the real guesses in noise, which is the same failure as saying nothing.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '2000001',
+          primaryEmail: 'known@example.com',
+        }),
+        record({
+          membershipNumber: '2000001',
+          primaryEmail: 'second@example.com',
+          sourceRow: 3,
+        }),
+        record({
+          membershipNumber: '2000007',
+          primaryEmail: 'known@example.com',
+          sourceRow: 4,
+        }),
+      ],
+      [
+        existing({
+          membershipNumber: '2000001',
+          primaryEmail: 'known@example.com',
+        }),
+      ],
+    );
+
+    expect(plan.rows[0]?.action).not.toBe('skip');
+    expect(
+      plan.rows.flatMap((r) => r.conflicts).map((c) => c.kind),
+    ).not.toContain('awarded-contested-email');
+  });
+
+  it('reports no award when nobody won the contested address', () => {
+    // Rule (c): nothing was awarded, so there is nothing to disclose. The
+    // losing rows carry their skip reasons and that is the whole story.
+    const plan = buildPlan(
+      [
+        record({
+          membershipNumber: '1000001',
+          primaryEmail: 'same@example.com',
+        }),
+        record({
+          membershipNumber: '1000002',
+          primaryEmail: 'same@example.com',
+          sourceRow: 3,
+        }),
+      ],
+      [],
+    );
+
+    expect(plan.counts.skip).toBe(2);
+    expect(plan.rows.flatMap((r) => r.conflicts)).toEqual([]);
+  });
+
   it('lets the council’s own record outrank a sole-address claimant', () => {
     // Rule (a) beats rule (b). The council knows 2000001 owns this address;
     // 2000007 claims it and claims nothing else, so sole-address alone would
@@ -1314,22 +1461,57 @@ describe('buildPlan', () => {
     expect(new Set(emailConflicts.map((c) => c.stored)).size).toBe(2);
   });
 
-  it('gives every conflict a kind', () => {
+  it('gives every conflict a kind, and can emit all four', () => {
+    // Built to reach every branch in one plan, so a new conflict pushed
+    // without a kind -- or with one nobody enumerated -- fails here.
     const plan = buildPlan(
-      [record({ lastName: 'Smythe' })],
-      [existing({ lastName: 'Smith', filledFields: ALL_FILLED })],
+      [
+        // value-differs + already-set
+        record({ lastName: 'Smythe' }),
+        // owned-by-another-member
+        record({
+          membershipNumber: '4000001',
+          primaryEmail: 'taken@example.com',
+          sourceRow: 3,
+        }),
+        // awarded-contested-email: sole-address claimant beats the twice-listed
+        record({
+          membershipNumber: '3000001',
+          primaryEmail: 'shared@example.com',
+          sourceRow: 4,
+        }),
+        record({
+          membershipNumber: '3000002',
+          primaryEmail: 'shared@example.com',
+          sourceRow: 5,
+        }),
+        record({
+          membershipNumber: '3000002',
+          primaryEmail: 'other@example.com',
+          sourceRow: 6,
+        }),
+      ],
+      [
+        existing({ lastName: 'Smith', filledFields: ALL_FILLED }),
+        existing({
+          membershipNumber: '4000001',
+          primaryEmail: 'old@example.com',
+        }),
+        existing({
+          membershipNumber: '5000005',
+          primaryEmail: 'taken@example.com',
+        }),
+      ],
     );
     const kinds = new Set(
       plan.rows.flatMap((r) => r.conflicts.map((c) => c.kind)),
     );
 
-    expect(kinds.size).toBeGreaterThan(0);
-    for (const kind of kinds) {
-      expect([
-        'already-set',
-        'value-differs',
-        'owned-by-another-member',
-      ]).toContain(kind);
-    }
+    expect([...kinds].sort()).toEqual([
+      'already-set',
+      'awarded-contested-email',
+      'owned-by-another-member',
+      'value-differs',
+    ]);
   });
 });
