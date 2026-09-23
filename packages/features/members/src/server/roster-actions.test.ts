@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { fullMemberRow } from '../../test/fixtures/fake-supabase';
 import { CHUNK_SIZE } from '../types/roster';
 import type { RosterRecord } from '../types/roster';
 import type { PlanAction, PlanRow } from './roster-plan';
@@ -73,8 +74,16 @@ interface DbOptions {
   plan?: unknown;
   previousResults?: unknown;
   canManage?: boolean;
+  /** `members_can_manage` answers with an error instead of a boolean. */
+  canManageError?: { message: string };
+  /** `members_can_manage` REJECTS, as a dead transport makes it. */
+  canManageThrows?: string;
   savePlanError?: { message: string };
   upsertError?: { message: string };
+  loadResultsError?: { message: string };
+  saveResultsError?: { message: string };
+  /** Keyed on the status being written, so 'applying' and 'complete' differ. */
+  updateError?: (status: unknown) => { message: string } | null;
 }
 
 /**
@@ -135,7 +144,10 @@ function fakeDb(options: DbOptions = {}) {
         update(payload: Record<string, unknown>) {
           tables.push({ kind: 'update', table, payload });
 
-          return builder({ data: null, error: null });
+          return builder({
+            data: null,
+            error: options.updateError?.(payload.status) ?? null,
+          });
         },
       };
     },
@@ -145,16 +157,26 @@ function fakeDb(options: DbOptions = {}) {
 
       switch (name) {
         case 'members_can_manage':
+          if (options.canManageThrows !== undefined)
+            return Promise.reject(new Error(options.canManageThrows));
+
           return Promise.resolve({
-            data: options.canManage ?? true,
-            error: null,
+            data: options.canManageError ? null : (options.canManage ?? true),
+            error: options.canManageError ?? null,
           });
         case 'roster_import_load_plan':
           return Promise.resolve({ data: options.plan ?? null, error: null });
         case 'roster_import_load_results':
           return Promise.resolve({
-            data: options.previousResults ?? null,
-            error: null,
+            data: options.loadResultsError
+              ? null
+              : (options.previousResults ?? null),
+            error: options.loadResultsError ?? null,
+          });
+        case 'roster_import_save_results':
+          return Promise.resolve({
+            data: null,
+            error: options.saveResultsError ?? null,
           });
         case 'roster_import_save_plan':
           return Promise.resolve({
@@ -294,13 +316,15 @@ beforeEach(() => {
 
 describe('previewRosterAction', () => {
   it('saves the plan through the encrypting accessor, never as a column', async () => {
-    const { officer } = install();
+    // A distinct id, so `importId` has to come back from the insert rather
+    // than from anywhere else.
+    const { officer } = install({ insertId: 'import-xyz' });
 
     const result = await previewRosterAction(
       rosterForm(`${HEADER}\n1000001,Ada,Lovelace,ada@example.com`),
     );
 
-    expect(result).toMatchObject({ success: true, importId: 'import-1' });
+    expect(result).toMatchObject({ success: true, importId: 'import-xyz' });
 
     const insert = officer.tables.find((call) => call.kind === 'insert');
 
@@ -315,9 +339,99 @@ describe('previewRosterAction', () => {
 
     const save = rpcArgs(officer.rpcs, 'roster_import_save_plan');
 
-    expect(save.p_import).toBe('import-1');
+    expect(save.p_import).toBe('import-xyz');
     expect((save.p_plan as { rows: PlanRow[] }).rows[0]?.membershipNumber).toBe(
       '1000001',
+    );
+  });
+
+  it('carries the rows that could not be parsed into the saved plan', async () => {
+    // MINE-4. `PreviewPlan` exists for exactly this: a file with malformed
+    // rows must not preview as clean, or the officer approves an import that
+    // silently drops the members nobody told them about.
+    const { officer } = install();
+
+    const result = await previewRosterAction(
+      rosterForm(
+        [
+          HEADER,
+          '1000001,Ada,Lovelace,ada@example.com',
+          ',Nameless,Row,nobody@example.com',
+          '1000003,Grace,Hopper,not-an-address',
+        ].join('\n'),
+      ),
+    );
+
+    const expected = [
+      { sourceRow: 3, reason: 'Cannot identify the member' },
+      {
+        sourceRow: 4,
+        reason:
+          'No usable email address for member 1000003 — create this account manually',
+      },
+    ];
+
+    expect(result).toMatchObject({ success: true });
+    expect(
+      (result as { plan: { rowErrors: unknown[] } }).plan.rowErrors,
+    ).toEqual(expected);
+
+    // And persisted, not merely returned: the apply step and any later reading
+    // of the import both go through the saved plan.
+    const save = rpcArgs(officer.rpcs, 'roster_import_save_plan');
+
+    expect((save.p_plan as { rowErrors: unknown[] }).rowErrors).toEqual(
+      expected,
+    );
+  });
+
+  it('returns a failed membership read as a value', async () => {
+    // MINE-6, the worst survivor: `existingForPlanning()` THROWS on a select
+    // error, so without the try/catch a PostgREST hiccup escapes the action
+    // and reaches the officer as a redacted digest with no message in it.
+    const { officer } = install({
+      memberSelectError: { message: 'permission denied for table members' },
+    });
+
+    const result = await previewRosterAction(
+      rosterForm(`${HEADER}\n1000001,Ada,Lovelace,ada@example.com`),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: 'permission denied for table members',
+    });
+    // The read is what failed, so no import row was created for it.
+    expect(officer.tables.filter((c) => c.kind === 'insert')).toEqual([]);
+    expect(officer.rpcs).toEqual([]);
+  });
+
+  it('plans a member already on file as no change and makes no account', async () => {
+    const { officer, admin } = install({
+      memberRows: [
+        fullMemberRow({
+          membership_number: '1000001',
+          primary_email: 'ada@example.com',
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+        }),
+      ],
+    });
+
+    const result = await previewRosterAction(
+      rosterForm(`${HEADER}\n1000001,Ada,Lovelace,ada@example.com`),
+    );
+
+    expect(result).toMatchObject({ success: true });
+
+    const save = rpcArgs(officer.rpcs, 'roster_import_save_plan');
+    const saved = save.p_plan as { counts: Record<string, number> };
+
+    expect(saved.counts).toMatchObject({ create: 0, nochange: 1 });
+    // A preview writes nothing and enrols nobody, whatever the plan says.
+    expect(admin.createdEmails).toEqual([]);
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'member_upsert_from_roster',
     );
   });
 
@@ -385,24 +499,39 @@ describe('previewRosterAction', () => {
     expect(officer.tables).toEqual([]);
   });
 
-  it('refuses a file over 5,000 rows', async () => {
-    const { officer } = install();
-
-    const body = [
+  function rosterOf(dataRows: number) {
+    return [
       HEADER,
       ...Array.from(
-        { length: 5_001 },
+        { length: dataRows },
         (_, i) => `${1_000_000 + i},Ada,Lovelace,member${i}@example.com`,
       ),
     ].join('\n');
+  }
 
-    const result = await previewRosterAction(rosterForm(body));
+  it('refuses a file over 5,000 rows', async () => {
+    const { officer } = install();
+
+    const result = await previewRosterAction(rosterForm(rosterOf(5_001)));
 
     expect(result).toEqual({
       success: false,
       error: 'That file has more than 5000 rows.',
     });
     expect(officer.tables).toEqual([]);
+  });
+
+  it('accepts a file of exactly 5,000 rows', async () => {
+    // MINE-1. The ceiling counts DATA rows, so the header must be subtracted
+    // before the comparison. Dropping that `- 1` still refuses 5,001 — which
+    // is why the test above cannot see it — and wrongly refuses the file that
+    // sits exactly on the spec's limit.
+    const { officer } = install();
+
+    const result = await previewRosterAction(rosterForm(rosterOf(5_000)));
+
+    expect(result).toMatchObject({ success: true });
+    expect(officer.tables.filter((c) => c.kind === 'insert')).toHaveLength(1);
   });
 
   it('returns a failed insert as a value and saves no plan', async () => {
@@ -641,6 +770,212 @@ describe('applyRosterChunkAction', () => {
     });
 
     expect(result).toEqual({ success: false, error: 'no rows', denied: false });
+  });
+
+  it('reports a broken chunk as broken, not as a withdrawn grant', async () => {
+    // MINE-2. `applyChunk` throws for reasons other than a refusal -- here the
+    // permission probe inside it cannot reach the database at all. Classifying
+    // that as "your grant was withdrawn" sends an officer to ask for a role
+    // they already hold, and `denied: true` tells the loop to stop rather than
+    // retry something that may well work in a minute.
+    const { officer } = install({
+      plan: plan(30),
+      canManageError: { message: 'could not connect to server' },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error: 'could not connect to server',
+    });
+    // Still a refusal-shaped return, so it is still not confused with rows.
+    expect('failures' in result).toBe(false);
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'roster_import_save_results',
+    );
+  });
+
+  it('survives a permission probe that rejects inside the error handler', async () => {
+    // D1. `applyChunk` most often throws BECAUSE the transport died, and the
+    // re-probe rides the same transport. Unguarded, the probe rejects too and
+    // the action escapes uncaught -- the redacted digest this file exists to
+    // prevent, reached from the handler meant to prevent it.
+    install({ plan: plan(30), canManageThrows: 'fetch failed' });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error: 'fetch failed',
+    });
+  });
+
+  it('marks the import as applying on the first chunk and not on later ones', async () => {
+    // MINE-3. 'applying' is a spec-named state: it is how a run that died
+    // mid-flight is told apart from one nobody ever started.
+    const { officer } = install({ plan: plan(CHUNK_SIZE + 5) });
+
+    await applyRosterChunkAction({ importId: 'import-1', offset: 0 });
+
+    expect(
+      officer.tables.filter(
+        (c) => c.kind === 'update' && c.payload?.status === 'applying',
+      ),
+    ).toHaveLength(1);
+
+    await applyRosterChunkAction({ importId: 'import-1', offset: CHUNK_SIZE });
+
+    expect(
+      officer.tables.filter(
+        (c) => c.kind === 'update' && c.payload?.status === 'applying',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('stops before applying anything if the applying mark cannot be written', async () => {
+    // D2. Refused here and the `complete` write is refused too, so the run
+    // would apply every row and then look as though it never started.
+    const { officer } = install({
+      plan: plan(30),
+      updateError: (status) =>
+        status === 'applying' ? { message: 'row-level security' } : null,
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'row-level security',
+      denied: false,
+    });
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'member_upsert_from_roster',
+    );
+  });
+
+  it('surfaces a results save that failed, because the next chunk overwrites it', async () => {
+    // D2, the nastiest variant. The running total is a read-modify-write, so a
+    // dropped save is not one missing line: the next chunk reads the stale
+    // total and overwrites it, and this chunk's count is gone for good.
+    const { officer } = install({
+      plan: plan(CHUNK_SIZE + 5),
+      saveResultsError: { message: '503 Service Unavailable' },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error: `${CHUNK_SIZE} rows were applied, but the import record could not be updated: 503 Service Unavailable. Re-run the import — applying it again is safe.`,
+    });
+    // Not marked complete off the back of a record that is already wrong.
+    expect(
+      officer.tables.filter(
+        (c) => c.kind === 'update' && c.payload?.status === 'complete',
+      ),
+    ).toEqual([]);
+  });
+
+  it('surfaces a results read that failed, rather than flattening the total to this chunk', async () => {
+    // The other half of the read-modify-write. A failed load reads as "nothing
+    // applied yet", and saving on top of that zeroes every earlier chunk.
+    const { officer } = install({
+      plan: plan(CHUNK_SIZE + 5),
+      previousResults: { applied: 10, failures: [] },
+      loadResultsError: { message: 'statement timeout' },
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: CHUNK_SIZE,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error:
+        '5 rows were applied, but the import record could not be updated: statement timeout. Re-run the import — applying it again is safe.',
+    });
+    expect(officer.rpcs.map((c) => c.name)).not.toContain(
+      'roster_import_save_results',
+    );
+  });
+
+  it('surfaces a completion mark that failed instead of reporting a clean finish', async () => {
+    // D2. Every row landed but the import still reads as `applying`; an
+    // officer waiting for it to say it is done re-runs it forever.
+    const { officer } = install({
+      plan: plan(CHUNK_SIZE),
+      updateError: (status) =>
+        status === 'complete' ? { message: 'deadlock detected' } : null,
+    });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: 0,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      denied: false,
+      error: `${CHUNK_SIZE} rows were applied, but the import record could not be updated: deadlock detected. Re-run the import — applying it again is safe.`,
+    });
+    // The members list is not revalidated on the strength of a finish that
+    // never got recorded.
+    expect(h.revalidated).toEqual([]);
+    expect(officer.rpcs.map((c) => c.name)).toContain(
+      'roster_import_save_results',
+    );
+  });
+
+  it('names the stored filename as the source of every applied row', async () => {
+    const { officer } = install({
+      plan: plan(1),
+      importRow: { id: 'import-1', filename: 'october-roster.xlsx' },
+    });
+
+    await applyRosterChunkAction({ importId: 'import-1', offset: 0 });
+
+    const upsert = rpcArgs(officer.rpcs, 'member_upsert_from_roster');
+
+    expect((upsert.p as { source_file: string }).source_file).toBe(
+      'october-roster.xlsx',
+    );
+  });
+
+  it('refuses an offset that is not a whole number', async () => {
+    // MINE-5. `NaN` slices to an empty chunk and `NaN + 25 >= 30` is false, so
+    // `done` never becomes true and the browser loops forever applying nothing.
+    const { officer } = install({ plan: plan(30) });
+
+    const result = await applyRosterChunkAction({
+      importId: 'import-1',
+      offset: Number.NaN,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'That import cannot be resumed from there.',
+      denied: false,
+    });
+    expect(officer.rpcs).toEqual([]);
+    expect(officer.tables).toEqual([]);
   });
 
   it('refuses a negative offset rather than slicing from the end', async () => {
