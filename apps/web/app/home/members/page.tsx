@@ -28,12 +28,22 @@ import {
 export const instant = false;
 
 /**
- * One screen of the roster. `members_list` decrypts every row it returns, and
- * caps `p_limit` at 200 precisely so that one call cannot decrypt the whole
- * table -- so a page asks for a page, and the officer walks the roster rather
- * than the server decrypting 372 addresses to render 50.
+ * One screen of the roster, and — since
+ * 20260923084500_members_list_page_decrypt.sql — one screen of decryption.
+ * That migration moved the filtering, the ordering, the limit and the offset
+ * into an inner query over plaintext columns and left only the five
+ * `pgp_sym_decrypt` calls in the outer one, so `p_limit` now bounds what gets
+ * decrypted and not merely what comes back. `p_limit` is still capped at 200
+ * inside the RPC, which is the belt to this brace.
  */
 const PAGE_SIZE = 50;
+
+/** The three states of the account filter, as they read in the address bar. */
+type AccountFilter = 'all' | 'yes' | 'no';
+
+function parseAccount(value: string): AccountFilter {
+  return value === 'yes' || value === 'no' ? value : 'all';
+}
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -103,6 +113,8 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
 
   const search = firstValue(params.q);
   const page = parsePage(firstValue(params.page));
+  const city = firstValue(params.city);
+  const account = parseAccount(firstValue(params.account));
 
   // Read as the OFFICER, not the service role: `members_list` is
   // `security definer` and gates on `kit.has_permission(...)`, which reads
@@ -110,19 +122,29 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
   // function returns nothing at all. See the fuller note in roster-actions.ts.
   const service = new MembersService(getSupabaseServerClient());
 
+  const filters = {
+    search: search === '' ? null : search,
+    city: city === '' ? null : city,
+    hasAccount: account === 'all' ? null : account === 'yes',
+  };
+
   // One more row than the page shows. That extra row is the whole answer to
   // "is there a next page" -- cheaper than a second count query, and it cannot
   // disagree with the rows actually on screen the way a separate count can.
-  const rows = await service.list(
-    search === '' ? null : search,
-    PAGE_SIZE + 1,
-    (page - 1) * PAGE_SIZE,
-  );
+  const [rows, cities] = await Promise.all([
+    service.list(filters, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE),
+    // Every city on the roster, not just the ones on this page: a filter that
+    // can only offer what is already on screen cannot narrow anything.
+    service.cities(),
+  ]);
 
   return (
     <MembersList
       members={rows.slice(0, PAGE_SIZE)}
       search={search}
+      city={city}
+      account={account}
+      cities={cities}
       page={page}
       pageSize={PAGE_SIZE}
       hasMore={rows.length > PAGE_SIZE}

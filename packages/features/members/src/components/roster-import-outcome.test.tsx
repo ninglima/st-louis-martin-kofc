@@ -43,11 +43,36 @@ describe('RosterImportOutcome', () => {
     expect(html).toContain('Your permission to import was withdrawn');
     expect(html).toContain('There is nothing wrong with the spreadsheet');
 
+    // The action's own message reaches the screen. The alert's title says the
+    // grant was withdrawn; only the action can say which grant, on which call.
+    expect(html).toContain('You do not have permission to import the roster.');
+
+    // Nothing landed, so the reassurance about what landed is absent. "0 rows
+    // had already been written before this happened, and they are saved" is
+    // the sentence this screen removed after a human read it aloud.
+    expect(html).not.toContain('had already been written');
+
     // The two refusals are the same shape and mean opposite things. A denied
     // officer told "the import stopped before it finished" goes looking at
     // their spreadsheet for a problem that is not in it.
     expect(html).not.toContain('data-test="roster-halted"');
     expect(html).not.toContain('The import stopped before it finished');
+  });
+
+  it('tells a refused officer what already landed, when something did', () => {
+    const html = render(
+      outcome({
+        status: 'denied',
+        applied: 3,
+        error: 'You do not have permission to import the roster.',
+      }),
+    );
+
+    // The other half of the pair above: the count is the thing the officer
+    // needs in order to know the run was not a no-op, and it is the reason
+    // the paragraph is conditional rather than deleted.
+    expect(html).toContain('3 rows had already been written');
+    expect(html).toContain('they are saved');
   });
 
   it('keeps the action’s own sentence on a halted run', () => {

@@ -5,6 +5,23 @@ import type { Database } from '@kit/supabase/database';
 import { FILLABLE } from './roster-plan';
 import type { ExistingMember, FillableField } from './roster-plan';
 
+/**
+ * What the officer has narrowed the roster to.
+ *
+ * One object rather than three positional arguments, because every one of
+ * them is optional and `list(null, null, false, 50, 0)` is a line nobody can
+ * read. Every field is nullable and null means "no filter" -- the RPC's own
+ * convention, so the two agree by construction rather than by translation.
+ */
+export interface MemberListFilters {
+  /** Matched against membership number, email and both name parts. */
+  search?: string | null;
+  /** An exact city, chosen from `cities()`. */
+  city?: string | null;
+  /** `true` has a sign-in account, `false` has none, null is both. */
+  hasAccount?: boolean | null;
+}
+
 export interface MemberListRow {
   id: string;
   membershipNumber: string;
@@ -74,18 +91,25 @@ export class MembersService {
    * Reads go through the `members_list` RPC rather than the table, because the
    * encrypted columns are only readable inside that security definer function
    * — the app never holds the key.
+   *
+   * `limit` and `offset` are always passed, never left to the RPC's defaults:
+   * since 20260923084500 the RPC filters, sorts and limits in an inner query
+   * and decrypts in an outer one, so `limit` is the number of rows that get
+   * decrypted, not merely the number that come back.
    */
   async list(
-    search: string | null,
+    filters: MemberListFilters,
     limit = 50,
     offset = 0,
   ): Promise<MemberListRow[]> {
     const { data, error } = await this.client.rpc('members_list', {
       // The RPC's own default is null; `undefined` omits the argument and gets
       // it, whereas the generated Args type will not accept an explicit null.
-      p_search: search ?? undefined,
+      p_search: filters.search ?? undefined,
       p_limit: limit,
       p_offset: offset,
+      p_city: filters.city ?? undefined,
+      p_has_account: filters.hasAccount ?? undefined,
     });
 
     if (error) throw new Error(error.message);
@@ -104,6 +128,22 @@ export class MembersService {
       postalCode: row.postal_code,
       phone: row.phone,
     }));
+  }
+
+  /**
+   * The cities the council's members live in, for the list's city filter.
+   *
+   * Its own RPC rather than something derived from the rows on screen: the
+   * screen holds 50 of 372, so a filter built from it could only ever offer
+   * the places that happen to be on this page — and the one city the officer
+   * is looking for is the one that is not.
+   */
+  async cities(): Promise<string[]> {
+    const { data, error } = await this.client.rpc('members_cities');
+
+    if (error) throw new Error(error.message);
+
+    return (data ?? []).map((row) => row.city);
   }
 
   /**

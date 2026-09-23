@@ -32,6 +32,24 @@ export interface OutcomeNotice {
 }
 
 /**
+ * Whether a finished run reads as a success or as a warning.
+ *
+ * The ONE place that decision is made. It is deliberately a named function
+ * rather than a `failures.length > 0 ?` written wherever it happens to be
+ * needed: the original defect on this screen was precisely that the toast and
+ * the alert each made this call for themselves and disagreed -- amber alert,
+ * green toast, same run. Two copies of a rule are two rules, and they drift.
+ * The toast reaches it through `describeOutcome`; the alert indexes
+ * `alertExtras` with it directly. Neither can change colour without the other.
+ *
+ * Only `complete` runs get here. `denied` and `halted` render their own
+ * destructive alerts and take the `error` tone out of `describeOutcome`.
+ */
+export function finishedTone(outcome: ApplyOutcome): 'success' | 'warning' {
+  return outcome.failures.length === 0 ? 'success' : 'warning';
+}
+
+/**
  * The one-line version of an outcome, for the toast.
  *
  * It lives beside the alert that renders the same outcome, and deliberately so.
@@ -62,13 +80,14 @@ export function describeOutcome(
   }
 
   const imported = `Imported ${quantify(outcome.applied, 'row')} from ${filename}.`;
+  const tone = finishedTone(outcome);
 
-  if (outcome.failures.length === 0) {
-    return { tone: 'success', message: imported };
+  if (tone === 'success') {
+    return { tone, message: imported };
   }
 
   return {
-    tone: 'warning',
+    tone,
     message: `${imported} ${quantify(outcome.failures.length, 'row')} could not be applied.`,
   };
 }
@@ -158,14 +177,16 @@ export function RosterImportOutcome({
       {/*
         Green only when every row landed. A run that finished with members
         missing is not a success an officer should be able to skim past.
+
+        The class is INDEXED by `finishedTone`, not re-derived from
+        `failures.length` here. That is the whole point: the toast one layer up
+        reads the same function, so there is no second rule to drift out of
+        step with this one -- and drifting out of step is the defect this
+        screen already shipped once.
       */}
       <If condition={outcome.status === 'complete'}>
         <Alert
-          className={
-            outcome.failures.length > 0
-              ? alertExtras.warning
-              : alertExtras.success
-          }
+          className={alertExtras[finishedTone(outcome)]}
           data-test="roster-complete"
         >
           <AlertTitle>Import finished</AlertTitle>

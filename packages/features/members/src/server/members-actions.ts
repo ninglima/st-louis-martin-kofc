@@ -7,7 +7,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 import { MembersService } from './members.service';
-import type { MemberListRow } from './members.service';
+import type { MemberListFilters, MemberListRow } from './members.service';
 
 /**
  * Next.js redacts thrown Server Action messages in production, so — as
@@ -18,11 +18,18 @@ export type ExportResult =
   | { success: false; error: string };
 
 /**
- * `members_list` caps `p_limit` at 200 (`least(greatest(p_limit, 0), 200)` in
- * 20260922221437_members_fixes.sql), so an export of a 372-member council is
- * necessarily several calls. Asking for the ceiling is right here and wrong on
- * the screen: the list renders one page of 50 because nobody reads 372 rows at
- * once, whereas a spreadsheet is by definition the whole filtered set.
+ * `members_list` caps `p_limit` at 200 (`least(greatest(p_limit, 0), 200)`,
+ * restated in 20260923084500_members_list_page_decrypt.sql), so an export of a
+ * 372-member council is necessarily several calls. Asking for the ceiling is
+ * right here and wrong on the screen: the list renders one page of 50 because
+ * nobody reads 372 rows at once, whereas a spreadsheet is by definition the
+ * whole filtered set.
+ *
+ * Since that migration each call decrypts its own 200 rows and no more. It
+ * used to decrypt `p_offset + p_limit` of them, because the decryption sat in
+ * the same query as the OFFSET — so the walk to the end of a 5,000-row roster
+ * cost a measured 1,007 ms on its last page instead of the 44 ms it costs now,
+ * and the total was quadratic in the size of the council.
  */
 const PAGE = 200;
 
@@ -51,18 +58,36 @@ const HEADER = [
 ];
 
 /**
- * RFC 4180 quoting: double the quotes, and quote any field carrying a comma, a
- * quote or a newline.
+ * The four characters Excel and Sheets treat as "this cell is a formula".
  *
- * Deliberately NOT also prefixing `=`, `+`, `-` and `@` to defuse spreadsheet
- * formula injection. The usual mitigation mangles exactly the data this file
- * exists to carry — the fixture's own `+44 20 7946 0958` is a leading `+` — and
- * the threat model does not support paying that: every value here originated in
- * Supreme's own export, and the only person who can reach this action is an
- * officer holding `members.view` downloading the council's own roster.
+ * Only two of them are defused here, and the omission is the point. `+` and
+ * `-` are how real phone numbers in this roster begin — `+44 20 7946 0958` is
+ * in the fixture, and `normalizePhone` deliberately leaves a non-US number
+ * exactly as Supreme wrote it — so prefixing those would corrupt correct data
+ * on every export to defend against a threat that has to come through an
+ * officer's own upload. `=` and `@` lead no value in any column this file
+ * carries: membership numbers, names, emails (where `@` is mid-string, and
+ * only a LEADING `@` starts a formula), phones, addresses, a date and two
+ * yes/no flags. Defusing them therefore costs nothing at all, which is a
+ * different question from whether the threat is likely.
+ */
+const FORMULA_STARTERS = /^[=@]/;
+
+/**
+ * RFC 4180 quoting: double the quotes, and quote any field carrying a comma, a
+ * quote or a newline. Plus the narrow formula defusal above.
+ *
+ * The apostrophe goes on BEFORE the quoting test, so a defused value that also
+ * contains a comma still gets wrapped — and so the apostrophe itself lands
+ * inside the quotes, where the spreadsheet reads it as "treat the rest as
+ * text" rather than as part of the field separator grammar.
  */
 function escapeCsv(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  const defused = FORMULA_STARTERS.test(value) ? `'${value}` : value;
+
+  return /[",\r\n]/.test(defused)
+    ? `"${defused.replaceAll('"', '""')}"`
+    : defused;
 }
 
 function toRow(member: MemberListRow): string {
@@ -97,7 +122,7 @@ function toRow(member: MemberListRow): string {
  * not carry. See the fuller note in roster-actions.ts.
  */
 export const exportMembersAction = enhanceAction(
-  async (input: { search: string | null }, user): Promise<ExportResult> => {
+  async (input: MemberListFilters, user): Promise<ExportResult> => {
     const permissions = await loadPermissionsForUser(
       getSupabaseServerAdminClient(),
       user.id,
@@ -108,14 +133,23 @@ export const exportMembersAction = enhanceAction(
     }
 
     const service = new MembersService(getSupabaseServerClient());
-    const search = input.search === '' ? null : input.search;
+
+    // "The current filtered set", which is the whole point of the button: an
+    // officer who has narrowed the screen to one city expects the file to be
+    // that city, not the 372-row roster they were not looking at.
+    const filters: MemberListFilters = {
+      search: input.search === '' ? null : input.search,
+      city: input.city === '' ? null : input.city,
+      hasAccount: input.hasAccount ?? null,
+    };
+
     const rows: MemberListRow[] = [];
 
     let truncated = false;
 
     try {
       for (let offset = 0; offset < MAX_ROWS; offset += PAGE) {
-        const page = await service.list(search, PAGE, offset);
+        const page = await service.list(filters, PAGE, offset);
 
         rows.push(...page);
 

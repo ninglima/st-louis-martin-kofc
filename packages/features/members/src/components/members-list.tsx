@@ -11,6 +11,13 @@ import { Button } from '@kit/ui/button';
 import { If } from '@kit/ui/if';
 import { Input } from '@kit/ui/input';
 import { Label } from '@kit/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@kit/ui/select';
 import { toast } from '@kit/ui/sonner';
 import {
   Table,
@@ -56,9 +63,31 @@ function cityLine(member: MemberListRow) {
   return parts.length === 0 ? '—' : parts.join(', ');
 }
 
+/** The three states of the account filter, as they read in the address bar. */
+export type AccountFilter = 'all' | 'yes' | 'no';
+
+const ACCOUNT_LABELS: Record<AccountFilter, string> = {
+  all: 'Any account status',
+  yes: 'Has a sign-in',
+  no: 'No account',
+};
+
+/**
+ * The sentinel the city Select uses for "no filter".
+ *
+ * A Select item cannot carry the empty string as its value -- Base UI reads
+ * that as "nothing is selected" and the trigger falls back to its placeholder
+ * while the URL still says otherwise. So the two states are kept apart
+ * explicitly, and translated at the edge where the href is built.
+ */
+const ANY_CITY = '__any__';
+
 export function MembersList({
   members,
   search,
+  city,
+  account,
+  cities,
   page,
   pageSize,
   hasMore,
@@ -66,6 +95,11 @@ export function MembersList({
   members: MemberListRow[];
   /** The committed term, straight off the URL — never the keystroke in flight. */
   search: string;
+  /** The committed city, or '' for every city. */
+  city: string;
+  account: AccountFilter;
+  /** Every city on the roster, not just the ones on this page. */
+  cities: string[];
   /** 1-based, as it reads in the address bar. */
   page: number;
   pageSize: number;
@@ -103,16 +137,36 @@ export function MembersList({
       // Back to page 1: page 4 of "Smith" is almost never a page that exists,
       // and an empty page reads as "no such member".
       startNavigation(() => {
-        router.replace(hrefFor(pathname, term, 1), { scroll: false });
+        router.replace(hrefFor(pathname, { search: term, city, account }, 1), {
+          scroll: false,
+        });
       });
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [term, router, pathname]);
+  }, [term, city, account, router, pathname]);
+
+  // Both filters commit immediately -- there is no half-typed state to wait
+  // for, and a debounce on a Select only makes the screen feel broken. Page 1
+  // for the same reason the search does it.
+  const navigateTo = (next: Partial<Criteria>) => {
+    startNavigation(() => {
+      router.replace(
+        hrefFor(pathname, { search: term, city, account, ...next }, 1),
+        { scroll: false },
+      );
+    });
+  };
 
   const onExport = () => {
     startExport(async () => {
-      const result = await exportMembersAction({ search: search || null });
+      const result = await exportMembersAction({
+        // The set on screen, filters and all: an officer who narrowed the list
+        // to one city and pressed Export means that city.
+        search: search || null,
+        city: city || null,
+        hasAccount: account === 'all' ? null : account === 'yes',
+      });
 
       if (!result.success) {
         toast.error(result.error);
@@ -138,17 +192,97 @@ export function MembersList({
   return (
     <div className="flex w-full flex-col gap-y-4" data-test="members-list">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-y-2">
-          <Label htmlFor="members-search">Search the roster</Label>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-y-2">
+            <Label htmlFor="members-search">Search the roster</Label>
 
-          <Input
-            id="members-search"
-            data-test="members-search"
-            className="w-72"
-            placeholder="Name, member number or email"
-            value={term}
-            onChange={(event) => setTerm(event.target.value)}
-          />
+            <Input
+              id="members-search"
+              data-test="members-search"
+              className="w-72"
+              placeholder="Name, member number or email"
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-y-2">
+            <Label htmlFor="members-city">City</Label>
+
+            {/*
+              Controlled with `value`, never `defaultValue`: the URL is the
+              truth here, and a default-only control drifts away from it the
+              moment the officer presses the back button.
+            */}
+            <Select
+              value={city === '' ? ANY_CITY : city}
+              onValueChange={(next) =>
+                navigateTo({ city: next === ANY_CITY ? '' : String(next) })
+              }
+            >
+              <SelectTrigger
+                id="members-city"
+                data-test="members-city"
+                className="w-48"
+              >
+                {/*
+                  With no child, `SelectValue` renders the raw value -- the
+                  trigger would read `__any__`. The sentinel is an
+                  implementation detail of this control and must not reach the
+                  officer.
+                */}
+                <SelectValue>
+                  {(value: string | null) =>
+                    value === null || value === ANY_CITY ? 'Every city' : value
+                  }
+                </SelectValue>
+              </SelectTrigger>
+
+              <SelectContent>
+                <SelectItem value={ANY_CITY}>Every city</SelectItem>
+
+                {cities.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-y-2">
+            <Label htmlFor="members-account">Account</Label>
+
+            <Select
+              value={account}
+              onValueChange={(next) =>
+                navigateTo({ account: next as AccountFilter })
+              }
+            >
+              <SelectTrigger
+                id="members-account"
+                data-test="members-account"
+                className="w-48"
+              >
+                {/* Likewise: the trigger must say "Has a sign-in", not "yes". */}
+                <SelectValue>
+                  {(value: string | null) =>
+                    ACCOUNT_LABELS[(value as AccountFilter | null) ?? 'all']
+                  }
+                </SelectValue>
+              </SelectTrigger>
+
+              <SelectContent>
+                {(Object.keys(ACCOUNT_LABELS) as AccountFilter[]).map(
+                  (option) => (
+                    <SelectItem key={option} value={option}>
+                      {ACCOUNT_LABELS[option]}
+                    </SelectItem>
+                  ),
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Button
@@ -215,8 +349,30 @@ export function MembersList({
 
                 <TableCell>{member.membershipNumber}</TableCell>
 
+                {/*
+                  A marker, not a dash. "This record cannot receive mail" is a
+                  fact an officer has to act on -- it is why a member never got
+                  the newsletter and why the import could not give them a way
+                  to sign in -- and a dash in a column of addresses reads as
+                  "not loaded yet". Distinct from the account badge two columns
+                  along: a member can hold an account and have no address on
+                  file, and can have a perfectly good address and no account.
+                */}
                 <TableCell className={WRAP}>
-                  {member.primaryEmail ?? '—'}
+                  <If
+                    condition={member.primaryEmail}
+                    fallback={
+                      <Badge
+                        variant="outline"
+                        className={badgeExtras.warning}
+                        data-test="member-no-email"
+                      >
+                        No email
+                      </Badge>
+                    }
+                  >
+                    {(email) => <span>{email}</span>}
+                  </If>
                 </TableCell>
 
                 <TableCell data-test="member-phone">
@@ -286,7 +442,13 @@ export function MembersList({
             data-test="members-prev"
             nativeButton={false}
             render={
-              <Link href={hrefFor(pathname, search, Math.max(page - 1, 1))} />
+              <Link
+                href={hrefFor(
+                  pathname,
+                  { search, city, account },
+                  Math.max(page - 1, 1),
+                )}
+              />
             }
           >
             Previous
@@ -298,7 +460,11 @@ export function MembersList({
             disabled={!hasMore}
             data-test="members-next"
             nativeButton={false}
-            render={<Link href={hrefFor(pathname, search, page + 1)} />}
+            render={
+              <Link
+                href={hrefFor(pathname, { search, city, account }, page + 1)}
+              />
+            }
           >
             Next
           </Button>
@@ -308,14 +474,28 @@ export function MembersList({
   );
 }
 
+/** Everything the officer has narrowed the roster to, as the URL carries it. */
+export interface Criteria {
+  search: string;
+  city: string;
+  account: AccountFilter;
+}
+
 /**
- * Both parameters are omitted at their defaults, so the plain roster is
- * `/home/members` rather than `/home/members?q=&page=1`.
+ * Every parameter is omitted at its default, so the plain roster is
+ * `/home/members` rather than `/home/members?q=&city=&account=all&page=1`.
+ *
+ * Exported because it is the whole of the agreement between the four controls
+ * on this screen and the four values `page.tsx` reads back out of
+ * `searchParams`: a filter that cannot survive a page link or a back button is
+ * a filter that lies about what is on screen.
  */
-function hrefFor(pathname: string, search: string, page: number) {
+export function hrefFor(pathname: string, criteria: Criteria, page: number) {
   const params = new URLSearchParams();
 
-  if (search !== '') params.set('q', search);
+  if (criteria.search !== '') params.set('q', criteria.search);
+  if (criteria.city !== '') params.set('city', criteria.city);
+  if (criteria.account !== 'all') params.set('account', criteria.account);
   if (page > 1) params.set('page', String(page));
 
   const query = params.toString();

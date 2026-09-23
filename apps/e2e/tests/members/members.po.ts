@@ -382,10 +382,12 @@ export class MembersPageObject {
   }
 
   /**
-   * Promotes an already-signed-up user to `administrator`, which after
-   * 20260923071500_administrator_members_permission.sql carries members
-   * view + manage. See `rbac.po.ts`'s copy of this for why a fresh local
-   * database has no administrator to do it through the UI.
+   * Promotes an already-signed-up user to `administrator`, which carries
+   * members view + manage on any database built from migrations alone:
+   * 20260922221437_members_fixes.sql:286 inserts that grant, and
+   * 20260922033217_rbac.sql:101 seeds the `administrator` role the statement
+   * looks up. See `rbac.po.ts`'s copy of this for why a fresh local database
+   * has no administrator to do it through the UI.
    */
   async promoteToAdministrator(email: string): Promise<void> {
     const headers = serviceRoleHeaders();

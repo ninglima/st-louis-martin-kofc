@@ -393,8 +393,15 @@ export type Database = {
     Functions: {
       member_upsert_from_roster: { Args: { p: Json }; Returns: string }
       members_can_manage: { Args: never; Returns: boolean }
+      members_cities: { Args: never; Returns: { city: string }[] }
       members_list: {
-        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Args: {
+          p_city?: string
+          p_has_account?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
         // HAND-CORRECTED, do not regenerate away: Supabase's generator types
         // every column of a `setof`-returning function as non-nullable. Eight
         // of these are nullable in SQL and are null on real roster data (two
