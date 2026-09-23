@@ -83,8 +83,15 @@ export interface ImportPlan {
  * Exported so the agreement with `ExistingMember.filledFields` — which is
  * string equality at runtime and nothing at all at compile time — can be
  * pinned by a test rather than assumed.
+ *
+ * `as const satisfies` rather than a `readonly (keyof RosterRecord)[]`
+ * annotation: the constraint is still checked, but the literal names survive
+ * into the type, so whoever produces `filledFields` can key an exhaustive
+ * mapping off this list and have the compiler reject a name that drifted.
+ * Annotating it widened every entry to `keyof RosterRecord` and threw that
+ * away.
  */
-export const FILLABLE: readonly (keyof RosterRecord)[] = [
+export const FILLABLE = [
   'prefix',
   'middleName',
   'suffix',
@@ -100,7 +107,10 @@ export const FILLABLE: readonly (keyof RosterRecord)[] = [
   'phoneBusiness',
   'emailSecondary',
   'secondaryAddress',
-];
+] as const satisfies readonly (keyof RosterRecord)[];
+
+/** A contact field an import may fill. */
+export type FillableField = (typeof FILLABLE)[number];
 
 /** Fields whose change is always a conflict for a human, never an auto-write. */
 const NEVER_AUTO_UPDATED: (keyof RosterRecord)[] = [

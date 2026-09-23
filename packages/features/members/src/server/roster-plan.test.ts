@@ -1,36 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
+import { fakeClient, fullMemberRow } from '../../test/fixtures/fake-supabase';
 import { buildFixtureWorkbook } from '../../test/fixtures/make-fixture';
 import type { RosterRecord } from '../types/roster';
+import { MembersService } from './members.service';
 import { buildPlan, FILLABLE, type ExistingMember } from './roster-plan';
 import { parseRoster } from './roster-parser';
 import { readRoster } from './roster-reader';
 
 /**
- * The field names Task 7's `existingForPlanning()` reports in
- * `ExistingMember.filledFields`, transcribed from its `mark()` calls. If these
- * and `FILLABLE` ever disagree, fill-blanks-only silently stops working for
- * the mismatched field: the planner asks `filled.has('phoneCell')` about a set
+ * The field names `existingForPlanning()` reports in
+ * `ExistingMember.filledFields` — obtained by RUNNING it over a member whose
+ * every column is populated, not transcribed from its source. A transcription
+ * agrees with `FILLABLE` by construction and says nothing about the code that
+ * actually runs.
+ *
+ * If the two ever disagree, fill-blanks-only silently stops working for the
+ * mismatched field: the planner asks `filled.has('phoneCell')` about a set
  * that only ever contains `phone_cell`, gets false, and proposes a write over
  * a value the member typed themselves.
  */
-const FILLED_FIELD_NAMES = [
-  'prefix',
-  'middleName',
-  'suffix',
-  'city',
-  'state',
-  'country',
-  'primaryType',
-  'addressLine1',
-  'addressLine2',
-  'postalCode',
-  'phoneCell',
-  'phoneResidence',
-  'phoneBusiness',
-  'emailSecondary',
-  'secondaryAddress',
-];
+async function filledFieldNames(): Promise<string[]> {
+  const fake = fakeClient({ rows: [fullMemberRow()] });
+  const [member] = await new MembersService(fake.client).existingForPlanning();
+
+  return member!.filledFields;
+}
 
 const DUES_SHAPED = /dues|level|expir|paid.?through/i;
 
@@ -444,11 +439,13 @@ describe('buildPlan', () => {
     );
   });
 
-  it('fills exactly the field names the members service reports as filled', () => {
+  it('fills exactly the field names the members service reports as filled', async () => {
     // The two lists are matched by string equality at runtime and by nothing
     // at compile time, so this is the only thing standing between a rename
     // and a silently disabled safety rule.
-    expect([...FILLABLE].sort()).toEqual([...FILLED_FIELD_NAMES].sort());
+    expect([...FILLABLE].sort()).toEqual(
+      [...(await filledFieldNames())].sort(),
+    );
   });
 
   it('lists stored members absent from the file without proposing any change', () => {
@@ -732,6 +729,7 @@ describe('buildPlan', () => {
     // WordPress build failed: every member already present, every incoming
     // field already filled, so nothing whatsoever should be written.
     const records = await fixtureRecords();
+    const filled = await filledFieldNames();
     const stored: ExistingMember[] = records
       .filter(
         (r, i) =>
@@ -747,7 +745,7 @@ describe('buildPlan', () => {
         // Stored exactly as last month's import left it, flag included --
         // including the fixture's genuinely flagged member 1000004.
         badAddress: r.badAddress,
-        filledFields: [...FILLED_FIELD_NAMES],
+        filledFields: [...filled],
       }));
 
     const plan = buildPlan(records, stored);
