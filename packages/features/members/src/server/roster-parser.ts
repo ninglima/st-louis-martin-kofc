@@ -1,5 +1,6 @@
 import type { RosterRecord } from '../types/roster';
 import { mapHeaders, REQUIRED_HEADERS } from './column-map';
+import type { SheetRow } from './roster-reader';
 import {
   normalizeEmail,
   normalizeName,
@@ -28,7 +29,16 @@ function isUsableEmail(value: string | null): value is string {
   return value !== null && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export function parseRoster(rows: string[][]): ParseResult {
+/**
+ * Takes `SheetRow`s rather than bare `string[][]` so the row number comes from
+ * the sheet instead of from the position in this array. Deriving it here — as
+ * `offset + 2` once did — is only correct for a file with no blank lines in it,
+ * and is wrong by one per blank line otherwise. `sourceRow` is the officer's
+ * only handle on a 372-row spreadsheet, so being wrong sends them to an
+ * innocent member; the type is what stops the number being dropped at the
+ * reader/parser seam again.
+ */
+export function parseRoster(rows: SheetRow[]): ParseResult {
   const [headerRow, ...dataRows] = rows;
 
   if (!headerRow) {
@@ -39,7 +49,7 @@ export function parseRoster(rows: string[][]): ParseResult {
     };
   }
 
-  const { index, missing } = mapHeaders(headerRow);
+  const { index, missing } = mapHeaders(headerRow.cells);
 
   // A missing required header is fatal for the whole file. Returning early
   // means no preview is generated and nothing is written.
@@ -50,11 +60,11 @@ export function parseRoster(rows: string[][]): ParseResult {
   const records: RosterRecord[] = [];
   const rowErrors: RowError[] = [];
 
-  dataRows.forEach((row, offset) => {
-    // +2: one for the header row, one to make it 1-based like Excel shows.
-    const sourceRow = offset + 2;
+  dataRows.forEach((row) => {
+    // The sheet's own number, so it survives blank lines above this row.
+    const sourceRow = row.rowNumber;
     const at = (field: string): string | undefined =>
-      index[field] === undefined ? undefined : row[index[field]!];
+      index[field] === undefined ? undefined : row.cells[index[field]!];
 
     const membershipNumber = (at('membershipNumber') ?? '').trim();
 

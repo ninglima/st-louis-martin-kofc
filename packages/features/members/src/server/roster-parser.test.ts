@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { buildFixtureWorkbook } from '../../test/fixtures/make-fixture';
 import { readRoster } from './roster-reader';
+import type { SheetRow } from './roster-reader';
 import { parseRoster } from './roster-parser';
+
+/** Numbers literal rows consecutively from 1, as a sheet with no gaps would. */
+function sheet(rows: string[][]): SheetRow[] {
+  return rows.map((cells, index) => ({ rowNumber: index + 1, cells }));
+}
 
 async function parseFixture() {
   const buffer = Buffer.from(await buildFixtureWorkbook().xlsx.writeBuffer());
@@ -11,7 +17,7 @@ async function parseFixture() {
 
 describe('parseRoster', () => {
   it('reports missing required headers and parses nothing', () => {
-    const result = parseRoster([['First Name', 'Last Name']]);
+    const result = parseRoster(sheet([['First Name', 'Last Name']]));
 
     expect(result.missingHeaders).toEqual([
       'Membership Number',
@@ -119,17 +125,19 @@ describe('parseRoster', () => {
     // member's bad-address flag would silently read false unless this
     // comparison is updated to match — this test exists so that change
     // fails loudly here instead of vanishing downstream.
-    const result = parseRoster([
-      [
-        'Membership Number',
-        'First Name',
-        'Last Name',
-        'Primary Email',
-        'Fraternal - Bad Address',
-      ],
-      ['1000010', 'Jane', 'Doe', 'jane@example.com', 'Y'],
-      ['1000011', 'Jill', 'Roe', 'jill@example.com', 'X'],
-    ]);
+    const result = parseRoster(
+      sheet([
+        [
+          'Membership Number',
+          'First Name',
+          'Last Name',
+          'Primary Email',
+          'Fraternal - Bad Address',
+        ],
+        ['1000010', 'Jane', 'Doe', 'jane@example.com', 'Y'],
+        ['1000011', 'Jill', 'Roe', 'jill@example.com', 'X'],
+      ]),
+    );
 
     expect(
       result.records.find((r) => r.membershipNumber === '1000010')?.badAddress,
@@ -137,6 +145,28 @@ describe('parseRoster', () => {
     expect(
       result.records.find((r) => r.membershipNumber === '1000011')?.badAddress,
     ).toBe(true);
+  });
+
+  it("reports an error at the sheet's own row number, not its position after blank lines", () => {
+    // Rows 3 and 4 were blank in the sheet, so the bad row is the third one
+    // handed over but sits on Excel row 5. Position-derived numbering would
+    // report row 3 and send the officer to the wrong member.
+    const result = parseRoster([
+      {
+        rowNumber: 1,
+        cells: [
+          'Membership Number',
+          'First Name',
+          'Last Name',
+          'Primary Email',
+        ],
+      },
+      { rowNumber: 2, cells: ['1000010', 'Jane', 'Doe', 'jane@example.com'] },
+      { rowNumber: 5, cells: ['1000011', 'Jill', 'Roe', 'not-an-email'] },
+    ]);
+
+    expect(result.rowErrors).toHaveLength(1);
+    expect(result.rowErrors[0]?.sourceRow).toBe(5);
   });
 
   it('reports all four required headers missing for a completely empty file', () => {

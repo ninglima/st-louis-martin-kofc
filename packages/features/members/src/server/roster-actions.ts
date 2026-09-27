@@ -19,6 +19,7 @@ import { parseRoster } from './roster-parser';
 import type { RowError } from './roster-parser';
 import { buildPlan } from './roster-plan';
 import type { ImportPlan } from './roster-plan';
+import type { SheetRow } from './roster-reader';
 import { RosterReadError, readRoster } from './roster-reader';
 
 type Client = SupabaseClient<Database>;
@@ -191,7 +192,7 @@ export const previewRosterAction = enhanceAction(
     // spreadsheet holding every member's address does not need a second home.
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    let rows: string[][];
+    let rows: SheetRow[];
 
     try {
       rows = await readRoster(buffer, file.name);

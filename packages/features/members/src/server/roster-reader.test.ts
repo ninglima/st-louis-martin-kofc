@@ -13,8 +13,8 @@ describe('readRoster', () => {
   it('returns the header row first', async () => {
     const rows = await readRoster(await fixtureBuffer(), 'roster.xlsx');
 
-    expect(rows[0]?.[0]).toBe('Membership Number');
-    expect(rows[0]?.[24]).toBe('Primary Email');
+    expect(rows[0]?.cells[0]).toBe('Membership Number');
+    expect(rows[0]?.cells[24]).toBe('Primary Email');
   });
 
   it('returns every data row', async () => {
@@ -27,8 +27,8 @@ describe('readRoster', () => {
   it('yields strings, not numbers, so a numeric member number keeps its shape', async () => {
     const rows = await readRoster(await fixtureBuffer(), 'roster.xlsx');
 
-    expect(typeof rows[1]?.[0]).toBe('string');
-    expect(rows[1]?.[0]).toBe('1000001');
+    expect(typeof rows[1]?.cells[0]).toBe('string');
+    expect(rows[1]?.cells[0]).toBe('1000001');
   });
 
   it('converts a genuinely numeric xlsx cell to a string', async () => {
@@ -44,15 +44,15 @@ describe('readRoster', () => {
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
     const rows = await readRoster(buffer, 'numeric.xlsx');
 
-    expect(typeof rows[1]?.[0]).toBe('string');
-    expect(rows[1]?.[0]).toBe('1000001');
+    expect(typeof rows[1]?.cells[0]).toBe('string');
+    expect(rows[1]?.cells[0]).toBe('1000001');
   });
 
   it('pads short rows so column indexes stay aligned', async () => {
     const rows = await readRoster(await fixtureBuffer(), 'roster.xlsx');
 
     for (const row of rows.slice(1)) {
-      expect(row.length).toBeGreaterThanOrEqual(27);
+      expect(row.cells.length).toBeGreaterThanOrEqual(27);
     }
   });
 
@@ -64,10 +64,10 @@ describe('readRoster', () => {
 
     const rows = await readRoster(Buffer.from(csv), 'roster.csv');
 
-    expect(rows[1]).toHaveLength(27);
-    expect(rows[1]?.[0]).toBe('1');
-    expect(rows[1]?.[1]).toBe('A');
-    expect(rows[1]?.[2]).toBe('');
+    expect(rows[1]?.cells).toHaveLength(27);
+    expect(rows[1]?.cells[0]).toBe('1');
+    expect(rows[1]?.cells[1]).toBe('A');
+    expect(rows[1]?.cells[2]).toBe('');
   });
 
   it('reads a .csv with the same contract', async () => {
@@ -75,8 +75,8 @@ describe('readRoster', () => {
       'Membership Number,First Name,Last Name,Primary Email\n1,A,B,a@b.com\n';
     const rows = await readRoster(Buffer.from(csv), 'roster.csv');
 
-    expect(rows[0]?.[0]).toBe('Membership Number');
-    expect(rows[1]?.[3]).toBe('a@b.com');
+    expect(rows[0]?.cells[0]).toBe('Membership Number');
+    expect(rows[1]?.cells[3]).toBe('a@b.com');
   });
 
   it('keeps columns aligned when a quoted csv field contains a comma', async () => {
@@ -86,11 +86,11 @@ describe('readRoster', () => {
 
     const rows = await readRoster(Buffer.from(csv), 'roster.csv');
 
-    expect(rows[1]).toEqual(
+    expect(rows[1]?.cells).toEqual(
       expect.arrayContaining(['1', 'A', 'Smith, Jr', 'a@b.com']),
     );
-    expect(rows[1]?.[2]).toBe('Smith, Jr');
-    expect(rows[1]?.[3]).toBe('a@b.com');
+    expect(rows[1]?.cells[2]).toBe('Smith, Jr');
+    expect(rows[1]?.cells[3]).toBe('a@b.com');
   });
 
   it('unescapes a doubled quote inside a quoted csv field', async () => {
@@ -98,7 +98,7 @@ describe('readRoster', () => {
 
     const rows = await readRoster(Buffer.from(csv), 'roster.csv');
 
-    expect(rows[1]?.[1]).toBe('He said "hi"');
+    expect(rows[1]?.cells[1]).toBe('He said "hi"');
   });
 
   it('keeps a quoted empty csv field empty rather than shifting columns', async () => {
@@ -106,8 +106,36 @@ describe('readRoster', () => {
 
     const rows = await readRoster(Buffer.from(csv), 'roster.csv');
 
-    expect(rows[1]?.[1]).toBe('');
-    expect(rows[1]?.[2]).toBe('3');
+    expect(rows[1]?.cells[1]).toBe('');
+    expect(rows[1]?.cells[2]).toBe('3');
+  });
+
+  it('numbers each xlsx row as Excel does, counting the blank rows it skips', async () => {
+    // A blank row is not yielded, but must still be counted: the officer
+    // finds a reported row by its Excel row label, and a count that drifts by
+    // one per blank line points them at an innocent member.
+    const wb = new ExcelJS.Workbook();
+    const sheet = wb.addWorksheet('Sheet1');
+
+    sheet.getRow(1).values = ['Membership Number', 'First Name'];
+    sheet.getRow(2).values = ['1', 'A'];
+    // Row 3 is left blank.
+    sheet.getRow(4).values = ['2', 'B'];
+
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    const rows = await readRoster(buffer, 'blank-line.xlsx');
+
+    expect(rows.map((row) => row.rowNumber)).toEqual([1, 2, 4]);
+    expect(rows[2]?.cells[0]).toBe('2');
+  });
+
+  it('numbers each csv row by its line, counting blank lines', async () => {
+    const csv = 'Membership Number,First Name\n1,A\n\n2,B\n';
+
+    const rows = await readRoster(Buffer.from(csv), 'blank-line.csv');
+
+    expect(rows.map((row) => row.rowNumber)).toEqual([1, 2, 4]);
+    expect(rows[2]?.cells[0]).toBe('2');
   });
 
   it('rejects an unsupported extension by name', async () => {
