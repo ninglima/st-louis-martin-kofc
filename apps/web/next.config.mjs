@@ -56,6 +56,24 @@ const config = {
   },
   experimental: {
     mdxRs: true,
+    serverActions: {
+      /**
+       * The roster upload posts the Officers Online export through a Server
+       * Action, and Next.js caps an action body at 1 MB by default.
+       *
+       * Deliberately ABOVE the 5 MB ceiling `previewRosterAction` enforces,
+       * not equal to it. This limit is measured on the raw HTTP body, which
+       * for a `multipart/form-data` post is the file plus boundaries, part
+       * headers and field metadata — Next's own documentation puts that at
+       * 10–20 KB and says to leave room for it. Set to exactly '5mb', a file
+       * of 4.99 MB — under the ceiling, and legitimate — would be refused by
+       * the framework instead of by the action, and a framework refusal
+       * reaches the officer as a generic failure with no message in it. The
+       * ceiling stays 5 MB; it is just enforced in the one place that can
+       * explain itself.
+       */
+      bodySizeLimit: '6mb',
+    },
     /** TypeScript 7 does not expose the compiler API Next.js uses, so drive it
      * through the TS CLI instead. */
     useTypeScriptCli: true,

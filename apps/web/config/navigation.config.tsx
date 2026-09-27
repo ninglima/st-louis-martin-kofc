@@ -42,6 +42,13 @@ const routes = [
         section: 'checkout',
         verb: 'view' as const,
       },
+      {
+        label: 'common.routes.members',
+        path: pathsConfig.app.members,
+        Icon: <Users className={iconClasses} />,
+        section: 'members',
+        verb: 'view' as const,
+      },
     ],
   },
   {

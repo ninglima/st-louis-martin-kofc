@@ -36,6 +36,7 @@
     "@kit/accounts": "workspace:*",
     "@kit/auth": "workspace:*",
     "@kit/i18n": "workspace:*",
+    "@kit/members": "workspace:*",
     "@kit/next": "workspace:*",
     "@kit/payments": "workspace:*",
     "@kit/rbac": "workspace:*",

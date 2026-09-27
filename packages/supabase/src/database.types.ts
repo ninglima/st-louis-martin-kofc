@@ -50,6 +50,93 @@ export type Database = {
         }
         Relationships: []
       }
+      members: {
+        Row: {
+          address_line1_enc: string | null
+          address_line2_enc: string | null
+          bad_address: boolean
+          city: string | null
+          country: string | null
+          created_at: string
+          email_secondary_enc: string | null
+          first_name: string
+          id: string
+          last_name: string
+          membership_number: string
+          middle_name: string | null
+          phone_business_enc: string | null
+          phone_cell_enc: string | null
+          phone_residence_enc: string | null
+          postal_code_enc: string | null
+          prefix: string | null
+          primary_email: string | null
+          primary_type: string | null
+          roster_last_seen_at: string | null
+          roster_source_file: string | null
+          secondary_address_enc: string | null
+          state: string | null
+          suffix: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          address_line1_enc?: string | null
+          address_line2_enc?: string | null
+          bad_address?: boolean
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          email_secondary_enc?: string | null
+          first_name: string
+          id?: string
+          last_name: string
+          membership_number: string
+          middle_name?: string | null
+          phone_business_enc?: string | null
+          phone_cell_enc?: string | null
+          phone_residence_enc?: string | null
+          postal_code_enc?: string | null
+          prefix?: string | null
+          primary_email?: string | null
+          primary_type?: string | null
+          roster_last_seen_at?: string | null
+          roster_source_file?: string | null
+          secondary_address_enc?: string | null
+          state?: string | null
+          suffix?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          address_line1_enc?: string | null
+          address_line2_enc?: string | null
+          bad_address?: boolean
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          email_secondary_enc?: string | null
+          first_name?: string
+          id?: string
+          last_name?: string
+          membership_number?: string
+          middle_name?: string | null
+          phone_business_enc?: string | null
+          phone_cell_enc?: string | null
+          phone_residence_enc?: string | null
+          postal_code_enc?: string | null
+          prefix?: string | null
+          primary_email?: string | null
+          primary_type?: string | null
+          roster_last_seen_at?: string | null
+          roster_source_file?: string | null
+          secondary_address_enc?: string | null
+          state?: string | null
+          suffix?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       payment_config: {
         Row: {
           active_provider: string
@@ -237,6 +324,39 @@ export type Database = {
         }
         Relationships: []
       }
+      roster_imports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          filename: string
+          id: string
+          plan_enc: string | null
+          results_enc: string | null
+          status: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          filename: string
+          id?: string
+          plan_enc?: string | null
+          results_enc?: string | null
+          status?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          filename?: string
+          id?: string
+          plan_enc?: string | null
+          results_enc?: string | null
+          status?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_at: string | null
@@ -271,7 +391,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      member_upsert_from_roster: { Args: { p: Json }; Returns: string }
+      members_can_manage: { Args: never; Returns: boolean }
+      members_cities: { Args: never; Returns: { city: string }[] }
+      members_list: {
+        Args: {
+          p_city?: string
+          p_has_account?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
+        // HAND-CORRECTED, do not regenerate away: Supabase's generator types
+        // every column of a `setof`-returning function as non-nullable. Eight
+        // of these are nullable in SQL and are null on real roster data (two
+        // members have no email; a member with no phone at all yields null).
+        Returns: {
+          address_line1: string | null
+          bad_address: boolean
+          city: string | null
+          full_name: string
+          id: string
+          membership_number: string
+          phone: string | null
+          postal_code: string | null
+          primary_email: string | null
+          roster_last_seen_at: string | null
+          state: string | null
+          user_id: string | null
+        }[]
+      }
+      roster_import_load_plan: { Args: { p_import: string }; Returns: Json }
+      roster_import_load_results: { Args: { p_import: string }; Returns: Json }
+      roster_import_save_plan: {
+        Args: { p_import: string; p_plan: Json }
+        Returns: undefined
+      }
+      roster_import_save_results: {
+        Args: { p_import: string; p_results: Json }
+        Returns: undefined
+      }
     }
     Enums: {
       payment_status:

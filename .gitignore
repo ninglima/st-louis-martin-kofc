@@ -96,3 +96,6 @@ Temporary Items
 .playwright-mcp/
 test-results/
 playwright-report/
+
+# synthetic fixtures generated on demand — never commit real member PII
+packages/features/members/test/fixtures/roster-sample.xlsx
