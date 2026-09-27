@@ -231,7 +231,7 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
-  apps/web:
+  apps/portal:
     dependencies:
       '@hookform/resolvers':
         specifier: 'catalog:'

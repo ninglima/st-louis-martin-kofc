@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { Page, expect, test } from '@playwright/test';
 
-import { PUBLIC_ROUTES } from '../../../web/config/site-navigation.config';
+import { PUBLIC_ROUTES } from '../../../portal/config/site-navigation.config';
 
 /**
  * The public marketing site is not gated, so unlike the rbac and account
@@ -68,7 +68,7 @@ const CATHOLIC_RESOURCES_MDX = join(
   '..',
   '..',
   '..',
-  'web',
+  'portal',
   'app',
   '(marketing)',
   'catholic-resources',

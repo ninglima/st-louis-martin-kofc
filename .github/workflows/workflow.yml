@@ -90,10 +90,10 @@ jobs:
         run: pnpm run supabase:web:start -- -x studio,migra,deno-relay,pgadmin-schema-diff,imgproxy,logflare
 
       - name: Run Next.js Production Build (test env)
-        run: pnpm --filter web build:test
+        run: pnpm --filter portal build:test
 
       - name: Run Next.js Server
-        run: pnpm --filter web start:test &
+        run: pnpm --filter portal start:test &
 
       - name: Run Playwright tests
         run: |
@@ -101,7 +101,7 @@ jobs:
           pnpm run test
 
       - name: Run Supabase tests
-        run: pnpm --filter web supabase:test
+        run: pnpm --filter portal supabase:test
 
       - uses: actions/upload-artifact@v4
         if: always()
