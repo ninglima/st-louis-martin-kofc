@@ -1,4 +1,4 @@
-![Makerkit - Next.js Supabase SaaS Starter Kit \[Lite version\]](apps/web/public/images/makerkit.webp)
+![Makerkit - Next.js Supabase SaaS Starter Kit \[Lite version\]](apps/portal/public/images/makerkit.webp)
 
 # NEW! Next.js Supabase SaaS Starter Kit (Lite)
 
@@ -221,7 +221,7 @@ Here are the available variables:
 
 This starter kit uses a monorepo architecture.
 
-1. The `apps/web` directory is the Next.js application.
+1. The `apps/portal` directory is the Next.js application.
 2. The `packages` directory contains all the packages used by the application.
 3. The `packages/features` directory contains all the features of the application.
 4. The `packages/ui` directory contains all the UI components.
@@ -230,21 +230,21 @@ For more information about the architecture, please refer to the [Makerkit blog 
 
 ### Marketing Pages
 
-Marketing pages are located in the `apps/web/app/(marketing)` directory. These pages are used to showcase the features of the SaaS and provide information about the product.
+Marketing pages are located in the `apps/portal/app/(marketing)` directory. These pages are used to showcase the features of the SaaS and provide information about the product.
 
 ### Authentication
 
-Authenticated is backed by Supabase. The `apps/web/app/auth` directory contains the authentication pages, however, the logic is into its own package `@kit/auth` located in `packages/features/auth`.
+Authenticated is backed by Supabase. The `apps/portal/app/auth` directory contains the authentication pages, however, the logic is into its own package `@kit/auth` located in `packages/features/auth`.
 
 This package can be used across multiple applications.
 
 ### Gated Pages
 
-Gated pages are located in the `apps/web/app/home` directory. Here is where you can build your SaaS pages that are gated by authentication.
+Gated pages are located in the `apps/portal/app/home` directory. Here is where you can build your SaaS pages that are gated by authentication.
 
 ### Database
 
-The Supabase database is located in the `apps/web/supabase` directory. In this directory you will find the database schema, migrations, and seed data.
+The Supabase database is located in the `apps/portal/supabase` directory. In this directory you will find the database schema, migrations, and seed data.
 
 #### Creating a new migration
 To create a new migration, run the following command:
@@ -253,7 +253,7 @@ To create a new migration, run the following command:
 pnpm --filter web supabase migration new --name <migration-name>
 ```
 
-This command will create a new migration file in the `apps/web/supabase/migrations` directory. 
+This command will create a new migration file in the `apps/portal/supabase/migrations` directory. 
 
 #### Applying a migration
 
@@ -317,7 +317,7 @@ You can deploy your application to any hosting provider that supports Next.js.
 
 #### 5. Deploy to Cloudflare
 
-The configuration should work as is, but you need to set the runtime to `edge` in the root layout file (`apps/web/app/layout.tsx`).
+The configuration should work as is, but you need to set the runtime to `edge` in the root layout file (`apps/portal/app/layout.tsx`).
 
 ```tsx
 export const runtime = 'edge';
