@@ -136,13 +136,13 @@ For more Supabase commands, see the [Supabase CLI documentation](https://supabas
 
 ```
 # Create new migration
-pnpm --filter web supabase migration new <name>
+pnpm --filter portal supabase migration new <name>
 
 # Link to Supabase project
-pnpm --filter web supabase link
+pnpm --filter portal supabase link
 
 # Push migrations
-pnpm --filter web supabase db push
+pnpm --filter portal supabase db push
 ```
 
 #### 4. Start the Next.js application
@@ -250,7 +250,7 @@ The Supabase database is located in the `apps/portal/supabase` directory. In thi
 To create a new migration, run the following command:
 
 ```bash
-pnpm --filter web supabase migration new --name <migration-name>
+pnpm --filter portal supabase migration new --name <migration-name>
 ```
 
 This command will create a new migration file in the `apps/portal/supabase/migrations` directory. 
@@ -270,7 +270,7 @@ This command will apply the migration to the database and update the schema. It 
 Linking the local Supabase database to the Supabase project is done by running the following command:
 
 ```bash
-pnpm --filter web supabase db link
+pnpm --filter portal supabase db link
 ```
 
 This command will link the local Supabase database to the Supabase project.
@@ -280,7 +280,7 @@ This command will link the local Supabase database to the Supabase project.
 After you have made changes to the migration, you can push the migration to the Supabase project by running the following command:
 
 ```bash
-pnpm --filter web supabase db push
+pnpm --filter portal supabase db push
 ```
 
 This command will push the migration to the Supabase project. You can now apply the migration to the Supabase database.
@@ -296,7 +296,7 @@ To deploy your application to production, you will need to create a Supabase pro
 After you have made changes to the migration, you can push the migration to the Supabase project by running the following command:
 
 ```bash
-pnpm --filter web supabase db push
+pnpm --filter portal supabase db push
 ```
 
 This command will push the migration to the Supabase project.
