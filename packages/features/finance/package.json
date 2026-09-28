@@ -30,6 +30,7 @@
     "@kit/tsconfig": "workspace:*",
     "@kit/ui": "workspace:*",
     "@supabase/supabase-js": "catalog:",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.1.0",
     "@types/jsdom": "^30.0.0",
     "@types/node": "catalog:",

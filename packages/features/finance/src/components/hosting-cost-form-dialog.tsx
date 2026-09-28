@@ -86,6 +86,12 @@ export function HostingCostFormDialog({
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [overlapCount, setOverlapCount] = useState<number | null>(null);
+  // Set when the overlap check itself fails (a network/server error, not an
+  // actual overlap). There is nothing more to check, so the officer is
+  // offered the same "Save anyway" escape hatch as a real overlap, rather
+  // than being stuck unable to save at all.
+  const [checkFailed, setCheckFailed] = useState(false);
+  const acknowledged = overlapCount !== null || checkFailed;
 
   const form = useForm({
     resolver: zodResolver(HostingCostFormSchema),
@@ -97,6 +103,7 @@ export function HostingCostFormDialog({
   useEffect(() => {
     if (open) {
       setOverlapCount(null);
+      setCheckFailed(false);
       form.reset(buildDefaultValues(providers, cost));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,11 +128,14 @@ export function HostingCostFormDialog({
   const providerName =
     providers.find((p) => p.slug === provider)?.name ?? provider;
 
-  const resetAcknowledgement = () => setOverlapCount(null);
+  const resetAcknowledgement = () => {
+    setOverlapCount(null);
+    setCheckFailed(false);
+  };
 
   const onSubmit = (values: FormValues) => {
     startTransition(async () => {
-      if (overlapCount === null) {
+      if (!acknowledged) {
         const check = await hostingOverlapsAction({
           provider: values.provider,
           periodStart: values.coversFrom,
@@ -133,7 +143,17 @@ export function HostingCostFormDialog({
           excludeId: values.id,
         });
 
-        if (check.success && check.overlaps.length > 0) {
+        if (!check.success) {
+          // The check itself failed -- not an actual overlap. Nothing more
+          // to check, so offer the same "Save anyway" escape hatch rather
+          // than silently falling through to save, or leaving the officer
+          // stuck unable to save at all.
+          toast.error(check.error);
+          setCheckFailed(true);
+          return;
+        }
+
+        if (check.overlaps.length > 0) {
           setOverlapCount(check.overlaps.length);
           return;
         }
@@ -145,6 +165,7 @@ export function HostingCostFormDialog({
         toast.success('Hosting cost saved');
         setOpen(false);
         setOverlapCount(null);
+        setCheckFailed(false);
         form.reset(buildDefaultValues(providers, cost));
       } else {
         toast.error(result.error);
@@ -183,7 +204,12 @@ export function HostingCostFormDialog({
                 data-test="hosting-cost-provider"
                 className="w-full"
               >
-                <SelectValue />
+                <SelectValue placeholder="Select a provider">
+                  {(value: string | null) =>
+                    providers.find((p) => p.slug === value)?.name ??
+                    'Select a provider'
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {providers.map((p) => (
@@ -308,7 +334,7 @@ export function HostingCostFormDialog({
               data-test="hosting-cost-save"
               disabled={isPending}
             >
-              {overlapCount !== null ? 'Save anyway' : 'Save'}
+              {acknowledged ? 'Save anyway' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

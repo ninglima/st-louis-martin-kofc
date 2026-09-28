@@ -39,7 +39,11 @@ export function YearPicker({
         data-test="year-picker"
         aria-label="Fraternal year"
       >
-        <SelectValue />
+        <SelectValue>
+          {(value: string | null) =>
+            value ? fraternalYearLabel(Number(value)) : ''
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((y) => (
