@@ -4,6 +4,6 @@
 **/.turbo
 .pnpm-store
 .git
-**/.env.local
+**/.env*.local
 **/test-results
 **/playwright-report
