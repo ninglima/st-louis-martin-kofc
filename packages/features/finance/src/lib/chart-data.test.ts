@@ -69,4 +69,13 @@ describe('chart data', () => {
       toNetChartData([{ year: 2026, duesCents: 10000, hostingCents: 2500 }]),
     ).toEqual([{ year: '2026–27', dues: 100, hosting: 25, net: 75 }]);
   });
+
+  it('computes dues-only data per year when hosting is hidden', () => {
+    expect(
+      toNetChartData(
+        [{ year: 2026, duesCents: 10000, hostingCents: 2500 }],
+        false,
+      ),
+    ).toEqual([{ year: '2026–27', dues: 100 }]);
+  });
 });

@@ -1,10 +1,13 @@
 import { Suspense } from 'react';
 
+import { redirect } from 'next/navigation';
+
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
 import { PageBody, PageHeader } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 
+import featuresFlagConfig from '@kit/brand/config/feature-flags';
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { chicagoToday } from '@kit/dues/schemas';
 import { HostingCostsTable } from '@kit/finance/components/hosting-costs-table';
@@ -36,6 +39,10 @@ export default function HostingCostsPage({
 }: {
   searchParams: SearchParams;
 }) {
+  if (!featuresFlagConfig.enableHostingCosts) {
+    redirect('/home');
+  }
+
   return (
     <>
       <PageHeader description={<AppBreadcrumbs />} />

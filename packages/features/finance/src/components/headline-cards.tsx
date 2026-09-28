@@ -36,11 +36,19 @@ function Figure({
  * No client directive: nothing here reads a hook, so it renders server-side
  * (or client-side, embedded in a client tree) without a boundary either way.
  */
-export function HeadlineCards({ dashboard }: { dashboard: FinanceDashboard }) {
+export function HeadlineCards({
+  dashboard,
+  showHosting = true,
+}: {
+  dashboard: FinanceDashboard;
+  showHosting?: boolean;
+}) {
   const d = dashboard;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className={`grid gap-4 sm:grid-cols-2 ${showHosting ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
+    >
       <Figure
         hook="finance-dues-collected"
         title="Dues collected"
@@ -66,27 +74,29 @@ export function HeadlineCards({ dashboard }: { dashboard: FinanceDashboard }) {
         )}
         sub="Excluding honorary, as of today"
       />
-      <Card data-test="finance-hosting-to-date">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-muted-foreground text-sm font-medium">
-            Hosting so far
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-semibold">
-            {formatAmountCents(d.hostingToDateCents)}
-          </div>
-          {d.isCurrentYear && d.hostingProjectionCents !== null ? (
-            <p
-              className="text-muted-foreground text-xs"
-              data-test="finance-hosting-projection"
-            >
-              Projected for the year:{' '}
-              {formatAmountCents(d.hostingProjectionCents)}
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+      {showHosting ? (
+        <Card data-test="finance-hosting-to-date">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Hosting so far
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {formatAmountCents(d.hostingToDateCents)}
+            </div>
+            {d.isCurrentYear && d.hostingProjectionCents !== null ? (
+              <p
+                className="text-muted-foreground text-xs"
+                data-test="finance-hosting-projection"
+              >
+                Projected for the year:{' '}
+                {formatAmountCents(d.hostingProjectionCents)}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

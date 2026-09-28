@@ -12,6 +12,7 @@ import { z } from 'zod';
 
 import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
 
+import featuresFlagConfig from '@kit/brand/config/feature-flags';
 import pathsConfig from '@kit/brand/config/paths';
 
 const iconClasses = 'w-4';
@@ -50,13 +51,17 @@ const routes = [
         section: 'members',
         verb: 'view' as const,
       },
-      {
-        label: 'common.routes.hostingCosts',
-        path: pathsConfig.app.hostingCosts,
-        Icon: <Receipt className={iconClasses} />,
-        section: 'finance',
-        verb: 'view' as const,
-      },
+      ...(featuresFlagConfig.enableHostingCosts
+        ? [
+            {
+              label: 'common.routes.hostingCosts',
+              path: pathsConfig.app.hostingCosts,
+              Icon: <Receipt className={iconClasses} />,
+              section: 'finance',
+              verb: 'view' as const,
+            },
+          ]
+        : []),
     ],
   },
   {

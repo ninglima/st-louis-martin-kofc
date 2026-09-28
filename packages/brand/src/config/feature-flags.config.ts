@@ -17,6 +17,9 @@ const FeatureFlagsSchema = z.object({
   enablePayments: z.boolean({
     error: 'Provide the variable NEXT_PUBLIC_ENABLE_PAYMENTS',
   }),
+  enableHostingCosts: z.boolean({
+    error: 'Provide the variable NEXT_PUBLIC_ENABLE_HOSTING_COSTS',
+  }),
 });
 
 const featuresFlagConfig = FeatureFlagsSchema.parse({
@@ -33,6 +36,10 @@ const featuresFlagConfig = FeatureFlagsSchema.parse({
   enablePayments: getBoolean(
     process.env.NEXT_PUBLIC_ENABLE_PAYMENTS,
     true,
+  ),
+  enableHostingCosts: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_HOSTING_COSTS,
+    false,
   ),
 } satisfies z.infer<typeof FeatureFlagsSchema>);
 

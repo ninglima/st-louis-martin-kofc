@@ -79,11 +79,20 @@ export function toStatusChartData(counts: StatusCounts) {
   }));
 }
 
-export function toNetChartData(rows: NetYear[]) {
-  return rows.map((r) => ({
-    year: fraternalYearLabel(r.year),
-    dues: dollars(r.duesCents),
-    hosting: dollars(r.hostingCents),
-    net: dollars(r.duesCents - r.hostingCents),
-  }));
+export function toNetChartData(rows: NetYear[], showHosting = true) {
+  return rows.map((r) => {
+    const year = fraternalYearLabel(r.year);
+    const dues = dollars(r.duesCents);
+
+    if (!showHosting) {
+      return { year, dues };
+    }
+
+    return {
+      year,
+      dues,
+      hosting: dollars(r.hostingCents),
+      net: dollars(r.duesCents - r.hostingCents),
+    };
+  });
 }

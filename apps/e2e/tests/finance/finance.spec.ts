@@ -84,6 +84,11 @@ test.describe('finance', () => {
   });
 
   test('1. an administrator adds a hosting bill and the dashboard moves', async () => {
+    test.skip(
+      process.env.NEXT_PUBLIC_ENABLE_HOSTING_COSTS !== 'true',
+      'hosting costs are disabled',
+    );
+
     const today = chicagoToday();
 
     await officerFinance.goToHome();
@@ -126,6 +131,11 @@ test.describe('finance', () => {
   });
 
   test('2. repeat last bill adds the next period', async () => {
+    test.skip(
+      process.env.NEXT_PUBLIC_ENABLE_HOSTING_COSTS !== 'true',
+      'hosting costs are disabled',
+    );
+
     await officerFinance.goToHostingCosts();
 
     const currentYear = fraternalYearOf(chicagoToday());

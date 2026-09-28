@@ -70,4 +70,23 @@ describe('HeadlineCards', () => {
       'This fraternal year',
     );
   });
+
+  it('hides the hosting card and its projection when showHosting is false', () => {
+    const { container } = render(
+      <HeadlineCards dashboard={empty} showHosting={false} />,
+    );
+    expect(
+      container.querySelector('[data-test="finance-hosting-to-date"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-test="finance-hosting-projection"]'),
+    ).toBeNull();
+  });
+
+  it('shows the hosting card by default', () => {
+    const { container } = render(<HeadlineCards dashboard={empty} />);
+    expect(
+      container.querySelector('[data-test="finance-hosting-to-date"]'),
+    ).not.toBeNull();
+  });
 });

@@ -247,13 +247,23 @@ export function HostingByMonthChart({
   );
 }
 
-export function NetByYearChart({ rows }: { rows: NetYear[] }) {
-  const data = toNetChartData(rows);
+export function NetByYearChart({
+  rows,
+  showHosting = true,
+}: {
+  rows: NetYear[];
+  showHosting?: boolean;
+}) {
+  const data = toNetChartData(rows, showHosting);
 
   return (
     <Card data-test="finance-chart-net">
       <CardHeader>
-        <CardTitle>Dues, hosting and net by year</CardTitle>
+        <CardTitle>
+          {showHosting
+            ? 'Dues, hosting and net by year'
+            : 'Dues collected per year'}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={NET_CONFIG} className="aspect-auto h-64 w-full">
@@ -273,8 +283,12 @@ export function NetByYearChart({ rows }: { rows: NetYear[] }) {
               }
             />
             <Bar dataKey="dues" fill="var(--color-dues)" />
-            <Bar dataKey="hosting" fill="var(--color-hosting)" />
-            <Bar dataKey="net" fill="var(--color-net)" />
+            {showHosting ? (
+              <>
+                <Bar dataKey="hosting" fill="var(--color-hosting)" />
+                <Bar dataKey="net" fill="var(--color-net)" />
+              </>
+            ) : null}
           </BarChart>
         </ChartContainer>
       </CardContent>
