@@ -14,6 +14,7 @@ import { PaymentConfigSchema } from '../schemas/payment-config.schema';
 import { CreatePaymentSchema } from '../schemas/create-payment.schema';
 import { ConfirmSquarePaymentSchema } from '../schemas/confirm-square-payment.schema';
 import { PaymentConfigService } from './payment-config.service';
+import { refuseToCharge } from './charge-guard';
 import { PaymentService } from './payment.service';
 import { getPaymentProvider } from '../providers/provider-factory';
 import {
@@ -246,13 +247,24 @@ export const confirmSquarePaymentAction = enhanceAction(
       return { success: false, error: 'Payment not found.' };
     }
 
-    // A caller must not be able to confirm -- and thus charge a card
-    // against -- a payment row that belongs to someone else.
-    if (payment.user_id !== user.id) {
+    // Re-check the row itself before any card is charged: it must belong
+    // to the caller, still be pending, meet the $0.50 floor, and (for dues)
+    // match the current price of its level. See `refuseToCharge`.
+    let refusal: string | null;
+
+    try {
+      refusal = await refuseToCharge(payment, user.id, () =>
+        new DuesService(getSupabaseServerClient()).levels(),
+      );
+    } catch {
       return {
         success: false,
-        error: 'You do not have permission to confirm this payment.',
+        error: 'Failed to process payment. Please try again.',
       };
+    }
+
+    if (refusal) {
+      return { success: false, error: refusal };
     }
 
     const provider = await getPaymentProvider(adminClient);
