@@ -16,10 +16,12 @@ export class StripeProvider implements PaymentProviderInterface {
     const paymentIntent = await this.stripe.paymentIntents.create({
       amount: params.amount,
       currency: params.currency ?? 'usd',
+      // Caller metadata first, our own keys last, so nothing a client sends
+      // can relabel whose payment this is or what type it is.
       metadata: {
+        ...((params.metadata as Record<string, string>) ?? {}),
         userId: params.userId,
         paymentType: params.payment_type,
-        ...(params.metadata as Record<string, string> ?? {}),
       },
       description: params.description ?? undefined,
     });
@@ -45,8 +47,30 @@ export class StripeProvider implements PaymentProviderInterface {
     }
   }
 
-  async parseWebhookEvent(payload: string): Promise<WebhookEvent> {
-    const event = JSON.parse(payload) as Stripe.Event;
+  async parseWebhookEvent(payload: string): Promise<WebhookEvent | null> {
+    return mapStripeWebhookEvent(JSON.parse(payload) as Stripe.Event);
+  }
+}
+
+/**
+ * Turns a verified Stripe event into the status write for our `payments`
+ * row (keyed by the PaymentIntent id we stored as `provider_payment_id`),
+ * or `null` when the event must not change any row.
+ *
+ * - `payment_intent.*`: the intent's own status, as before.
+ * - `charge.refunded`: `refunded` only when the charge is refunded in FULL
+ *   (`charge.refunded` is Stripe's own "fully refunded" flag). Resolved to
+ *   our row through the charge's `payment_intent`. A partial refund leaves
+ *   the status alone (logged) -- dues have no partial-refund meaning, and
+ *   `refunded` voids the member's dues period via `kit.payments_dues_sync`.
+ * - Anything else: ignored. (Previously every event was read as if it were
+ *   a PaymentIntent; for any other object the id never matched a row, so
+ *   ignoring them changes nothing.)
+ */
+export function mapStripeWebhookEvent(
+  event: Stripe.Event,
+): WebhookEvent | null {
+  if (event.type.startsWith('payment_intent.')) {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
     return {
@@ -55,6 +79,39 @@ export class StripeProvider implements PaymentProviderInterface {
       status: mapStripeStatus(paymentIntent.status),
     };
   }
+
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge;
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+
+    if (!paymentIntentId) {
+      console.warn('Stripe charge.refunded has no payment_intent; ignored.', {
+        chargeId: charge.id,
+      });
+      return null;
+    }
+
+    if (!charge.refunded || charge.amount_refunded < charge.amount) {
+      console.warn('Stripe partial refund; payment status left unchanged.', {
+        chargeId: charge.id,
+        paymentIntentId,
+        amount: charge.amount,
+        amountRefunded: charge.amount_refunded,
+      });
+      return null;
+    }
+
+    return {
+      type: event.type,
+      providerPaymentId: paymentIntentId,
+      status: 'refunded',
+    };
+  }
+
+  return null;
 }
 
 function mapStripeStatus(status: Stripe.PaymentIntent.Status): PaymentStatus {

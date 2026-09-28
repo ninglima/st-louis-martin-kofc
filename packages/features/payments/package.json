@@ -20,7 +20,8 @@
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@kit/i18n": "workspace:*",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@hookform/resolvers": "catalog:",
+    "@kit/dues": "workspace:*",
     "@kit/next": "workspace:*",
     "@kit/rbac": "workspace:*",
     "@kit/shared": "workspace:*",
@@ -49,6 +51,7 @@
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "sonner": "catalog:",
+    "vitest": "catalog:",
     "zod": "catalog:"
   }
 }

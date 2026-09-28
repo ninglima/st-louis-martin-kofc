@@ -39,8 +39,17 @@ export async function POST(request: NextRequest) {
 
     const event = await provider.parseWebhookEvent(body);
 
-    const paymentService = new PaymentService(adminClient);
-    await paymentService.updatePaymentStatus(adminClient, event.providerPaymentId, event.status);
+    // Events that must not change any payment (unhandled types, partial
+    // refunds) are acknowledged so the provider stops retrying them.
+    if (event) {
+      const paymentService = new PaymentService(adminClient);
+      await paymentService.updatePaymentStatus(
+        adminClient,
+        event.providerPaymentId,
+        event.status,
+        { onlyIfAmount: event.onlyIfAmount },
+      );
+    }
 
     return NextResponse.json({ received: true });
   } catch (error) {

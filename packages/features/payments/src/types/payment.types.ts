@@ -73,6 +73,12 @@ export interface WebhookEvent {
   providerPaymentId: string;
   status: PaymentStatus;
   metadata?: Record<string, unknown>;
+  /**
+   * Apply the status only to a payment whose `amount` equals this (integer
+   * cents). Set for Square `refund.*` events, which carry the refund amount
+   * but not the payment total, so a partial refund matches no row.
+   */
+  onlyIfAmount?: number;
 }
 
 export interface PublicPaymentConfig {

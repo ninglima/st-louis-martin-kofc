@@ -6,7 +6,9 @@ import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
 import { PageBody, PageHeader } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import { DuesService } from '@kit/dues/server/dues.service';
 import { CheckoutForm } from '@kit/payments/components/checkout-form';
 import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import { requirePermission } from '~/lib/server/require-permission';
@@ -46,13 +48,19 @@ function CheckoutPage() {
 async function CheckoutContent() {
   await requirePermission('checkout', 'view');
   const adminClient = getSupabaseServerAdminClient();
+  // The member's own session: `my_dues_summary` answers for `auth.uid()`.
+  const dues = new DuesService(getSupabaseServerClient());
 
-  const { data: configData } = await adminClient
-    .from('payment_config')
-    .select(
-      'active_provider, stripe_publishable_key, square_application_id, square_location_id, environment',
-    )
-    .single();
+  const [{ data: configData }, duesLevels, myDues] = await Promise.all([
+    adminClient
+      .from('payment_config')
+      .select(
+        'active_provider, stripe_publishable_key, square_application_id, square_location_id, environment',
+      )
+      .single(),
+    dues.levels(),
+    dues.mySummary(),
+  ]);
 
   const config: PublicPaymentConfig = {
     activeProvider: (configData?.active_provider ??
@@ -66,7 +74,9 @@ async function CheckoutContent() {
       'sandbox') as PublicPaymentConfig['environment'],
   };
 
-  return <CheckoutForm config={config} />;
+  return (
+    <CheckoutForm config={config} duesLevels={duesLevels} myDues={myDues} />
+  );
 }
 
 function CheckoutSkeleton() {

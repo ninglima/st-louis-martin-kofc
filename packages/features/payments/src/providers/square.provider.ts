@@ -105,20 +105,105 @@ export class SquareProvider implements PaymentProviderInterface {
     });
   }
 
-  async parseWebhookEvent(payload: string): Promise<WebhookEvent> {
-    const event = JSON.parse(payload) as {
-      type: string;
-      data: { object: { payment?: { id: string; status: string } } };
-    };
+  async parseWebhookEvent(payload: string): Promise<WebhookEvent | null> {
+    return mapSquareWebhookEvent(JSON.parse(payload) as SquareWebhookPayload);
+  }
+}
 
-    const payment = event.data?.object?.payment;
+interface SquareMoney {
+  amount?: number | null;
+  currency?: string | null;
+}
+
+/** The parts of Square's `payment.*` and `refund.*` webhook bodies we read. */
+export interface SquareWebhookPayload {
+  type: string;
+  data?: {
+    object?: {
+      payment?: {
+        id: string;
+        status?: string;
+        amount_money?: SquareMoney | null;
+        total_money?: SquareMoney | null;
+        refunded_money?: SquareMoney | null;
+      };
+      refund?: {
+        id: string;
+        status?: string;
+        payment_id?: string;
+        amount_money?: SquareMoney | null;
+      };
+    };
+  };
+}
+
+/**
+ * Turns a verified Square event into the status write for our `payments`
+ * row (keyed by the Square payment id stored as `provider_payment_id`), or
+ * `null` when the event must not change any row.
+ *
+ * - `payment.*`: the payment's status, as before -- except a payment whose
+ *   `refunded_money` equals its total is `refunded`. A partial refund leaves
+ *   the status alone (logged); Square keeps such a payment `COMPLETED`.
+ * - `refund.*` with refund status `COMPLETED`: `refunded`, but the event
+ *   carries no payment total, so it sets `onlyIfAmount` to the refund
+ *   amount and the write only lands on a row whose `amount` matches -- a
+ *   partial refund matches nothing.
+ * - Anything else (no payment or refund, or a refund still PENDING or
+ *   REJECTED/FAILED): ignored. Previously these fell through as an update
+ *   keyed by `''`, which never matched a row.
+ */
+export function mapSquareWebhookEvent(
+  event: SquareWebhookPayload,
+): WebhookEvent | null {
+  const payment = event.data?.object?.payment;
+
+  if (payment) {
+    const refunded = payment.refunded_money?.amount ?? 0;
+    const total =
+      payment.total_money?.amount ?? payment.amount_money?.amount ?? null;
+
+    if (refunded > 0) {
+      if (total !== null && refunded >= total) {
+        return {
+          type: event.type,
+          providerPaymentId: payment.id,
+          status: 'refunded',
+        };
+      }
+
+      console.warn('Square partial refund; payment status left unchanged.', {
+        paymentId: payment.id,
+        total,
+        refunded,
+      });
+      return null;
+    }
 
     return {
       type: event.type,
-      providerPaymentId: payment?.id ?? '',
-      status: mapSquareStatus(payment?.status),
+      providerPaymentId: payment.id,
+      status: mapSquareStatus(payment.status),
     };
   }
+
+  const refund = event.data?.object?.refund;
+  const refundAmount = refund?.amount_money?.amount;
+
+  if (
+    refund?.status === 'COMPLETED' &&
+    refund.payment_id &&
+    typeof refundAmount === 'number'
+  ) {
+    return {
+      type: event.type,
+      providerPaymentId: refund.payment_id,
+      status: 'refunded',
+      onlyIfAmount: refundAmount,
+    };
+  }
+
+  return null;
 }
 
 function mapSquareStatus(status: string | undefined): PaymentStatus {

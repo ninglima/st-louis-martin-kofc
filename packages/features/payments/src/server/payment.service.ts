@@ -79,12 +79,24 @@ export class PaymentService {
     return (data ?? []) as PaymentItem[];
   }
 
+  /**
+   * A plain UPDATE of `payments.status`, so the `AFTER UPDATE OF status`
+   * trigger `kit.payments_dues_sync` fires: `succeeded` records the dues
+   * period, `refunded` voids it.
+   *
+   * - `refunded` is terminal here: a late or replayed success event (a
+   *   Stripe PaymentIntent stays `succeeded` after a refund) must not move
+   *   the row back out of it.
+   * - `onlyIfAmount` restricts the write to a row with that exact amount
+   *   (see `WebhookEvent.onlyIfAmount`).
+   */
   async updatePaymentStatus(
     adminClient: PaymentsClient,
     providerPaymentId: string,
     status: PaymentStatus,
+    options: { onlyIfAmount?: number } = {},
   ): Promise<void> {
-    const { error } = await adminClient
+    let query = adminClient
       .from('payments')
       .update({
         status,
@@ -92,8 +104,25 @@ export class PaymentService {
       })
       .eq('provider_payment_id', providerPaymentId);
 
+    if (status !== 'refunded') {
+      query = query.neq('status', 'refunded');
+    }
+
+    if (options.onlyIfAmount !== undefined) {
+      query = query.eq('amount', options.onlyIfAmount);
+    }
+
+    const { data, error } = await query.select('id');
+
     if (error) {
       throw new Error(`Failed to update payment status: ${error.message}`);
+    }
+
+    if (status === 'refunded' && (data ?? []).length === 0) {
+      console.warn('Refund matched no payment; nothing marked refunded.', {
+        providerPaymentId,
+        onlyIfAmount: options.onlyIfAmount,
+      });
     }
   }
 }
