@@ -139,12 +139,25 @@ begin
 
     -- Fix round 1 (I1): a malformed or missing paid_through must skip just
     -- that row, not abort rows already applied earlier in the batch.
+    -- Fix round 2 (N1): a value that parses as a date is not necessarily a
+    -- sane calendar date -- 'infinity'/'today'/'epoch' all cast cleanly and
+    -- would otherwise pay a member up forever or silently float with the
+    -- clock, and a date near the type's lower bound (e.g. a BC year) casts
+    -- fine but then overflows at `v_through - 365` below, which sits
+    -- outside this sub-block and would abort the whole batch. Requiring a
+    -- plain YYYY-MM-DD shape before the cast rejects all of those up front;
+    -- the range check after the cast also catches implausible-but-valid
+    -- dates (e.g. centuries out) that the shape check alone would allow.
+    if (r ->> 'paid_through') !~ '^\d{4}-\d{2}-\d{2}$' then
+      v_skipped := v_skipped || jsonb_build_object('membership_number', r ->> 'membership_number', 'reason', 'invalid date');
+      continue;
+    end if;
     begin
       v_through := (r ->> 'paid_through')::date;
     exception when others then
       v_through := null;
     end;
-    if v_through is null then
+    if v_through is null or v_through not between date '2000-01-01' and current_date + 3650 then
       v_skipped := v_skipped || jsonb_build_object('membership_number', r ->> 'membership_number', 'reason', 'invalid date');
       continue;
     end if;
