@@ -52,4 +52,22 @@ describe('HeadlineCards', () => {
     expect(text(container, 'finance-outstanding')).toContain('$135.00');
     expect(text(container, 'finance-outstanding')).toContain('as of today');
   });
+
+  it('labels dues collected by the year shown for a past year', () => {
+    const { container } = render(
+      <HeadlineCards
+        dashboard={{ ...empty, year: 2025, isCurrentYear: false }}
+      />,
+    );
+    expect(text(container, 'finance-dues-collected')).toContain(
+      'Fraternal year 2025–26',
+    );
+  });
+
+  it('labels dues collected generically for the current year', () => {
+    const { container } = render(<HeadlineCards dashboard={empty} />);
+    expect(text(container, 'finance-dues-collected')).toContain(
+      'This fraternal year',
+    );
+  });
 });

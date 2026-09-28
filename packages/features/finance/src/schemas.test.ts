@@ -59,6 +59,45 @@ describe('HostingCostFormSchema', () => {
     ).toBe(false);
   });
 
+  it('rejects dates before 2000', () => {
+    const before2000 = HostingCostFormSchema.safeParse({
+      ...base,
+      paidOn: '1999-12-31',
+    });
+
+    expect(before2000.success).toBe(false);
+    if (!before2000.success) {
+      expect(before2000.error.issues[0]?.message).toBe(
+        'Enter a date from 2000 on',
+      );
+    }
+
+    expect(
+      HostingCostFormSchema.safeParse({
+        ...base,
+        coversFrom: '0026-10-01',
+      }).success,
+    ).toBe(false);
+    expect(
+      HostingCostFormSchema.safeParse({
+        ...base,
+        coversTo: '1999-01-01',
+        coversFrom: '1999-01-01',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts the earliest allowed date', () => {
+    expect(
+      HostingCostFormSchema.safeParse({
+        ...base,
+        paidOn: '2000-01-01',
+        coversFrom: '2000-01-01',
+        coversTo: '2000-01-01',
+      }).success,
+    ).toBe(true);
+  });
+
   it('rejects a long note and trims a short one', () => {
     expect(
       HostingCostFormSchema.safeParse({ ...base, note: 'x'.repeat(501) })

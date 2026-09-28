@@ -11,16 +11,25 @@ describe('parseDollarsToCents', () => {
     ['$1,200.50', 120050],
     [' 12 ', 1200],
     ['0', 0],
+    ['9,999,999.99', 999_999_999],
   ])('%s -> %i cents', (input, cents) => {
     expect(parseDollarsToCents(input)).toBe(cents);
   });
 
-  it.each(['', 'abc', '1e3', '-5', '12.345', '1,2,00', '$', '10000000'])(
-    'rejects %s',
-    (input) => {
-      expect(parseDollarsToCents(input)).toBeNull();
-    },
-  );
+  it.each([
+    '',
+    'abc',
+    '1e3',
+    '-5',
+    '12.345',
+    '1,2,00',
+    '$',
+    '10000000',
+    '10,000,000.00',
+    '999,999,999.99',
+  ])('rejects %s', (input) => {
+    expect(parseDollarsToCents(input)).toBeNull();
+  });
 });
 
 describe('centsToDollarsInput', () => {

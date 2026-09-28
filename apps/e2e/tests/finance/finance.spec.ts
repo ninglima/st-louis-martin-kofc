@@ -129,7 +129,19 @@ test.describe('finance', () => {
     await officerFinance.goToHostingCosts();
 
     const currentYear = fraternalYearOf(chicagoToday());
+    const nextYear = currentYear + 1;
     const rowsBefore = await officerFinance.hostingCostRows().count();
+
+    // The repeated period can only land in the current fraternal year or
+    // the next one -- it advances the latest bill by that bill's own
+    // length (a few days at most; see the file header), never further. The
+    // year picker always offers `nextYear` (`yearOptions`), so its own
+    // before-count is captured up front, in case the new period lands
+    // there -- read before triggering the repeat below, since that action
+    // is what changes the count.
+    await officerFinance.selectYear(fraternalYearLabel(nextYear));
+    const rowsInNextYearBefore = await officerFinance.hostingCostRows().count();
+    await officerFinance.selectYear(fraternalYearLabel(currentYear));
 
     // "Repeat last bill" is keyed off whatever the provider's actual latest
     // bill is -- which may be scenario 1's row above, or a later-dated row
@@ -144,12 +156,14 @@ test.describe('finance', () => {
 
     const newYear = fraternalYearOf(newPeriodStart);
 
-    if (newYear !== currentYear) {
+    if (newYear === nextYear) {
       // The new period crossed into the next fraternal year -- switch the
-      // year picker before counting, since the "current year" row count
-      // from above has nothing to do with the next year's table.
-      await officerFinance.selectYear(fraternalYearLabel(newYear));
-      await expect(officerFinance.hostingCostRows()).not.toHaveCount(0);
+      // year picker before counting, since the current year's row count
+      // has nothing to do with the next year's table.
+      await officerFinance.selectYear(fraternalYearLabel(nextYear));
+      await expect(officerFinance.hostingCostRows()).toHaveCount(
+        rowsInNextYearBefore + 1,
+      );
     } else {
       await expect(officerFinance.hostingCostRows()).toHaveCount(
         rowsBefore + 1,

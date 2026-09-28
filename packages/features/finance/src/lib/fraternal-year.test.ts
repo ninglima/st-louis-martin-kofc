@@ -42,8 +42,8 @@ describe('labels and options', () => {
     expect(fraternalYearLabel(2099)).toBe('2099–00');
   });
 
-  it('lists years newest first', () => {
-    expect(yearOptions(2026, 2024)).toEqual([2026, 2025, 2024]);
-    expect(yearOptions(2026, 2030)).toEqual([2026]);
+  it('lists years newest first, always including next year', () => {
+    expect(yearOptions(2026, 2024)).toEqual([2027, 2026, 2025, 2024]);
+    expect(yearOptions(2026, 2030)).toEqual([2027, 2026]);
   });
 });
