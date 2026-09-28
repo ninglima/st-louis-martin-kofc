@@ -68,7 +68,7 @@ const CATHOLIC_RESOURCES_MDX = join(
   '..',
   '..',
   '..',
-  'portal',
+  'site',
   'app',
   '(marketing)',
   'catholic-resources',

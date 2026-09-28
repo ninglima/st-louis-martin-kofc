@@ -20,8 +20,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
-  /* Ignore billing tests if the environment variable is not set. */
-  testIgnore: [],
+  /* The cold-start suite needs a stack started with SIMULATE_COLD_START_MS. */
+  testIgnore: process.env.E2E_COLD_START === 'true' ? [] : ['**/cold-start/**'],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
