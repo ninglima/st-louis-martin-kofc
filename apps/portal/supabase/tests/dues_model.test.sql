@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(17);
+select plan(20);
 
 -- schema
 select has_table('public', 'dues_levels', 'dues_levels exists');
@@ -39,6 +39,22 @@ select throws_ok(
 select throws_ok(
   format($$ delete from public.dues_periods where member_id = %L $$, :'m1'),
   'P0001', null, 'periods cannot be deleted');
+
+-- the one allowed transition: voiding. Un-voiding, and any other update to an
+-- already-voided row, must stay rejected so a later task can't loosen the
+-- guard unnoticed.
+select tests.make_member('100002') as m2 \gset
+insert into public.dues_periods (member_id, level, amount_cents, method, received_on, period_start, period_end)
+values (:'m2', 'regular_contrib', 0, 'opening_balance', '2026-01-01', '2026-01-01', '2027-01-01');
+select lives_ok(
+  format($$ update public.dues_periods set voided_at = now(), void_reason = 'test void' where member_id = %L $$, :'m2'),
+  'voiding a period succeeds');
+select throws_ok(
+  format($$ update public.dues_periods set voided_at = null, void_reason = null where member_id = %L $$, :'m2'),
+  'P0001', null, 'un-voiding is rejected');
+select throws_ok(
+  format($$ update public.dues_periods set amount_cents = 1 where member_id = %L $$, :'m2'),
+  'P0001', null, 'a voided period cannot be updated further');
 
 -- rate change keeps history (Review Focus 5)
 update public.dues_levels set amount_cents = 6000 where slug = 'regular_contrib';
