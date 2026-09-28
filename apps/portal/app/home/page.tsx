@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 
+import type { Database } from '@kit/supabase/database';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
 import { PageBody, PageHeader } from '@kit/ui/page';
@@ -9,6 +10,8 @@ import featuresFlagConfig from '@kit/brand/config/feature-flags';
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { chicagoToday } from '@kit/dues/schemas';
 import { DuesService } from '@kit/dues/server/dues.service';
+import { CollectionTab } from '@kit/finance/components/collection-tab';
+import { DashboardTabsNav } from '@kit/finance/components/dashboard-tabs-nav';
 import {
   DuesByMonthChart,
   HostingByMonthChart,
@@ -17,9 +20,12 @@ import {
 } from '@kit/finance/components/finance-charts';
 import { FollowUpTable } from '@kit/finance/components/follow-up-table';
 import { HeadlineCards } from '@kit/finance/components/headline-cards';
+import { LapsesTab } from '@kit/finance/components/lapses-tab';
 import { MemberHome } from '@kit/finance/components/member-home';
 import { PaymentsToCheckTable } from '@kit/finance/components/payments-to-check-table';
+import { RetentionTab } from '@kit/finance/components/retention-tab';
 import { YearPicker } from '@kit/finance/components/year-picker';
+import { parseMonthParam, parseTab } from '@kit/finance/lib/dashboard-tabs';
 import {
   fraternalYearOf,
   parseYearParam,
@@ -39,6 +45,12 @@ import { getCurrentPermissions } from '~/lib/server/require-permission';
 export const instant = false;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+// `ReturnType<typeof getSupabaseServerClient>` alone loses the `Database`
+// generic -- utility types don't apply a generic function's default type
+// argument, only an explicit call does -- so it's pinned here instead.
+type SupabaseServerClient = ReturnType<
+  typeof getSupabaseServerClient<Database>
+>;
 
 export default function HomePage({
   searchParams,
@@ -62,56 +74,38 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
   const client = getSupabaseServerClient();
 
   if (hasPermission(perms, 'finance', 'view')) {
+    const params = await searchParams;
     const today = chicagoToday();
-    const year = parseYearParam((await searchParams).year, today);
+    const tab = parseTab(params.tab);
     const finance = new FinanceService(client);
-    const showHosting = featuresFlagConfig.enableHostingCosts;
+    const canOpenMembers = hasPermission(perms, 'members', 'view');
 
-    const read = await readDuesIfDeployed(() =>
-      Promise.all([
-        finance.dashboard(year),
-        finance.netByYear(),
-        finance.followUp(),
-        finance.paymentsToCheck(),
-        // Hosting providers are only needed to render the hosting-by-month
-        // chart, so this read is skipped entirely when the flag is off.
-        showHosting
-          ? finance.providers()
-          : Promise.resolve<HostingProvider[]>([]),
-      ]),
+    return (
+      <div className="flex flex-col gap-6" data-test="finance-dashboard">
+        <DashboardTabsNav active={tab} />
+        {tab === 'overview' ? (
+          <OverviewTab
+            client={client}
+            finance={finance}
+            today={today}
+            canOpenMembers={canOpenMembers}
+          />
+        ) : null}
+        {tab === 'collection' ? (
+          <CollectionTabContent
+            finance={finance}
+            today={today}
+            year={parseYearParam(params.year, today)}
+            month={parseMonthParam(params.month, today)}
+            canOpenMembers={canOpenMembers}
+          />
+        ) : null}
+        {tab === 'lapses' ? (
+          <LapsesTabContent finance={finance} canOpenMembers={canOpenMembers} />
+        ) : null}
+        {tab === 'retention' ? <RetentionTabContent finance={finance} /> : null}
+      </div>
     );
-
-    if (read.deployed) {
-      const [dashboard, net, followUp, toCheck, providers] = read.value;
-      const current = fraternalYearOf(today);
-
-      return (
-        <div className="flex flex-col gap-6" data-test="finance-dashboard">
-          <YearPicker
-            year={year}
-            options={yearOptions(current, net[0]?.year ?? current)}
-          />
-          <HeadlineCards dashboard={dashboard} showHosting={showHosting} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <DuesByMonthChart rows={dashboard.duesByMonth} />
-            <StatusChart counts={dashboard.statusCounts} />
-            {showHosting ? (
-              <HostingByMonthChart
-                rows={dashboard.hostingByMonth}
-                providers={providers}
-                year={year}
-              />
-            ) : null}
-            <NetByYearChart rows={net} showHosting={showHosting} />
-          </div>
-          <FollowUpTable
-            rows={followUp}
-            canOpenMembers={hasPermission(perms, 'members', 'view')}
-          />
-          <PaymentsToCheckTable rows={toCheck} />
-        </div>
-      );
-    }
   }
 
   const dues = await readDuesIfDeployed(() =>
@@ -124,4 +118,174 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
       duesDeployed={dues.deployed}
     />
   );
+}
+
+/**
+ * Today's dashboard, unchanged: the headline cards, the dues-per-month,
+ * status, per-year and hosting charts, the follow-up list and payments to
+ * check. Always reads the current fraternal year -- the Collection tab is
+ * where a different year is picked. Falls back to the member home when dues
+ * aren't deployed, exactly as the pre-tabs page did.
+ */
+async function OverviewTab({
+  client,
+  finance,
+  today,
+  canOpenMembers,
+}: {
+  client: SupabaseServerClient;
+  finance: FinanceService;
+  today: string;
+  canOpenMembers: boolean;
+}) {
+  const current = fraternalYearOf(today);
+  const showHosting = featuresFlagConfig.enableHostingCosts;
+
+  const read = await readDuesIfDeployed(() =>
+    Promise.all([
+      finance.dashboard(current),
+      finance.netByYear(),
+      finance.followUp(),
+      finance.paymentsToCheck(),
+      // Hosting providers are only needed to render the hosting-by-month
+      // chart, so this read is skipped entirely when the flag is off.
+      showHosting
+        ? finance.providers()
+        : Promise.resolve<HostingProvider[]>([]),
+    ]),
+  );
+
+  if (!read.deployed) {
+    const dues = await readDuesIfDeployed(() =>
+      new DuesService(client).mySummary(),
+    );
+
+    return (
+      <MemberHome
+        summary={dues.deployed ? dues.value : null}
+        duesDeployed={dues.deployed}
+      />
+    );
+  }
+
+  const [dashboard, net, followUp, toCheck, providers] = read.value;
+
+  return (
+    <>
+      <YearPicker
+        year={current}
+        options={yearOptions(current, net[0]?.year ?? current)}
+      />
+      <HeadlineCards dashboard={dashboard} showHosting={showHosting} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DuesByMonthChart rows={dashboard.duesByMonth} />
+        <StatusChart counts={dashboard.statusCounts} />
+        {showHosting ? (
+          <HostingByMonthChart
+            rows={dashboard.hostingByMonth}
+            providers={providers}
+            year={current}
+          />
+        ) : null}
+        <NetByYearChart rows={net} showHosting={showHosting} />
+      </div>
+      <FollowUpTable rows={followUp} canOpenMembers={canOpenMembers} />
+      <PaymentsToCheckTable rows={toCheck} />
+    </>
+  );
+}
+
+async function CollectionTabContent({
+  finance,
+  today,
+  year,
+  month,
+  canOpenMembers,
+}: {
+  finance: FinanceService;
+  today: string;
+  year: number;
+  month: string | null;
+  canOpenMembers: boolean;
+}) {
+  const current = fraternalYearOf(today);
+
+  const read = await readDuesIfDeployed(() =>
+    Promise.all([
+      finance.collectionProgress(year),
+      finance.renewalsForecast(),
+      finance.netByYear(),
+      month ? finance.forecastMembers(month) : Promise.resolve([]),
+    ]),
+  );
+
+  if (!read.deployed) {
+    return (
+      <p className="text-muted-foreground" data-test="insights-unavailable">
+        Not available yet.
+      </p>
+    );
+  }
+
+  const [progress, forecast, net, monthMembers] = read.value;
+
+  return (
+    <>
+      <YearPicker
+        year={year}
+        options={yearOptions(current, net[0]?.year ?? current)}
+      />
+      <CollectionTab
+        progress={progress}
+        forecast={forecast}
+        month={month}
+        monthMembers={monthMembers}
+        canOpenMembers={canOpenMembers}
+      />
+    </>
+  );
+}
+
+async function LapsesTabContent({
+  finance,
+  canOpenMembers,
+}: {
+  finance: FinanceService;
+  canOpenMembers: boolean;
+}) {
+  const read = await readDuesIfDeployed(() =>
+    Promise.all([finance.lapseAging(), finance.lapsedMembers()]),
+  );
+
+  if (!read.deployed) {
+    return (
+      <p className="text-muted-foreground" data-test="insights-unavailable">
+        Not available yet.
+      </p>
+    );
+  }
+
+  const [buckets, members] = read.value;
+
+  return (
+    <LapsesTab
+      buckets={buckets}
+      members={members}
+      canOpenMembers={canOpenMembers}
+    />
+  );
+}
+
+async function RetentionTabContent({ finance }: { finance: FinanceService }) {
+  const read = await readDuesIfDeployed(() => finance.retention());
+
+  if (!read.deployed) {
+    return (
+      <p className="text-muted-foreground" data-test="insights-unavailable">
+        Not available yet.
+      </p>
+    );
+  }
+
+  return <RetentionTab retention={read.value} />;
 }

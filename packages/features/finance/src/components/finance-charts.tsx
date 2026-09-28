@@ -55,7 +55,7 @@ function dollarsFormatter(value: unknown) {
  * this rebuilds that row using the chart's own `ChartConfig` labels, with
  * the value rendered in dollars instead of `toLocaleString()`.
  */
-function moneyTooltipFormatter(config: ChartConfig) {
+export function moneyTooltipFormatter(config: ChartConfig) {
   return (
     value: unknown,
     name: unknown,
