@@ -67,13 +67,13 @@ export interface DuesRosterFixture {
 /**
  * A single-row roster CSV: just enough for `parseRoster` to accept it and
  * `member_upsert_from_roster` to create exactly one member with an account.
- * Membership numbers start at 9_500_000 -- above `members.po.ts`'s
- * 9_000_000-plus-Date.now()%900_000 range -- so the two fixtures can never
- * collide even when both suites run against the same long-lived local
- * database in the same millisecond.
+ * Membership numbers are 9_950_000-9_998_999. `members.po.ts` uses
+ * 9_000_000 + Date.now() % 900_000 plus row offsets up to 9, so at most
+ * 9_900_008. The two ranges are disjoint, and the fixtures can never collide
+ * even when both suites run against the same long-lived local database.
  */
 export function buildOneRowRosterFixture(): DuesRosterFixture {
-  const number = String(9_500_000 + (Date.now() % 400_000));
+  const number = String(9_950_000 + (Date.now() % 49_000));
   const email = `dues.${number}@example.com`;
   const firstName = 'Dues';
   const lastName = `Tester${number}`;
