@@ -11,12 +11,15 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   portal:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
+    # Only this job authenticates to Google Cloud, so only it may mint an OIDC token.
+    permissions:
+      contents: read
+      id-token: write
     env:
       IMAGE: us-east4-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/portal/portal
       SHA: ${{ github.event.workflow_run.head_sha }}
