@@ -52,6 +52,13 @@ export const SECTIONS = [
       'View: the council member list. Manage: upload and apply a roster import',
     verbs: ['view', 'manage'],
   },
+  {
+    key: 'finance',
+    label: 'Finance',
+    description:
+      'View: members’ dues status, paid-through dates and ledgers. Manage: record and void dues payments, set acceptance dates and levels, load paid-through dates',
+    verbs: ['view', 'manage'],
+  },
 ] as const satisfies readonly SectionDef[];
 
 export type SectionKey = (typeof SECTIONS)[number]['key'];
