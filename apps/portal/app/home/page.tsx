@@ -26,6 +26,7 @@ import { PaymentsToCheckTable } from '@kit/finance/components/payments-to-check-
 import { RetentionTab } from '@kit/finance/components/retention-tab';
 import { YearPicker } from '@kit/finance/components/year-picker';
 import { parseMonthParam, parseTab } from '@kit/finance/lib/dashboard-tabs';
+import { isForecastMonthOutOfRangeError } from '@kit/finance/lib/forecast-month-error';
 import {
   fraternalYearOf,
   parseYearParam,
@@ -210,12 +211,30 @@ async function CollectionTabContent({
 }) {
   const current = fraternalYearOf(today);
 
+  // A forecast month can pass parseMonthParam's check (against this
+  // process's "today") and still be out of range by the time the RPC runs
+  // against kit.council_today() -- a request straddling midnight on the
+  // first of a month. Treat that race as no month selected, with an empty
+  // drill-down, instead of sending the page to the error boundary (M4).
+  // Any other error from forecastMembers is a real failure and still throws.
+  let monthOutOfRange = false;
+
   const read = await readDuesIfDeployed(() =>
     Promise.all([
       finance.collectionProgress(year),
       finance.renewalsForecast(),
       finance.netByYear(),
-      month ? finance.forecastMembers(month) : Promise.resolve([]),
+      month
+        ? finance.forecastMembers(month).catch((error: unknown) => {
+            if (!isForecastMonthOutOfRangeError(error)) {
+              throw error;
+            }
+
+            monthOutOfRange = true;
+
+            return [];
+          })
+        : Promise.resolve([]),
     ]),
   );
 
@@ -228,6 +247,7 @@ async function CollectionTabContent({
   }
 
   const [progress, forecast, net, monthMembers] = read.value;
+  const effectiveMonth = monthOutOfRange ? null : month;
 
   return (
     <>
@@ -238,7 +258,7 @@ async function CollectionTabContent({
       <CollectionTab
         progress={progress}
         forecast={forecast}
-        month={month}
+        month={effectiveMonth}
         monthMembers={monthMembers}
         canOpenMembers={canOpenMembers}
       />
