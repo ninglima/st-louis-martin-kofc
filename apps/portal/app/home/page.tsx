@@ -185,7 +185,11 @@ async function OverviewTab({
         ) : null}
         <NetByYearChart rows={net} showHosting={showHosting} />
       </div>
-      <FollowUpTable rows={followUp} canOpenMembers={canOpenMembers} />
+      <FollowUpTable
+        rows={followUp}
+        canOpenMembers={canOpenMembers}
+        lapsedCount={dashboard.statusCounts.lapsed}
+      />
       <PaymentsToCheckTable rows={toCheck} />
     </>
   );

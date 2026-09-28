@@ -18,9 +18,14 @@ import type { FollowUpRow } from '../types';
 export function FollowUpTable({
   rows,
   canOpenMembers,
+  lapsedCount = 0,
 }: {
   rows: FollowUpRow[];
   canOpenMembers: boolean;
+  /** `dashboard.statusCounts.lapsed`: lapsed members live on the Lapses tab,
+   * not here, so this points there instead of implying nobody owes anything
+   * (I2). */
+  lapsedCount?: number;
 }) {
   return (
     <Card data-test="finance-follow-up">
@@ -29,7 +34,9 @@ export function FollowUpTable({
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Everyone is paid up.</p>
+          <p className="text-muted-foreground text-sm">
+            Nobody is due in the next 30 days.
+          </p>
         ) : (
           <div className="rounded-lg border">
             <Table>
@@ -77,6 +84,18 @@ export function FollowUpTable({
             </Table>
           </div>
         )}
+        {lapsedCount > 0 ? (
+          <p className="text-muted-foreground mt-3 text-sm">
+            {lapsedCount} lapsed member{lapsedCount === 1 ? '' : 's'} —{' '}
+            <Link
+              href="/home?tab=lapses"
+              className="underline underline-offset-2"
+              data-test="follow-up-lapsed-link"
+            >
+              see Lapses
+            </Link>
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
