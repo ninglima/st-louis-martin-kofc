@@ -5,21 +5,25 @@ RUN npm install -g pnpm@11.18.0 turbo@2.10.8
 FROM base AS prune
 WORKDIR /repo
 COPY . .
-RUN turbo prune portal --docker
+# `turbo prune portal --docker` alone drops tooling/scripts (the `scripts`
+# workspace package; not a dependency of portal) from both the pruned
+# workspace and the pruned lockfile, which breaks the root preinstall
+# (`pnpm run --filter scripts requirements`). Naming it explicitly here
+# keeps it -- and its lockfile importer entry -- in the pruned output, so
+# the install below can stay `--frozen-lockfile`.
+RUN turbo prune portal scripts --docker
 
 FROM base AS build
 WORKDIR /repo
 COPY --from=prune /repo/out/json/ .
-# `turbo prune` only keeps packages portal depends on, so tooling/scripts
-# (used by the root preinstall/postinstall scripts, not by portal itself)
-# is missing from the pruned workspace and from the pruned lockfile. Copy it
-# in so `pnpm install`'s `preinstall` (`pnpm run --filter scripts
-# requirements`) can find it. Its only dependency (@types/node) is already
-# resolved in the pruned lockfile via portal's own devDependencies, so
-# `--no-frozen-lockfile` here just lets pnpm add the missing importer entry
-# without touching any resolved versions or hitting the network.
-COPY tooling/scripts ./tooling/scripts
-RUN CI=true pnpm install --no-frozen-lockfile
+# `out/json` only carries package.json files (for install-layer caching), but
+# the root preinstall (`pnpm run --filter scripts requirements`) executes
+# tooling/scripts/src/requirements.mjs, which only exists in `out/full`.
+# Pulling in just that one package's full source ahead of `pnpm install`
+# keeps the caching benefit for every other package while letting preinstall
+# actually run.
+COPY --from=prune /repo/out/full/tooling/scripts ./tooling/scripts
+RUN CI=true pnpm install --frozen-lockfile
 COPY --from=prune /repo/out/full/ .
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
