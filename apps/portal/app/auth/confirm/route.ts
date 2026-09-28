@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { redirect } from 'next/navigation';
+import type { NextRequest } from 'next/server';
 
 import { createAuthCallbackService } from '@kit/supabase/auth';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
@@ -12,5 +13,9 @@ export async function GET(request: NextRequest) {
     redirectPath: pathsConfig.app.home,
   });
 
-  return NextResponse.redirect(url);
+  // Behind the router, `request.url` carries the container's own listen
+  // address (`http://0.0.0.0:8080`), not the public origin, so an absolute
+  // redirect built from it sends the browser nowhere. A path-only Location
+  // resolves against whatever origin the visitor used.
+  return redirect(`${url.pathname}${url.search}`);
 }
