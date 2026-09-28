@@ -39,12 +39,13 @@ These terms apply throughout:
 
 ### Collection progress (Collection tab; follows the year picker)
 
-- **Expected member for year `Y`:** a non-honorary member with either:
+- **Expected member for year `Y`:** a non-honorary member with any of:
   - an active period whose `period_end` falls in year `Y`, or
-  - no active period and an `accepted_on` in year `Y` or earlier (their first dues are owed).
+  - no active period and an `accepted_on` in year `Y` or earlier, but not in the future (their first dues are owed), or
+  - an active, imported (`opening_balance`) period whose `period_start` falls in year `Y`. This stands in for the pre-portal period that ended in `Y` and was never loaded: a council that loads its paid-through history mid-year would otherwise show none of its already-renewed members as expected for `Y`. Such a member also counts as **renewed** for `Y`. A member already counted through the first two rules is not counted again here.
 
   A member counts once per year. With several such periods, the latest one is used.
-- **Renewed:** an expected member who has an active period starting on or after the `period_end` above. For a first-dues member, any active period counts.
+- **Renewed:** an expected member who has an active period starting on or after the `period_end` above. For a first-dues member, any active period counts. A member expected through the imported-period rule above counts as renewed outright, through the implied prior period.
 - **Progress:** renewed ÷ expected, shown as a bar with both counts. When expected is 0, show "—".
 - **Dollars expected:** the sum of each expected member's current level `amount_cents`.
 - **Dollars collected:**
@@ -86,7 +87,9 @@ These terms apply throughout:
     - last payment date: the latest `received_on` among active periods paid with
       real money (`online`, `check` or `cash`), or "—". A waiver or an
       opening-balance import row is not a payment.
-- **Overview's follow-up list:** from now on it shows only members who are `due` or whose `paid_through` is within 30 days. Lapsed members move to this tab.
+- **Overview's follow-up list:** from now on it shows only members who are `due` or whose `paid_through` is within 30 days, excluding a member whose `accepted_on` is in the future (they are not due yet). Lapsed members move to this tab.
+  - The empty state reads "Nobody is due in the next 30 days.", not "Everyone is paid up.", since lapsed members are not on this list even when there are many of them.
+  - When there is at least one lapsed member, the card also shows "`N` lapsed member(s) — see Lapses", linking to `/home?tab=lapses`, so the two tabs read as one system.
 
 ### Retention (Retention tab; the last 5 fraternal years, ending with the current one)
 
@@ -96,7 +99,8 @@ These terms apply throughout:
   - Only periods whose grace window has already closed (`period_end + 90 < today`) are counted, for every year, not only the current one.
   - An opening-balance row whose grace window had already closed before it was loaded (`period_end + 90 < received_on`) is excluded entirely, from both eligibility and lapses: the load date is not a real renewal event.
   - When the denominator is 0, show "—".
-- **New lapses per month:** non-honorary members whose `paid_through + 90` falls in that calendar month without a renewal in the grace window, for each month of the last 5 years up to today. The same opening-balance exclusion applies here.
+- **Members not renewed within 90 days, per month** (the chart's title; internally still "new lapses per month"): non-honorary members whose `period_end + 90` falls in that calendar month without a renewal in the grace window, for each month of the last 5 years up to today. The same opening-balance exclusion applies here.
+  - This 90-day grace is a different, later "lapsed" than the Lapses tab's list, which counts a member from day 1 after `paid_through`. The Lapses tab carries a one-line note under its heading, "Lapsed here means unpaid today, from day 1.", so the two tabs are not read as contradicting each other.
 
 ## Functions
 
@@ -131,7 +135,7 @@ Two further rules:
   - the members-by-status chart;
   - dues per month by method;
   - dues collected per year;
-  - the follow-up list (due and due within 30 days);
+  - the follow-up list (due and due within 30 days), with a pointer to Lapses when lapsed members exist;
   - payments to check.
 - **Collection:**
   - a progress bar with "renewed of expected";
@@ -139,19 +143,21 @@ Two further rules:
   - the running total line chart;
   - the coming-due bar chart. Clicking a bar, or choosing the month from a list, shows that month's members below it (`?month=YYYY-MM-01`).
 - **Lapses:**
+  - a one-line note under the heading: "Lapsed here means unpaid today, from day 1.";
   - four bucket cards;
   - a bar chart by bucket;
   - the lapsed-member list.
 - **Retention:**
   - a renewal-rate line (percent per year) with the counts in its tooltip;
-  - a new-lapses-per-month bar chart.
+  - a bar chart titled "Members not renewed within 90 days, per month".
 - **Components** live in `@kit/finance`, following its existing patterns: pure transforms in `lib/`, and charts in the client-only charts module.
 - **Graceful absence:** before the migration lands, each new tab shows "Not available yet" through `readDuesIfDeployed`, and Overview keeps working.
 
 ## Testing
 
 - **pgTAP:** fixtures in far-future years; snapshot-style figures as deltas against a baseline, as in `finance_dashboard.test.sql`.
-  - Collection progress: expected and renewed; first-dues members; honorary members excluded from counts but included in collected dollars; a July 1 versus June 30 `received_on`.
+  - Collection progress: expected and renewed; first-dues members, excluding a future `accepted_on`; an imported period whose `period_start` falls in the year (counts as renewed) versus one whose `period_end` does (counts as expected only); honorary members excluded from counts but included in collected dollars; a July 1 versus June 30 `received_on`.
+  - Follow-up excludes a member whose `accepted_on` is in the future.
   - Forecast month boundaries.
   - Aging bucket edges at 30/31, 90/91 and 180/181 days, for both a lapsed member and a due member.
   - Retention grace edges: renewal at +90 counts, at +91 does not; an early renewal counts; the current year only counts closed windows.
