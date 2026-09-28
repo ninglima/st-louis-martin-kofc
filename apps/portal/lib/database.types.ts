@@ -511,6 +511,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
       // HAND-CORRECTED, do not regenerate away: same generator limitation as
       // members_list above. check_number is null except for method = 'check';
       // recorded_by_email is null when recorded_by is null (set null on user
