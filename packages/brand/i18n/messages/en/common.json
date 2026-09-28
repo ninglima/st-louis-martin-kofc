@@ -68,7 +68,9 @@
     "paymentSettings": "Payment Settings",
     "application": "Application",
     "users": "Users",
-    "roles": "Roles"
+    "roles": "Roles",
+    "hostingCosts": "Hosting costs",
+    "hosting costs": "Hosting costs"
   },
   "roles": {
     "owner": {

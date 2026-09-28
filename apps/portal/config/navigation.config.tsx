@@ -1,6 +1,7 @@
 import {
   CreditCard,
   Home,
+  Receipt,
   Settings,
   Shield,
   User,
@@ -47,6 +48,13 @@ const routes = [
         path: pathsConfig.app.members,
         Icon: <Users className={iconClasses} />,
         section: 'members',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.hostingCosts',
+        path: pathsConfig.app.hostingCosts,
+        Icon: <Receipt className={iconClasses} />,
+        section: 'finance',
         verb: 'view' as const,
       },
     ],
