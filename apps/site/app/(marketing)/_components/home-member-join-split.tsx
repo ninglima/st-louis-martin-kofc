@@ -1,7 +1,7 @@
-import Link from 'next/link';
-
 import { Button } from '@kit/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@kit/ui/card';
+
+import { SiteLink } from '~/components/site-link';
 
 interface HomeSplitCard {
   title: string;
@@ -61,7 +61,7 @@ export function HomeMemberJoinSplit() {
                 nativeButton={false}
                 size="lg"
                 data-test={card.action.testId}
-                render={<Link href={card.action.href} />}
+                render={<SiteLink href={card.action.href} />}
               >
                 {card.action.label}
               </Button>

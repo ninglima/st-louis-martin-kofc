@@ -38,5 +38,36 @@
     "dist",
     "pnpm-lock.yaml",
     "tooling/scripts"
+  ],
+  "overrides": [
+    {
+      "files": ["apps/site/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "server-only",
+                "message": "apps/site is a static export; server code belongs in apps/portal."
+              },
+              {
+                "name": "next/headers",
+                "message": "apps/site is a static export; there is no request."
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "@kit/supabase/server*",
+                  "@kit/supabase/*-server-client*"
+                ],
+                "message": "apps/site is a static export; use the browser client only."
+              }
+            ]
+          }
+        ]
+      }
+    }
   ]
 }

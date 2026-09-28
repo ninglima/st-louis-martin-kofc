@@ -1,6 +1,6 @@
 import type { MDXComponents } from 'mdx/types';
 
-import Link from 'next/link';
+import { SiteLink } from '~/components/site-link';
 
 /**
  * Maps MDX elements onto the design system. Written once, inherited by every
@@ -65,12 +65,12 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 
       if (isInternal) {
         return (
-          <Link
+          <SiteLink
             href={url}
             className="text-primary font-medium underline underline-offset-4"
           >
             {children}
-          </Link>
+          </SiteLink>
         );
       }
 

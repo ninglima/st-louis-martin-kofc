@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 
 import { PersonalAccountDropdown } from '@kit/accounts/personal-account-dropdown';
 import { useSignOut } from '@kit/supabase/hooks/use-sign-out';
@@ -14,6 +13,8 @@ import { Trans } from '@kit/ui/trans';
 
 import featuresFlagConfig from '@kit/brand/config/feature-flags';
 import pathsConfig from '@kit/brand/config/paths';
+
+import { SiteLink } from '~/components/site-link';
 
 const ModeToggle = dynamic(
   () =>
@@ -87,7 +88,7 @@ export function SiteHeaderMobileMenuActions() {
 
       <DropdownMenuItem
         render={
-          <Link
+          <SiteLink
             className={'flex h-full w-full items-center'}
             href={pathsConfig.auth.signIn}
             data-test={'mobile-sign-in'}
@@ -116,7 +117,7 @@ function AuthButtons() {
 
         <Button
           nativeButton={false}
-          render={<Link href={pathsConfig.auth.signIn} />}
+          render={<SiteLink href={pathsConfig.auth.signIn} />}
           variant={'ghost'}
         >
           <Trans i18nKey={'auth.signIn'} />
@@ -125,7 +126,7 @@ function AuthButtons() {
 
       <Button
         nativeButton={false}
-        render={<Link href={pathsConfig.auth.signUp} />}
+        render={<SiteLink href={pathsConfig.auth.signUp} />}
         className="group"
         variant={'default'}
       >
