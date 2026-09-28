@@ -27,11 +27,13 @@ export function fraternalYearLabel(year: number): string {
   return `${year}–${String((year + 1) % 100).padStart(2, '0')}`;
 }
 
-/** Newest first, from the current year back to the first year with data. */
+/** Newest first, from next year (always offered, since a bill may already
+ * cover it -- see `parseYearParam` and the SQL, which accept it too) back to
+ * the first year with data. */
 export function yearOptions(current: number, firstYear: number): number[] {
   const years: number[] = [];
 
-  for (let y = current; y >= Math.min(firstYear, current); y--) {
+  for (let y = current + 1; y >= Math.min(firstYear, current); y--) {
     years.push(y);
   }
 

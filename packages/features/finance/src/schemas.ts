@@ -12,7 +12,11 @@ const isoDate = z
       !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) &&
       new Date(`${v}T00:00:00Z`).toISOString().startsWith(v),
     'Enter a real date',
-  );
+  )
+  // Matches the lower bound `kit.assert_fraternal_year` enforces (year
+  // 2000): a typo like "0026-…" would otherwise pass the 3-year span check
+  // below and reach `finance_net_by_year`, producing years of bogus rows.
+  .refine((v) => v >= '2000-01-01', 'Enter a date from 2000 on');
 
 export const HostingCostFormSchema = z
   .object({

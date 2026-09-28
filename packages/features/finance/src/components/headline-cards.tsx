@@ -3,6 +3,7 @@ import { formatAmountCents } from '@kit/dues/lib/format-amount';
 import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 
 import { collectionRateLabel } from '../lib/chart-data';
+import { fraternalYearLabel } from '../lib/fraternal-year';
 import type { FinanceDashboard } from '../types';
 
 function Figure({
@@ -44,7 +45,11 @@ export function HeadlineCards({ dashboard }: { dashboard: FinanceDashboard }) {
         hook="finance-dues-collected"
         title="Dues collected"
         value={formatAmountCents(d.duesCollectedCents)}
-        sub="This fraternal year"
+        sub={
+          d.isCurrentYear
+            ? 'This fraternal year'
+            : `Fraternal year ${fraternalYearLabel(d.year)}`
+        }
       />
       <Figure
         hook="finance-outstanding"

@@ -46,25 +46,6 @@ export function PageHeaderSkeleton() {
   );
 }
 
-/**
- * Mirrors the dashboard grid in `dashboard-demo-charts`, breakpoints included,
- * so the cards land where the skeletons were.
- */
-export function ChartCardsSkeleton({ count = 6 }: { count?: number }) {
-  return (
-    <Delayed
-      className={
-        'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
-      }
-      data-testid={'chart-cards-skeleton'}
-    >
-      {Array.from({ length: count }).map((_, index) => (
-        <Skeleton className={'h-52 w-full rounded-lg'} key={index} />
-      ))}
-    </Delayed>
-  );
-}
-
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <Delayed className={'flex flex-col gap-y-2'}>
