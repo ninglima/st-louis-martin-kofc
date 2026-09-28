@@ -12,6 +12,15 @@
 -- loaded is excluded from retention entirely -- the load date is not a
 -- real renewal event (I2/R4). A member accepted in the future is not yet
 -- lapsed or due (M1).
+--
+-- Final fix wave: an active opening-balance period whose period_start falls
+-- in year Y is now counted as expected AND renewed for Y, unless the member
+-- is already counted through the ended/first-due sets -- the previous,
+-- pre-portal period that ended in Y was never loaded, so without this the
+-- member is invisible to Collection in their council's first year on the
+-- portal (I1). A member accepted in the future is excluded from the
+-- first-dues branch of collection progress and from the follow-up list, not
+-- only from Lapses (T1-a/M5).
 
 create or replace function kit.collection_progress_at(p_year integer, p_today date)
 returns jsonb language sql stable security definer set search_path = '' as $$
@@ -34,12 +43,31 @@ returns jsonb language sql stable security definer set search_path = '' as $$
       from public.members m cross join bounds b
      where m.dues_level <> 'honorary'
        and m.accepted_on is not null
+       -- a member accepted in the future is not expected yet (M5)
+       and m.accepted_on <= p_today
        and m.id not in (select member_id from ended)
        and (
          (m.accepted_on >= b.ys and m.accepted_on < b.ye)
          or (m.accepted_on < b.ys
              and not exists (select 1 from public.dues_periods q where q.member_id = m.id and q.voided_at is null))
        )
+  ),
+  imported as (
+    -- an active opening-balance period whose synthetic period_start falls in
+    -- Y stands in for the pre-portal period that ended in Y and was never
+    -- loaded: without this, a member who renewed before the portal existed
+    -- is invisible to Y's cohort (I1). Skip members already counted through
+    -- the ended or first-due sets.
+    select distinct p.member_id
+      from public.dues_periods p
+      join public.members m on m.id = p.member_id
+      cross join bounds b
+     where p.voided_at is null
+       and p.method = 'opening_balance'
+       and m.dues_level <> 'honorary'
+       and p.period_start >= b.ys and p.period_start < b.ye
+       and p.member_id not in (select member_id from ended)
+       and p.member_id not in (select member_id from first_due)
   ),
   expected as (
     select e.member_id,
@@ -48,6 +76,8 @@ returns jsonb language sql stable security definer set search_path = '' as $$
       from ended e
     union all
     select f.member_id, f.paid from first_due f
+    union all
+    select i.member_id, true from imported i
   ),
   months as (
     -- the running total is computed here: a window call cannot sit inside jsonb_agg
@@ -212,8 +242,11 @@ language sql stable security definer set search_path = '' as $$
   select s.member_id, s.first_name, s.last_name, s.membership_number,
          s.dues_status, s.paid_through, s.level_name, s.amount_cents
     from kit.member_dues_snapshot(p_today) s
-   where s.dues_status = 'due'
-      or (s.dues_status = 'due_soon' and s.paid_through <= p_today + 30)
+    join public.members m on m.id = s.member_id
+   where (s.dues_status = 'due'
+          or (s.dues_status = 'due_soon' and s.paid_through <= p_today + 30))
+     -- a member accepted in the future is not due yet (T1-a)
+     and (s.paid_through is not null or m.accepted_on <= p_today)
    order by case s.dues_status when 'due' then 0 else 1 end,
             s.paid_through nulls last, s.last_name, s.first_name;
 $$;
