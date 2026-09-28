@@ -7,8 +7,13 @@ export class FinancePageObject {
     this.page = page;
   }
 
-  goToHome() {
-    return this.page.goto('/home');
+  /**
+   * Optional `query` lets callers land on e.g. `/home?tab=bogus` for the
+   * unknown-tab-falls-back-to-overview scenario, without a second method
+   * that just special-cases the query string.
+   */
+  goToHome(query?: string) {
+    return this.page.goto(query ? `/home?${query}` : '/home');
   }
 
   goToHostingCosts() {
@@ -156,5 +161,22 @@ export class FinancePageObject {
    */
   selectYear(label: string): Promise<void> {
     return this.selectOption('[data-test="year-picker"]', label);
+  }
+
+  /**
+   * Picks the first real month option in `ForecastChart`'s `<select
+   * id="forecast-month-select">`, inside the `collection-forecast` card.
+   * This is a plain native `<select>` (unlike every other dropdown in the
+   * finance UI, which is a `@kit/ui/select` built on Base UI), so
+   * Playwright's own `selectOption` works directly against it -- no need
+   * for the click-and-find-a-role-option dance `selectOption` above does.
+   * Index 0 is the "Select a month" placeholder (value `""`); the
+   * component's own `onChange` only navigates when the value is truthy, so
+   * picking index 1 is what actually lands on a `month=` URL.
+   */
+  selectFirstForecastMonth(): Promise<string[]> {
+    return this.page
+      .locator('[data-test="collection-forecast"] select')
+      .selectOption({ index: 1 });
   }
 }

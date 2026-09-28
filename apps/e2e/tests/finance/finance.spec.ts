@@ -24,7 +24,12 @@
 import { Page, expect, test } from '@playwright/test';
 
 import { AuthPageObject } from '../authentication/auth.po';
-import { addDaysIso, chicagoToday } from '../dues/dues.po';
+import {
+  DuesPageObject,
+  addDaysIso,
+  buildOneRowRosterFixture,
+  chicagoToday,
+} from '../dues/dues.po';
 import { RbacPageObject } from '../rbac/rbac.po';
 import { FinancePageObject } from './finance.po';
 
@@ -205,6 +210,9 @@ test.describe('finance', () => {
       await expect(
         memberPage.locator('[data-test="finance-dashboard"]'),
       ).toHaveCount(0);
+      await expect(
+        memberPage.locator('[data-test="dashboard-tabs"]'),
+      ).toHaveCount(0);
 
       // The link being absent is cosmetic. The redirect below is the part
       // that distinguishes a hidden door from a locked one -- same
@@ -221,5 +229,97 @@ test.describe('finance', () => {
     } finally {
       await memberContext.close();
     }
+  });
+
+  test('4. an administrator can open every dashboard tab', async () => {
+    // Reuses the officer session `beforeAll` already signed up and
+    // promoted -- the same administrator scenario 1 acts as, without
+    // signing in again.
+
+    // The roster import + GoTrue account creation below can be slow -- same
+    // allowance `dues.spec.ts` scenario 1 gives it.
+    test.setTimeout(90_000);
+
+    // `ForecastChart`'s month `<select>` only renders once at least one of
+    // the next 12 months has a member coming due -- and the persistent
+    // local DB may have none: `dues.spec.ts`'s own fixture ends up voided
+    // back to "Due" by its scenario 2, so it never counts as a forecasted
+    // renewal. Importing one roster row here and backdating its
+    // `accepted_on` so the resulting period's end lands a couple of months
+    // out guarantees a renewal inside the forecast window on every run,
+    // independent of whatever other specs left behind.
+    const officerDues = new DuesPageObject(officerPage);
+    const forecastFixture = buildOneRowRosterFixture();
+
+    await officerDues.goToImport();
+    await officerDues.uploadAndConfirmRoster(forecastFixture);
+    await officerDues.openMember(forecastFixture.membershipNumber);
+
+    // Backdated far enough that the resulting period's end (accepted_on +
+    // 365 days) is more than 90 days out -- inside `due_soon`'s window
+    // (`kit.dues_status_at`, `<= p_today + 90`) would leave the status
+    // "Due soon" instead, which is beside the point here.
+    const today = chicagoToday();
+    await officerDues.setAcceptedOn(addDaysIso(today, -265));
+    await officerDues.recordCheckPayment({
+      levelOptionName: 'Regular — $50.00',
+      checkNumber: 'E2E-forecast',
+    });
+    await expect(officerDues.duesStatus()).toHaveText('Current');
+
+    await officerFinance.goToHome();
+
+    await expect(
+      officerPage.locator('[data-test="dashboard-tab-overview"]'),
+    ).toHaveAttribute('aria-current', 'page');
+    await expect(
+      officerPage.locator('[data-test="finance-dues-collected"]'),
+    ).toBeVisible();
+
+    await officerPage.click('[data-test="dashboard-tab-collection"]');
+    await expect(
+      officerPage.locator('[data-test="collection-progress"]'),
+    ).toBeVisible();
+    await expect(
+      officerPage.locator('[data-test="collection-running-total"]'),
+    ).toBeVisible();
+    await expect(
+      officerPage.locator('[data-test="collection-forecast"]'),
+    ).toBeVisible();
+
+    await officerFinance.selectFirstForecastMonth();
+    await expect(officerPage).toHaveURL(/month=/);
+    await expect(
+      officerPage.locator('[data-test="collection-forecast-members"]'),
+    ).toBeVisible();
+
+    await officerPage.click('[data-test="dashboard-tab-lapses"]');
+    for (const bucket of ['1-30', '31-90', '91-180', '181+']) {
+      await expect(
+        officerPage.locator(`[data-test="lapses-bucket-${bucket}"]`),
+      ).toBeVisible();
+    }
+    await expect(
+      officerPage.locator('[data-test="lapsed-members"]'),
+    ).toBeVisible();
+
+    await officerPage.click('[data-test="dashboard-tab-retention"]');
+    await expect(
+      officerPage.locator('[data-test="retention-rate-chart"]'),
+    ).toBeVisible();
+    await expect(
+      officerPage.locator('[data-test="retention-lapses-chart"]'),
+    ).toBeVisible();
+  });
+
+  test('5. an unknown tab falls back to Overview', async () => {
+    await officerFinance.goToHome('tab=bogus');
+
+    await expect(
+      officerPage.locator('[data-test="dashboard-tab-overview"]'),
+    ).toHaveAttribute('aria-current', 'page');
+    await expect(
+      officerPage.locator('[data-test="finance-dues-collected"]'),
+    ).toBeVisible();
   });
 });
