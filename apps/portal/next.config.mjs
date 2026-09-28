@@ -16,6 +16,7 @@ const INTERNAL_PACKAGES = [
   '@kit/i18n',
   '@kit/next',
   '@kit/brand',
+  '@kit/dues',
 ];
 
 /** @type {import('next').NextConfig} */
