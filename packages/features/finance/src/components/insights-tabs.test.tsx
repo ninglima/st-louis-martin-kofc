@@ -72,6 +72,9 @@ describe('LapsesTab', () => {
     expect(
       container.querySelector('[data-test="lapsed-member-row"] a'),
     ).toBeNull();
+    expect(
+      container.querySelector('[data-test="lapses-explanation"]')?.textContent,
+    ).toContain('unpaid today, from day 1');
   });
 
   it('says so when nobody is lapsed', () => {
