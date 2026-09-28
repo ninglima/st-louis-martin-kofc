@@ -33,6 +33,9 @@ const SPECIAL_CASES: Record<string, string> = {
     'page.tsx',
   ),
   '/cookie-policy': join(MARKETING_DIR, '(legal)', 'cookie-policy', 'page.tsx'),
+  // Served by the router's cold-start response, so it lives outside the
+  // `(marketing)` group entirely rather than under it.
+  '/please-wait': join(__dirname, '..', 'app', 'please-wait', 'page.tsx'),
 };
 
 function routeFileFor(path: string): string {
@@ -115,8 +118,9 @@ describe('navigation link integrity', () => {
  */
 describe('sitemap coverage', () => {
   const legalPaths = new Set(LEGAL_LINKS.map((link) => link.path));
+  const NOINDEX_ROUTES = new Set([...legalPaths, '/please-wait']);
 
-  it.each(PUBLIC_ROUTES.filter((route) => !legalPaths.has(route)))(
+  it.each(PUBLIC_ROUTES.filter((route) => !NOINDEX_ROUTES.has(route)))(
     'submits %s to search engines',
     (path) => {
       expect(SITEMAP_ROUTES).toContain(path);
@@ -135,6 +139,15 @@ describe('sitemap coverage', () => {
       expect(SITEMAP_ROUTES).not.toContain(path);
     },
   );
+
+  /**
+   * `/please-wait` is a real route (the router's cold-start page) that no
+   * visitor ever reaches through a link, so submitting it would advertise a
+   * `noindex` page nothing points to.
+   */
+  it('keeps the cold-start page /please-wait out of the sitemap', () => {
+    expect(SITEMAP_ROUTES).not.toContain('/please-wait');
+  });
 
   it('derives app/sitemap.ts from SITEMAP_ROUTES', () => {
     const source = readFileSync(SITEMAP_ROUTE_FILE, 'utf8');

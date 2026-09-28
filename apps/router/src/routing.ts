@@ -4,7 +4,16 @@ export function classify(url: URL): 'portal' | 'site' {
   return isPortalPath(url.pathname) ? 'portal' : 'site';
 }
 
-/** Filled in by the cold-start task; until then no request gets the waiting page. */
-export function pleaseWaitEligible(_request: Request, _url: URL): boolean {
-  return false;
+/** Routes carrying a one-time code: an abandoned first request could spend it. */
+const NEVER_INTERRUPT = ['/auth/callback', '/auth/confirm'];
+
+export function pleaseWaitEligible(request: Request, url: URL): boolean {
+  if (request.method !== 'GET') return false;
+  if (!(request.headers.get('accept') ?? '').includes('text/html'))
+    return false;
+  if (url.pathname.startsWith('/portal-assets/')) return false;
+
+  return !NEVER_INTERRUPT.some(
+    (path) => url.pathname === path || url.pathname.startsWith(`${path}/`),
+  );
 }

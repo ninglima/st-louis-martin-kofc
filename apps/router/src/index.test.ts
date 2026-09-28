@@ -1,5 +1,5 @@
 import { SELF } from 'cloudflare:test';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { setupNetwork } from '@msw/cloudflare';
@@ -87,5 +87,60 @@ describe('router', () => {
     expect(response.headers.get('location')).toBe(
       'https://kofc-15256.org/auth/sign-in?next=/home',
     );
+  });
+
+  it('shows Please wait... when a portal navigation is slower than 1.5 s', async () => {
+    network.use(
+      http.get('https://portal-abc.a.run.app/home/members', async () => {
+        await delay(2500);
+
+        return HttpResponse.html('<html>members</html>');
+      }),
+    );
+
+    const response = await SELF.fetch(
+      'https://kofc-15256.org/home/members?tab=all',
+      { headers: { accept: 'text/html' } },
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get('retry-after')).toBe('2');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.text()).toContain('Please wait...');
+  });
+
+  it('returns the portal page when it answers within 1.5 s', async () => {
+    network.use(
+      http.get('https://portal-abc.a.run.app/home', () =>
+        HttpResponse.html('<html>home</html>'),
+      ),
+    );
+
+    const response = await SELF.fetch('https://kofc-15256.org/home', {
+      headers: { accept: 'text/html' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('home');
+  });
+
+  it('makes a slow auth callback wait instead of showing Please wait...', async () => {
+    network.use(
+      http.get('https://portal-abc.a.run.app/auth/callback', async () => {
+        await delay(2500);
+
+        return HttpResponse.text('', {
+          status: 302,
+          headers: { location: '/home' },
+        });
+      }),
+    );
+
+    const response = await SELF.fetch(
+      'https://kofc-15256.org/auth/callback?code=abc',
+      { headers: { accept: 'text/html' }, redirect: 'manual' },
+    );
+
+    expect(response.status).toBe(302);
   });
 });

@@ -98,8 +98,15 @@ export const LEGAL_LINKS: readonly LegalLink[] = [
  * Public routes that no menu links at all. `/master-calendar` is reached from
  * the body of the Events page; the live WordPress site leaves it out of the
  * navigation too, so it is recorded here rather than added to `SITE_NAV`.
+ * `/please-wait` is the router's cold-start page (Task 8): visitors only ever
+ * land on it via the router's 503 response while Cloud Run starts, never
+ * through a link, and it lives outside `app/(marketing)` -- see the
+ * `SPECIAL_CASES` entry in `site-navigation.routes.test.ts`.
  */
-export const UNLISTED_ROUTES: readonly string[] = ['/master-calendar'] as const;
+export const UNLISTED_ROUTES: readonly string[] = [
+  '/master-calendar',
+  '/please-wait',
+] as const;
 
 /**
  * Every route the public marketing site serves, in one place, so the
@@ -135,7 +142,13 @@ export const PUBLIC_ROUTES: readonly string[] = [
  * fetch something it is then told to discard. They stay linked from the footer,
  * which is where a visitor looking for them expects them. Delete this filter
  * when the placeholder copy is replaced and the `noindex` comes off.
+ *
+ * `/please-wait` is subtracted for the same reason: it also carries
+ * `robots: { index: false }` and, unlike the legal stubs, is never linked from
+ * anywhere -- visitors only land on it via the router's cold-start response.
  */
 export const SITEMAP_ROUTES: readonly string[] = PUBLIC_ROUTES.filter(
-  (route) => !LEGAL_LINKS.some((link) => link.path === route),
+  (route) =>
+    !LEGAL_LINKS.some((link) => link.path === route) &&
+    route !== '/please-wait',
 );
