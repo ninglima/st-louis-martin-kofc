@@ -16,6 +16,13 @@ export function PleaseWaitClient() {
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
+    // Opened at its own address (the public-site sweep does this) there is
+    // no portal page behind it to reload into, and reloading would only
+    // bring this page back, forever.
+    if (window.location.pathname.replace(/\/$/, '') === '/please-wait') {
+      return;
+    }
+
     let cancelled = false;
 
     void waitForPortal({
@@ -36,14 +43,14 @@ export function PleaseWaitClient() {
 
   return (
     <div className={'flex flex-col items-center gap-4 py-24'} role={'status'}>
+      {timedOut ? null : <Spinner />}
+      {/* The page's one h1, as on every other public route. */}
+      <h1 className={'text-muted-foreground text-lg font-normal'}>
+        Please wait...
+      </h1>
       {timedOut ? (
         <Button onClick={() => window.location.reload()}>Try again</Button>
-      ) : (
-        <>
-          <Spinner />
-          <p className={'text-muted-foreground text-lg'}>Please wait...</p>
-        </>
-      )}
+      ) : null}
     </div>
   );
 }
