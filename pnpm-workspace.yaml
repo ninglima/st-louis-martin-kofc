@@ -70,3 +70,8 @@ allowBuilds:
   '@swc/core': true
   'esbuild': true
   'sharp': true
+  'workerd': true
+  # msw's postinstall only runs `msw init` when package.json sets
+  # `msw.workerDirectory` (browser mock-worker setup); we test in workerd, not
+  # a browser, so it's a no-op here and doesn't need to run.
+  'msw': false

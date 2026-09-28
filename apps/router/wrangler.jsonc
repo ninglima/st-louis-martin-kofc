@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kofc-router",
+  "main": "src/index.ts",
+  // `@cloudflare/vitest-pool-workers@0.22.0` (the newest release, needed for
+  // its Vitest 4 support) bundles its own pinned `workerd` via `miniflare`,
+  // which as of this writing only understands compatibility dates up to
+  // 2026-08-22 -- a later date makes `test:unit` fail to boot the runtime.
+  // Bump this once a newer `@cloudflare/vitest-pool-workers` release ships.
+  "compatibility_date": "2026-08-22",
+  "assets": {
+    "directory": "../site/out",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash",
+  },
+  // PORTAL_ORIGIN is set per environment with --var at deploy time.
+  // ORIGIN_AUTH is a secret: `wrangler secret put ORIGIN_AUTH`.
+  "vars": { "PORTAL_ORIGIN": "" },
+  // Attaching the real domain is Cutover step 4. Until then, deploys run
+  // without --env and traffic stays on *.workers.dev.
+  "env": {
+    "production": {
+      "routes": [{ "pattern": "kofc-15256.org", "custom_domain": true }],
+      "vars": { "PORTAL_ORIGIN": "" },
+    },
+  },
+}

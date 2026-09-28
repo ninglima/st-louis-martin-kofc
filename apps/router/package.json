@@ -1,0 +1,25 @@
+{
+  "name": "router",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 3000",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@kit/brand": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260926.1",
+    "@kit/tsconfig": "workspace:*",
+    "@msw/cloudflare": "0.1.0",
+    "msw": "2.15.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "^4"
+  }
+}
