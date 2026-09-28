@@ -15,10 +15,16 @@ export const generateMetadata = async () => {
 };
 
 async function DuesImportPage() {
-  // The `previewPaidThroughAction`/`applyPaidThroughAction` re-check this on
-  // every call -- this guard is about not showing the screen's shape to
-  // somebody who may not manage dues, same as `/home/members/import` for
-  // `members.manage`.
+  // R15: this screen needs both grants. `members.view` is checked first,
+  // same order as `[id]/page.tsx`: the preview reads `members` by
+  // membership number under RLS (`members_select_own`) to find out which
+  // numbers exist, and a `finance.manage` caller without `members.view`
+  // would see every number come back "unknown" rather than a clear refusal.
+  // Both `previewPaidThroughAction` and `applyPaidThroughAction` re-check
+  // both grants on every call -- this guard is about not showing the
+  // screen's shape to somebody who may not manage dues, same as
+  // `/home/members/import` for `members.manage`.
+  await requirePermission('members', 'view');
   await requirePermission('finance', 'manage');
 
   return (

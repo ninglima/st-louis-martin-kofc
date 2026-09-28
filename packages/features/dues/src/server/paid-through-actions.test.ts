@@ -9,10 +9,18 @@ const MEMBER_ID_2 = '6f1c1b1e-2222-4111-8111-111111111111';
  * where it lives, and stubbing it here keeps `server-only`, `next/headers`
  * and GoTrue out of a plain vitest run so these tests exercise the ACTION
  * BODIES against a fake client -- no live Supabase instance.
+ *
+ * `perms` defaults to holding both grants the actions require (I1):
+ * `finance.manage` and `members.view`. Individual tests narrow it to prove
+ * the guard actually bites.
  */
 const h = vi.hoisted(() => ({
   revalidated: [] as (string | [string, string])[],
   officer: null as unknown,
+  perms: {
+    finance: { canView: true, canManage: true },
+    members: { canView: true, canManage: false },
+  } as Record<string, { canView: boolean; canManage: boolean }>,
 }));
 
 vi.mock('@kit/next/actions', () => ({
@@ -31,6 +39,18 @@ vi.mock('@kit/supabase/server-client', () => ({
   getSupabaseServerClient: () => h.officer,
 }));
 
+// `canManagePaidThrough` loads permissions with the admin client (RLS on
+// `role_permissions` would otherwise block a caller from reading their own
+// grants) -- the identity of the client it's given doesn't matter here,
+// only what `loadPermissionsForUser` is stubbed to return.
+vi.mock('@kit/supabase/server-admin-client', () => ({
+  getSupabaseServerAdminClient: () => ({}),
+}));
+
+vi.mock('@kit/rbac/server/permissions.service', () => ({
+  loadPermissionsForUser: () => Promise.resolve(h.perms),
+}));
+
 const { previewPaidThroughAction, applyPaidThroughAction } =
   await import('./paid-through-actions');
 
@@ -39,14 +59,23 @@ interface RpcCall {
   args: Record<string, unknown>;
 }
 
+interface FakeLevel {
+  slug: string;
+  name: string;
+  amount_cents: number;
+  self_service: boolean;
+}
+
 /**
  * A fake Supabase client covering both calls the preview makes (`.from(
- * 'members')...in()` and the `member_dues_summary` RPC) and the one the
- * apply makes (`dues_opening_balances_apply`).
+ * 'members')...in()`, chunked; `.from('dues_levels')...eq().order()`; and
+ * the `member_dues_summary` RPC) and the one the apply makes
+ * (`dues_opening_balances_apply`).
  */
 function fakeClient(options: {
   members?: { id: string; membership_number: string }[];
   membersError?: { code?: string; message?: string };
+  levels?: FakeLevel[];
   summaries?: {
     member_id: string;
     dues_level: string;
@@ -64,29 +93,54 @@ function fakeClient(options: {
   };
 }) {
   const rpcCalls: RpcCall[] = [];
-  let membershipNumbersQueried: string[] = [];
+  const membershipNumberBatches: string[][] = [];
 
   return {
     rpcCalls,
+    membershipNumberBatches,
     get membershipNumbersQueried() {
-      return membershipNumbersQueried;
+      return membershipNumberBatches.flat();
     },
     client: {
       from: (table: string) => {
-        if (table !== 'members') throw new Error(`unexpected table ${table}`);
+        if (table === 'members') {
+          return {
+            select: () => ({
+              in: (_column: string, values: string[]) => {
+                membershipNumberBatches.push(values);
 
-        return {
-          select: () => ({
-            in: (_column: string, values: string[]) => {
-              membershipNumbersQueried = values;
+                if (options.membersError) {
+                  return Promise.resolve({
+                    data: null,
+                    error: options.membersError,
+                  });
+                }
 
-              return Promise.resolve({
-                data: options.membersError ? null : (options.members ?? []),
-                error: options.membersError ?? null,
-              });
-            },
-          }),
-        };
+                const matched = (options.members ?? []).filter((m) =>
+                  values.includes(m.membership_number),
+                );
+
+                return Promise.resolve({ data: matched, error: null });
+              },
+            }),
+          };
+        }
+
+        if (table === 'dues_levels') {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () =>
+                  Promise.resolve({
+                    data: options.levels ?? [],
+                    error: null,
+                  }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`unexpected table ${table}`);
       },
       rpc: (name: string, args: Record<string, unknown>) => {
         rpcCalls.push({ name, args });
@@ -121,12 +175,107 @@ function useClient(options: Parameters<typeof fakeClient>[0] = {}) {
   return fake;
 }
 
+/** Builds a valid CSV with `count` distinct, loadable rows. */
+function csvWithRows(count: number): string {
+  const lines = ['membership_number,paid_through'];
+
+  for (let i = 0; i < count; i++) {
+    lines.push(`${10_000 + i},2027-01-01`);
+  }
+
+  return lines.join('\n') + '\n';
+}
+
 const VALID_CSV =
   'membership_number,paid_through\n1001,2027-01-01\n1002,2027-06-01\n';
 
 beforeEach(() => {
   h.officer = null;
   h.revalidated = [];
+  h.perms = {
+    finance: { canView: true, canManage: true },
+    members: { canView: true, canManage: false },
+  };
+});
+
+describe('permission gate (I1)', () => {
+  it.each([
+    [
+      'no finance.manage',
+      {
+        finance: { canView: true, canManage: false },
+        members: { canView: true, canManage: false },
+      },
+    ],
+    [
+      'no members.view',
+      {
+        finance: { canView: true, canManage: true },
+        members: { canView: false, canManage: false },
+      },
+    ],
+    ['no role at all', {}],
+  ] as const)(
+    'previewPaidThroughAction refuses with %s',
+    async (_label, perms) => {
+      const fake = useClient();
+      h.perms = perms;
+
+      const result = await previewPaidThroughAction(VALID_CSV);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'You do not have permission to manage dues.',
+      });
+      expect(fake.rpcCalls).toEqual([]);
+      expect(fake.membershipNumberBatches).toEqual([]);
+    },
+  );
+
+  it.each([
+    [
+      'no finance.manage',
+      {
+        finance: { canView: true, canManage: false },
+        members: { canView: true, canManage: false },
+      },
+    ],
+    [
+      'no members.view',
+      {
+        finance: { canView: true, canManage: true },
+        members: { canView: false, canManage: false },
+      },
+    ],
+  ] as const)(
+    'applyPaidThroughAction refuses with %s',
+    async (_label, perms) => {
+      const fake = useClient();
+      h.perms = perms;
+
+      const result = await applyPaidThroughAction([
+        { line: 2, membershipNumber: '1001', paidThrough: '2027-01-01' },
+      ]);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'You do not have permission to manage dues.',
+      });
+      expect(fake.rpcCalls).toEqual([]);
+    },
+  );
+
+  it('both actions proceed once both grants are held', async () => {
+    useClient({ applyResult: { applied: 1, skipped: [] } });
+
+    const preview = await previewPaidThroughAction(VALID_CSV);
+    expect(preview.success).toBe(true);
+
+    const apply = await applyPaidThroughAction([
+      { line: 2, membershipNumber: '1001', paidThrough: '2027-01-01' },
+    ]);
+    expect(apply.success).toBe(true);
+  });
 });
 
 describe('previewPaidThroughAction', () => {
@@ -140,6 +289,30 @@ describe('previewPaidThroughAction', () => {
       error: 'Choose a CSV file to upload.',
     });
     expect(fake.rpcCalls).toEqual([]);
+  });
+
+  it('rejects a payload over 1 MB', async () => {
+    const fake = useClient();
+
+    const result = await previewPaidThroughAction('a'.repeat(1_000_001));
+
+    expect(result).toEqual({
+      success: false,
+      error: 'That file is larger than 1 MB.',
+    });
+    expect(fake.rpcCalls).toEqual([]);
+  });
+
+  it('rejects a file with more than 5,000 rows before doing any lookup', async () => {
+    const fake = useClient();
+
+    const result = await previewPaidThroughAction(csvWithRows(5001));
+
+    expect(result).toEqual({
+      success: false,
+      error: 'That file has more than 5,000 rows.',
+    });
+    expect(fake.membershipNumberBatches).toEqual([]);
   });
 
   it('parses the csv and reports unknown and already-recorded numbers', async () => {
@@ -167,7 +340,54 @@ describe('previewPaidThroughAction', () => {
     expect(result.rows).toHaveLength(2);
     expect(result.unknownNumbers).toEqual(['1002']);
     expect(result.alreadyRecorded).toEqual(['1001']);
+    expect(result.unknownLevels).toEqual([]);
     expect(fake.membershipNumbersQueried).toEqual(['1001', '1002']);
+  });
+
+  it('reports a dues_level that is not active as unknown (I4)', async () => {
+    const csv =
+      'membership_number,paid_through,dues_level\n' +
+      '1001,2027-01-01,regular\n' +
+      '1002,2027-01-01,stduent\n';
+
+    const fake = useClient({
+      members: [
+        { id: MEMBER_ID_1, membership_number: '1001' },
+        { id: MEMBER_ID_2, membership_number: '1002' },
+      ],
+      levels: [
+        {
+          slug: 'regular',
+          name: 'Regular',
+          amount_cents: 5000,
+          self_service: true,
+        },
+      ],
+      summaries: [],
+    });
+
+    const result = await previewPaidThroughAction(csv);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.unknownLevels).toEqual([
+      { membershipNumber: '1002', level: 'stduent' },
+    ]);
+    expect(fake.rpcCalls.some((c) => c.name === 'member_dues_summary')).toBe(
+      true,
+    );
+  });
+
+  it('chunks the membership-number lookup in batches of 200 (I3)', async () => {
+    const fake = useClient({ summaries: [] });
+
+    const result = await previewPaidThroughAction(csvWithRows(250));
+
+    expect(result.success).toBe(true);
+    expect(fake.membershipNumberBatches).toHaveLength(2);
+    expect(fake.membershipNumberBatches[0]).toHaveLength(200);
+    expect(fake.membershipNumberBatches[1]).toHaveLength(50);
   });
 
   it('only asks member_dues_summary about members it found', async () => {
@@ -185,7 +405,7 @@ describe('previewPaidThroughAction', () => {
     expect(summaryCall?.args).toEqual({ p_member_ids: [MEMBER_ID_2] });
   });
 
-  it('maps a lookup error to a generic message', async () => {
+  it('maps a 42501 lookup error to the permission message', async () => {
     useClient({ membersError: { code: '42501' } });
 
     const result = await previewPaidThroughAction(VALID_CSV);
@@ -193,6 +413,19 @@ describe('previewPaidThroughAction', () => {
     expect(result).toEqual({
       success: false,
       error: 'You do not have permission to manage dues.',
+    });
+  });
+
+  it('maps an unknown lookup error code to the generic message (M5)', async () => {
+    useClient({
+      membersError: { code: '57014', message: 'canceling statement' },
+    });
+
+    const result = await previewPaidThroughAction(VALID_CSV);
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Something went wrong loading the paid-through dates.',
     });
   });
 });
@@ -212,6 +445,21 @@ describe('applyPaidThroughAction', () => {
     const fake = useClient();
 
     const result = await applyPaidThroughAction([{ membershipNumber: '' }]);
+
+    expect(result.success).toBe(false);
+    expect(fake.rpcCalls).toEqual([]);
+  });
+
+  it('rejects more than 5,000 rows without calling the RPC', async () => {
+    const fake = useClient();
+
+    const rows = Array.from({ length: 5001 }, (_, i) => ({
+      line: i + 2,
+      membershipNumber: String(10_000 + i),
+      paidThrough: '2027-01-01',
+    }));
+
+    const result = await applyPaidThroughAction(rows);
 
     expect(result.success).toBe(false);
     expect(fake.rpcCalls).toEqual([]);
@@ -283,6 +531,17 @@ describe('applyPaidThroughAction', () => {
     expect(result).toEqual({
       success: false,
       error: 'You do not have permission to manage dues.',
+    });
+  });
+
+  it('maps an unknown rpc error code to the generic message (M5)', async () => {
+    useClient({ rpcError: { code: '57014', message: 'canceling statement' } });
+
+    const result = await applyPaidThroughAction(validRows);
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Something went wrong loading the paid-through dates.',
     });
   });
 });

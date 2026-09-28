@@ -32,10 +32,28 @@ export interface CsvIssue {
 
 const REQUIRED_COLUMNS = ['membership_number', 'paid_through'] as const;
 
-/** More than two years ahead of "today" is treated as suspicious. */
+/** More than two years ahead of "today" is treated as suspicious (kept). */
 const SUSPICIOUS_AHEAD_DAYS = 730;
-/** More than five years back of "today" is treated as suspicious. */
+/** More than five years back of "today" is treated as suspicious (kept). */
 const SUSPICIOUS_BEHIND_DAYS = 1826;
+
+/**
+ * `dues_opening_balances_apply` rejects a `paid_through` outside `2000-01-01
+ * .. current_date + 3650` outright (see
+ * `20260928120200_dues_online_and_load.sql`) -- these rows would never make
+ * it past apply no matter what the officer does, so the preview refuses them
+ * up front as `bad_date` rather than counting them toward "N rows to load"
+ * and only failing later.
+ */
+const MIN_DATE = '2000-01-01';
+/**
+ * One day tighter than the DB's `current_date + 3650` (M4): the parser's
+ * "today" is `chicagoToday()`, while the DB's bound is UTC `current_date`.
+ * Around midnight the two can disagree by a day, and a date sitting exactly
+ * on the DB's edge must never come back from the preview as loadable and
+ * then fail at apply.
+ */
+const MAX_AHEAD_DAYS = 3649;
 
 interface CsvRecord {
   fields: string[];
@@ -52,9 +70,7 @@ interface CsvRecord {
  *
  * Scanning runs over the whole text rather than splitting into lines first:
  * splitting on `\n` before parsing quotes would cut a quoted field that
- * happens to contain a newline into two records. `\r` is dropped unconditionally
- * (inside or outside quotes) rather than kept as data, since every real
- * export here uses it only as half of a CRLF pair.
+ * happens to contain a newline into two records.
  */
 function parseCsvRecords(text: string): CsvRecord[] {
   const records: CsvRecord[] = [];
@@ -96,14 +112,26 @@ function parseCsvRecords(text: string): CsvRecord[] {
       continue;
     }
 
-    if (ch === '"') {
+    // A quote only opens quoted mode at the START of a field (M3): a stray
+    // `"` appearing after real content (`10"01`) is data the officer typed,
+    // not the start of a quoted run that should swallow the rest of the
+    // file into one field.
+    if (ch === '"' && field === '') {
       inQuotes = true;
       touched = true;
     } else if (ch === ',') {
       endField();
       touched = true;
     } else if (ch === '\r') {
-      // half of a CRLF pair (or a lone CR); never data.
+      // Either half of a CRLF pair -- the `\n` right after it ends the
+      // record -- or a lone CR (M2): Excel for Mac's "CSV (Macintosh)"
+      // export uses a bare `\r` as its line ending, and treating that as
+      // inert data would collapse the whole file into one record.
+      if (text[i + 1] !== '\n') {
+        endRecord();
+        line++;
+        recordStartLine = line;
+      }
     } else if (ch === '\n') {
       endRecord();
       line++;
@@ -236,11 +264,37 @@ export function parsePaidThroughCsv(
     const valid = normalized !== null && IsoDate.safeParse(normalized).success;
 
     if (!valid || normalized === null) {
+      // M1: a value shaped like a date (`2/30/2027`) failed because no such
+      // calendar day exists, which is a different problem than a value that
+      // never matched either accepted shape at all -- and reads as one to an
+      // officer who typed the date correctly in every way but the one that
+      // matters.
+      const message =
+        normalized !== null
+          ? `"${paidThroughRaw}" is not a real calendar date.`
+          : `"${paidThroughRaw}" is not a date in YYYY-MM-DD or M/D/YYYY form.`;
+
       issues.push({
         line: record.line,
         membershipNumber,
         kind: 'bad_date',
-        message: `"${paidThroughRaw}" is not a date in YYYY-MM-DD or M/D/YYYY form.`,
+        message,
+      });
+      continue;
+    }
+
+    const diffDays = toUtcDays(normalized) - todayDays;
+
+    // I2: a date outside the ledger's own hard bounds is not "suspicious",
+    // it is one `dues_opening_balances_apply` will reject outright with
+    // 'invalid date' -- so it is dropped here, before it can ever be counted
+    // as a loadable row.
+    if (normalized < MIN_DATE || diffDays > MAX_AHEAD_DAYS) {
+      issues.push({
+        line: record.line,
+        membershipNumber,
+        kind: 'bad_date',
+        message: `${normalized} is outside the range the ledger accepts (${MIN_DATE} to 10 years ahead).`,
       });
       continue;
     }
@@ -256,8 +310,6 @@ export function parsePaidThroughCsv(
     }
 
     seen.add(membershipNumber);
-
-    const diffDays = toUtcDays(normalized) - todayDays;
 
     if (
       diffDays > SUSPICIOUS_AHEAD_DAYS ||

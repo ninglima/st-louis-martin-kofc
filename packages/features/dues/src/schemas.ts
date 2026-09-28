@@ -78,6 +78,22 @@ export const StudentSchema = z.object({
 });
 
 /**
+ * The raw text of an uploaded paid-through CSV, before it ever reaches
+ * `parsePaidThroughCsv`. A Server Action is reachable with any payload a
+ * caller cares to construct -- not just the file `PaidThroughImport` reads
+ * client-side -- so the size cap is enforced here, not just by the 1 MB
+ * check the component makes before it ever calls the action. 1,000,000
+ * characters comfortably covers a multi-thousand-row three-column CSV while
+ * keeping a single adversarial payload from tying up the preview parsing an
+ * unbounded string.
+ */
+export const PaidThroughCsvTextSchema = z
+  .string()
+  .trim()
+  .min(1, 'Choose a CSV file to upload.')
+  .max(1_000_000, 'That file is larger than 1 MB.');
+
+/**
  * A single parsed row of the paid-through CSV load, re-validated before it is
  * sent to `dues_opening_balances_apply`. The client only ever gets a row here
  * by way of `parsePaidThroughCsv`, but the action never trusts that --
@@ -93,4 +109,15 @@ export const PaidThroughRowSchema = z
   })
   .strip();
 
-export const PaidThroughRowsSchema = z.array(PaidThroughRowSchema).min(1);
+/**
+ * Capped at 5,000 rows: `dues_opening_balances_apply` takes the whole array
+ * in one RPC call and locks one `members` row (`for update`) per row it
+ * processes, so an unbounded array is an unbounded single transaction. The
+ * preview enforces the same cap before it ever gets here (see
+ * `paid-through-actions.ts`), so this is the second line of defence for a
+ * caller that skips the preview.
+ */
+export const PaidThroughRowsSchema = z
+  .array(PaidThroughRowSchema)
+  .min(1)
+  .max(5000, 'That load has more than 5,000 rows.');

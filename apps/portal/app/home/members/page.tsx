@@ -100,7 +100,11 @@ async function MembersPage(props: { searchParams: Promise<SearchParams> }) {
         {/*
           Same reasoning as the roster import link above: hidden without
           `finance.manage`, which is cosmetic since the dues-import page and
-          its actions all re-check the grant themselves.
+          its actions all re-check the grant themselves. R15 also requires
+          `members.view` on that page, but this button needs no separate
+          check for it -- this page itself is reachable only with
+          `members.view` (the `requirePermission` call above), so any caller
+          who can see this button already holds it.
         */}
         <If condition={canManageDues}>
           <Button
