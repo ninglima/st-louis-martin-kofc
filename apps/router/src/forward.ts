@@ -17,6 +17,10 @@ export function buildOriginRequest(request: Request, env: Env): Request {
   target.search = incoming.search;
 
   const headers = new Headers(request.headers);
+  // Cloud Run routes by Host, so the client's Host (the public origin) must
+  // not ride along -- the fetch target URL already supplies the portal's own
+  // host.
+  headers.delete('host');
   headers.set('x-origin-auth', env.ORIGIN_AUTH);
   headers.set('x-forwarded-host', incoming.host);
   headers.set('x-forwarded-proto', incoming.protocol.replace(':', ''));

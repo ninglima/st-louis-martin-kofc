@@ -48,6 +48,17 @@ describe('buildOriginRequest', () => {
     expect(origin.redirect).toBe('manual');
   });
 
+  it('drops the client Host header rather than forwarding it to Cloud Run', () => {
+    const origin = buildOriginRequest(
+      new Request('https://kofc-15256.org/home', {
+        headers: { host: 'kofc-15256.org' },
+      }),
+      env,
+    );
+
+    expect(origin.headers.has('host')).toBe(false);
+  });
+
   it('forwards a binary body byte-for-byte with its method and content type', async () => {
     const bytes = new Uint8Array(256).map((_, index) => index);
     const origin = buildOriginRequest(
