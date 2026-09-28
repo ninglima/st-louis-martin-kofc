@@ -1,3 +1,4 @@
+import { DUES_LEVEL_METADATA_KEY } from '@kit/dues/lib/payment-metadata';
 import type { DuesLevel } from '@kit/dues/types';
 
 import { MIN_OPEN_AMOUNT_CENTS } from '../schemas/create-payment.schema';
@@ -83,7 +84,7 @@ function duesLevelOf(metadata: unknown): string | null {
     return null;
   }
 
-  const value = (metadata as Record<string, unknown>).dues_level;
+  const value = (metadata as Record<string, unknown>)[DUES_LEVEL_METADATA_KEY];
 
   return typeof value === 'string' && value !== '' ? value : null;
 }

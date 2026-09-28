@@ -8,6 +8,7 @@ import { loadPermissionsForUser } from '@kit/rbac/server/permissions.service';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { availableDuesLevels } from '@kit/dues/lib/available-levels';
+import { DUES_LEVEL_METADATA_KEY } from '@kit/dues/lib/payment-metadata';
 import { DuesService } from '@kit/dues/server/dues.service';
 
 import { PaymentConfigSchema } from '../schemas/payment-config.schema';
@@ -202,8 +203,9 @@ async function priceDues(parsed: {
     currency: 'usd',
     description: `Annual dues — ${level.name}`,
     // Built by the server only; client metadata is ignored for dues. The
-    // trigger reads this top-level key from `payments.metadata`.
-    metadata: { dues_level: level.slug },
+    // trigger reads this top-level key from `payments.metadata` -- see
+    // `DUES_LEVEL_METADATA_KEY`.
+    metadata: { [DUES_LEVEL_METADATA_KEY]: level.slug },
   };
 }
 
