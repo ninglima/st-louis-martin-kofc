@@ -616,6 +616,38 @@ export type Database = {
           paid_through: string | null
         }[]
       }
+      record_dues_payment: {
+        Args: {
+          p_check_number?: string
+          p_level: string
+          p_member_id: string
+          p_method: Database["public"]["Enums"]["dues_method"]
+          p_received_on: string
+        }
+        Returns: {
+          amount_cents: number
+          check_number: string | null
+          created_at: string
+          id: string
+          level: string
+          member_id: string
+          method: Database["public"]["Enums"]["dues_method"]
+          payment_id: string | null
+          period_end: string
+          period_start: string
+          received_on: string
+          recorded_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "dues_periods"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       roster_import_load_plan: { Args: { p_import: string }; Returns: Json }
       roster_import_load_results: { Args: { p_import: string }; Returns: Json }
       roster_import_save_plan: {
@@ -624,6 +656,22 @@ export type Database = {
       }
       roster_import_save_results: {
         Args: { p_import: string; p_results: Json }
+        Returns: undefined
+      }
+      set_member_accepted_on: {
+        Args: { p_accepted_on: string; p_member_id: string }
+        Returns: undefined
+      }
+      set_member_dues_level: {
+        Args: { p_level: string; p_member_id: string }
+        Returns: undefined
+      }
+      set_member_student: {
+        Args: { p_is_student: boolean; p_member_id: string }
+        Returns: undefined
+      }
+      void_dues_period: {
+        Args: { p_period_id: string; p_reason: string }
         Returns: undefined
       }
     }
