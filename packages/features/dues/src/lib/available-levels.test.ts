@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DuesLevel, MemberDuesSummary } from '../types';
+import type { DuesLevel, MyDuesSummary } from '../types';
 import { availableDuesLevels } from './available-levels';
 
 const LEVELS: DuesLevel[] = [
@@ -21,8 +21,13 @@ const LEVELS: DuesLevel[] = [
   { slug: 'honorary', name: 'Honorary', amountCents: 1900, selfService: false },
 ];
 
-function member(overrides: Partial<MemberDuesSummary> = {}): MemberDuesSummary {
+function member(overrides: Partial<MyDuesSummary> = {}): MyDuesSummary {
+  const slug = overrides.duesLevel ?? 'regular_contrib';
+  const level = LEVELS.find((candidate) => candidate.slug === slug);
+
   return {
+    levelSelfService: level?.selfService ?? true,
+    levelActive: true,
     memberId: 'm1',
     duesLevel: 'regular_contrib',
     levelName: 'Regular (with voluntary contribution)',
@@ -70,11 +75,27 @@ describe('availableDuesLevels', () => {
     ).toEqual(['student']);
   });
 
-  it('falls back to self-service when the assigned level is inactive (not listed)', () => {
+  it('offers nothing when the FS-assigned non-self-service level is inactive', () => {
     const active = LEVELS.filter((level) => level.slug !== 'honorary');
 
     expect(
-      slugs(availableDuesLevels(active, member({ duesLevel: 'honorary' }))),
-    ).toEqual(['regular_contrib', 'regular']);
+      availableDuesLevels(
+        active,
+        member({ duesLevel: 'honorary', levelActive: false }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('falls back to self-service when an assigned self-service level is inactive', () => {
+    const active = LEVELS.filter((level) => level.slug !== 'regular_contrib');
+
+    expect(
+      slugs(
+        availableDuesLevels(
+          active,
+          member({ duesLevel: 'regular_contrib', levelActive: false }),
+        ),
+      ),
+    ).toEqual(['regular']);
   });
 });

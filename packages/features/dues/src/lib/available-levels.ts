@@ -1,4 +1,4 @@
-import type { DuesLevel, MemberDuesSummary } from '../types';
+import type { DuesLevel, MyDuesSummary } from '../types';
 
 /**
  * The dues levels a member may buy online -- the one rule shared by the
@@ -7,8 +7,10 @@ import type { DuesLevel, MemberDuesSummary } from '../types';
  *
  * - No member record: nothing (the sign-in cannot pay dues).
  * - The FS assigned a non-self-service level (public_service, honorary, or
- *   student): only that level.
- * - Otherwise: the self-service levels, plus student when `is_student`.
+ *   student): only that level -- or nothing if it has been deactivated, so
+ *   the member is sent to the FS rather than offered a self-service price.
+ * - Otherwise: the self-service levels, plus student when `is_student`
+ *   (this includes an assigned self-service level that was deactivated).
  *
  * `levels` must be the ACTIVE levels (`DuesService.levels()`). Every level
  * returned here also passes `kit.record_online_dues_period`'s own check
@@ -18,16 +20,18 @@ import type { DuesLevel, MemberDuesSummary } from '../types';
  */
 export function availableDuesLevels(
   levels: DuesLevel[],
-  mine: MemberDuesSummary | null,
+  mine: MyDuesSummary | null,
 ): DuesLevel[] {
   if (!mine) {
     return [];
   }
 
-  const assigned = levels.find((level) => level.slug === mine.duesLevel);
+  if (!mine.levelSelfService) {
+    const assigned = mine.levelActive
+      ? levels.find((level) => level.slug === mine.duesLevel)
+      : undefined;
 
-  if (assigned && !assigned.selfService) {
-    return [assigned];
+    return assigned ? [assigned] : [];
   }
 
   return levels.filter(

@@ -63,7 +63,7 @@ describe('mapSquareWebhookEvent', () => {
     });
   });
 
-  it('ignores (and logs) a partially refunded payment update', () => {
+  it('keeps the payment status (and logs) on a partially refunded payment update', () => {
     const log = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     expect(
@@ -75,7 +75,11 @@ describe('mapSquareWebhookEvent', () => {
           refunded_money: { amount: 1000, currency: 'USD' },
         }),
       ),
-    ).toBeNull();
+    ).toEqual({
+      type: 'payment.updated',
+      providerPaymentId: 'sq_1',
+      status: 'succeeded',
+    });
     expect(log).toHaveBeenCalled();
   });
 
@@ -100,7 +104,7 @@ describe('mapSquareWebhookEvent', () => {
     },
   );
 
-  it.each(['PENDING', 'REJECTED', 'FAILED'])(
+  it.each(['PENDING', 'REJECTED'])(
     'ignores a refund whose status is %s',
     (status) => {
       expect(
@@ -115,6 +119,25 @@ describe('mapSquareWebhookEvent', () => {
       ).toBeNull();
     },
   );
+
+  it('logs a FAILED refund at error level for the FS, without changing status', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(
+      mapSquareWebhookEvent(
+        refundEvent('refund.updated', {
+          id: 'rf_1',
+          status: 'FAILED',
+          payment_id: 'sq_1',
+          amount_money: { amount: 5000, currency: 'USD' },
+        }),
+      ),
+    ).toBeNull();
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(/reconcile/i),
+      expect.objectContaining({ paymentId: 'sq_1', refundId: 'rf_1' }),
+    );
+  });
 
   it('ignores events with neither a payment nor a refund', () => {
     expect(

@@ -28,6 +28,17 @@ export interface MemberDuesSummary {
   duesStatus: DuesStatus;
 }
 
+/**
+ * The signed-in member's own summary, plus the flags of their ASSIGNED level
+ * read without the `active` filter -- `availableDuesLevels` needs to tell an
+ * inactive FS-assigned non-self-service level apart from a self-service one,
+ * and `DuesService.levels()` (active only) cannot.
+ */
+export interface MyDuesSummary extends MemberDuesSummary {
+  levelSelfService: boolean;
+  levelActive: boolean;
+}
+
 export interface DuesLedgerRow {
   id: string;
   level: string;

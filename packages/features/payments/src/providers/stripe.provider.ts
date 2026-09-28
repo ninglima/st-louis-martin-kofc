@@ -63,6 +63,9 @@ export class StripeProvider implements PaymentProviderInterface {
  *   our row through the charge's `payment_intent`. A partial refund leaves
  *   the status alone (logged) -- dues have no partial-refund meaning, and
  *   `refunded` voids the member's dues period via `kit.payments_dues_sync`.
+ * - `charge.refund.updated` / `refund.updated` / `refund.failed` for a
+ *   refund that `failed` or was `canceled`: logged at error level for the FS
+ *   to reconcile by hand; no status change.
  * - Anything else: ignored. (Previously every event was read as if it were
  *   a PaymentIntent; for any other object the id never matched a row, so
  *   ignoring them changes nothing.)
@@ -109,6 +112,34 @@ export function mapStripeWebhookEvent(
       providerPaymentId: paymentIntentId,
       status: 'refunded',
     };
+  }
+
+  if (
+    event.type === 'charge.refund.updated' ||
+    event.type === 'refund.updated' ||
+    event.type === 'refund.failed'
+  ) {
+    const refund = event.data.object as Stripe.Refund;
+
+    if (refund.status === 'failed' || refund.status === 'canceled') {
+      // The status is left alone: `refunded` is terminal (see
+      // `PaymentService.updatePaymentStatus`), so if `charge.refunded`
+      // already marked this payment refunded and voided its dues period,
+      // only a person can put that right.
+      console.error(
+        `Stripe refund ${refund.status}; the council may still hold this money. The Financial Secretary must reconcile this payment and its dues period by hand.`,
+        {
+          paymentIntentId:
+            typeof refund.payment_intent === 'string'
+              ? refund.payment_intent
+              : (refund.payment_intent?.id ?? null),
+          refundId: refund.id,
+          amount: refund.amount,
+        },
+      );
+    }
+
+    return null;
   }
 
   return null;

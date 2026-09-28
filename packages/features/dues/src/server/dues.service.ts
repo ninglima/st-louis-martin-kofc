@@ -8,6 +8,7 @@ import type {
   DuesMethodFs,
   DuesStatus,
   MemberDuesSummary,
+  MyDuesSummary,
   MyLedgerRow,
 } from '../types';
 
@@ -116,14 +117,39 @@ export class DuesService {
     return (data ?? []).map(toLedgerRow);
   }
 
-  async mySummary(): Promise<MemberDuesSummary | null> {
+  async mySummary(): Promise<MyDuesSummary | null> {
     const { data, error } = await this.client.rpc('my_dues_summary');
 
     if (error) {
       throw error;
     }
 
-    return data?.[0] ? toSummary(data[0]) : null;
+    if (!data?.[0]) {
+      return null;
+    }
+
+    const summary = toSummary(data[0]);
+
+    // No `active` filter: an inactive assigned level must still be seen as
+    // inactive (see `MyDuesSummary`). `dues_levels` is readable by every
+    // authenticated user.
+    const { data: level, error: levelError } = await this.client
+      .from('dues_levels')
+      .select('self_service, active')
+      .eq('slug', summary.duesLevel)
+      .maybeSingle();
+
+    if (levelError) {
+      throw levelError;
+    }
+
+    return {
+      ...summary,
+      // `my_dues_summary` inner-joins `dues_levels`, so the row exists; the
+      // fallbacks only keep a vanished level from ever widening the offer.
+      levelSelfService: level?.self_service ?? false,
+      levelActive: level?.active ?? false,
+    };
   }
 
   async myLedger(): Promise<MyLedgerRow[]> {

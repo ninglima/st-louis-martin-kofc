@@ -1,5 +1,7 @@
 import * as z from 'zod';
 
+export const MIN_OPEN_AMOUNT_CENTS = 50;
+
 const common = {
   description: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -20,7 +22,13 @@ export const DuesPaymentSchema = z
 
 export const OpenPaymentSchema = z.object({
   payment_type: z.enum(['donation', 'event_fee']),
-  amount: z.number().int().positive(),
+  // Whole cents, at least $0.50: the processors' minimum, and a floor
+  // against 1-cent card-testing charges from a direct POST. The checkout
+  // form enforces the same rule with the same message.
+  amount: z
+    .number()
+    .int()
+    .min(MIN_OPEN_AMOUNT_CENTS, 'Enter an amount of at least $0.50.'),
   currency: z.string(),
   items: z
     .array(

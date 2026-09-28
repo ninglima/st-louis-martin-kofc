@@ -171,7 +171,6 @@ export const createPaymentAction = enhanceAction(
  */
 async function priceDues(parsed: {
   level: string;
-  metadata?: Record<string, unknown>;
 }): Promise<CreatePaymentParams> {
   const dues = new DuesService(getSupabaseServerClient());
   const [levels, mine] = await Promise.all([dues.levels(), dues.mySummary()]);
@@ -190,15 +189,20 @@ async function priceDues(parsed: {
     throw new Error('That dues level is not available for your membership.');
   }
 
+  // Known race, accepted: the trigger re-checks the level and price when the
+  // payment reaches `succeeded`, not now. If the FS changes this member's
+  // level, or edits the level's price or active flag, while this payment is
+  // in flight, the trigger skips the period with only a `raise warning` and
+  // the FS has to record it by hand.
+
   return {
     payment_type: 'dues',
     amount: level.amountCents,
     currency: 'usd',
     description: `Annual dues — ${level.name}`,
-    // Client metadata first, server keys last: a client-sent `dues_level`
-    // can never override the level priced above. The trigger reads this
-    // top-level key from `payments.metadata`.
-    metadata: { ...(parsed.metadata ?? {}), dues_level: level.slug },
+    // Built by the server only; client metadata is ignored for dues. The
+    // trigger reads this top-level key from `payments.metadata`.
+    metadata: { dues_level: level.slug },
   };
 }
 

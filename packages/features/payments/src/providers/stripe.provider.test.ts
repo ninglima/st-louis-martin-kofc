@@ -1,7 +1,7 @@
 import type Stripe from 'stripe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { mapStripeWebhookEvent } from './stripe.provider';
+import { StripeProvider, mapStripeWebhookEvent } from './stripe.provider';
 
 function event(type: string, object: Record<string, unknown>): Stripe.Event {
   return { id: 'evt_1', type, data: { object } } as unknown as Stripe.Event;
@@ -103,5 +103,91 @@ describe('mapStripeWebhookEvent', () => {
         event('charge.succeeded', { id: 'ch_1', status: 'succeeded' }),
       ),
     ).toBeNull();
+  });
+
+  it.each([
+    ['charge.refund.updated', 'failed'],
+    ['charge.refund.updated', 'canceled'],
+    ['refund.failed', 'failed'],
+    ['refund.updated', 'canceled'],
+  ])(
+    'logs a %s refund that is %s at error level, without changing status',
+    (type, status) => {
+      const log = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+
+      expect(
+        mapStripeWebhookEvent(
+          event(type, {
+            id: 're_1',
+            object: 'refund',
+            status,
+            amount: 5000,
+            charge: 'ch_1',
+            payment_intent: 'pi_1',
+          }),
+        ),
+      ).toBeNull();
+      expect(log).toHaveBeenCalledWith(
+        expect.stringMatching(/reconcile/i),
+        expect.objectContaining({ paymentIntentId: 'pi_1', refundId: 're_1' }),
+      );
+    },
+  );
+
+  it('ignores a refund update that has not failed', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(
+      mapStripeWebhookEvent(
+        event('charge.refund.updated', {
+          id: 're_1',
+          status: 'succeeded',
+          payment_intent: 'pi_1',
+        }),
+      ),
+    ).toBeNull();
+    expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe('StripeProvider.createPayment', () => {
+  it('never lets client metadata override userId or paymentType', async () => {
+    const provider = new StripeProvider('sk_test_fake', 'whsec_fake');
+    const create = vi.fn(async (params: Record<string, unknown>) => ({
+      id: 'pi_1',
+      client_secret: 'secret',
+      status: 'requires_payment_method',
+      params,
+    }));
+
+    (
+      provider as unknown as {
+        stripe: { paymentIntents: { create: typeof create } };
+      }
+    ).stripe = { paymentIntents: { create } };
+
+    await provider.createPayment({
+      payment_type: 'dues',
+      amount: 5000,
+      currency: 'usd',
+      userId: 'real-user',
+      metadata: {
+        userId: 'evil',
+        paymentType: 'donation',
+        dues_level: 'regular',
+      },
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0]?.[0]).toMatchObject({
+      amount: 5000,
+      metadata: {
+        userId: 'real-user',
+        paymentType: 'dues',
+        dues_level: 'regular',
+      },
+    });
   });
 });

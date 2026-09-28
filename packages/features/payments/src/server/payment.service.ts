@@ -89,6 +89,12 @@ export class PaymentService {
    *   the row back out of it.
    * - `onlyIfAmount` restricts the write to a row with that exact amount
    *   (see `WebhookEvent.onlyIfAmount`).
+   *
+   * Because `refunded` is terminal, a refund that later fails or is
+   * reversed leaves the row at `refunded` with its dues period voided. The
+   * webhook mappers log those events at error level (see
+   * `mapStripeWebhookEvent` / `mapSquareWebhookEvent`) for the FS to
+   * reconcile by hand.
    */
   async updatePaymentStatus(
     adminClient: PaymentsClient,
@@ -119,10 +125,42 @@ export class PaymentService {
     }
 
     if (status === 'refunded' && (data ?? []).length === 0) {
-      console.warn('Refund matched no payment; nothing marked refunded.', {
+      await this.explainUnmatchedRefund(
+        adminClient,
         providerPaymentId,
-        onlyIfAmount: options.onlyIfAmount,
-      });
+        options.onlyIfAmount,
+      );
     }
+  }
+
+  /** Tells a partial refund (filtered out on purpose) from an unknown one. */
+  private async explainUnmatchedRefund(
+    adminClient: PaymentsClient,
+    providerPaymentId: string,
+    onlyIfAmount: number | undefined,
+  ): Promise<void> {
+    if (onlyIfAmount !== undefined) {
+      const { data: existing } = await adminClient
+        .from('payments')
+        .select('id, amount')
+        .eq('provider_payment_id', providerPaymentId);
+
+      const payment = existing?.[0];
+
+      if (payment) {
+        console.warn('Partial refund ignored; payment status unchanged.', {
+          providerPaymentId,
+          paymentId: payment.id,
+          amount: payment.amount,
+          refundAmount: onlyIfAmount,
+        });
+        return;
+      }
+    }
+
+    console.warn('Refund matched no payment; nothing marked refunded.', {
+      providerPaymentId,
+      onlyIfAmount,
+    });
   }
 }

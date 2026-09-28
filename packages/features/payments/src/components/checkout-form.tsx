@@ -9,7 +9,7 @@ import * as z from 'zod';
 
 import { availableDuesLevels } from '@kit/dues/lib/available-levels';
 import { formatAmountCents } from '@kit/dues/lib/format-amount';
-import type { DuesLevel, MemberDuesSummary } from '@kit/dues/types';
+import type { DuesLevel, MyDuesSummary } from '@kit/dues/types';
 
 import { Button } from '@kit/ui/button';
 import {
@@ -37,6 +37,7 @@ import {
 } from '@kit/ui/select';
 import { Trans } from '@kit/ui/trans';
 
+import { MIN_OPEN_AMOUNT_CENTS } from '../schemas/create-payment.schema';
 import { createPaymentAction } from '../server/server-actions';
 import type { PublicPaymentConfig } from '../types/payment.types';
 import { StripePaymentForm } from './stripe-payment-form';
@@ -68,7 +69,11 @@ function checkoutFormSchema(messages: {
             message: messages.levelRequired,
           });
         }
-      } else if (!(values.amount >= 0.5)) {
+      } else if (
+        // The same whole-cent value `onSubmit` sends, checked against the
+        // server's own minimum, so the two can never disagree.
+        !(toCents(values.amount) >= MIN_OPEN_AMOUNT_CENTS)
+      ) {
         ctx.addIssue({
           code: 'custom',
           path: ['amount'],
@@ -76,6 +81,10 @@ function checkoutFormSchema(messages: {
         });
       }
     });
+}
+
+function toCents(dollars: number): number {
+  return Math.round(dollars * 100);
 }
 
 type CheckoutFormValues = z.infer<ReturnType<typeof checkoutFormSchema>>;
@@ -89,7 +98,7 @@ export function CheckoutForm({
   /** Active levels (`DuesService.levels()`). */
   duesLevels: DuesLevel[];
   /** The member's own summary; `null` when the sign-in has no member row. */
-  myDues: MemberDuesSummary | null;
+  myDues: MyDuesSummary | null;
 }) {
   const t = useTranslations('payments');
   const [isPending, startTransition] = useTransition();
@@ -157,7 +166,7 @@ export function CheckoutForm({
         ? { payment_type: 'dues' as const, level: values.level }
         : {
             payment_type: values.payment_type,
-            amount: Math.round(values.amount * 100),
+            amount: toCents(values.amount),
             currency: 'usd',
             description: values.description,
           };

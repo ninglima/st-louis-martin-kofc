@@ -143,14 +143,17 @@ export interface SquareWebhookPayload {
  * `null` when the event must not change any row.
  *
  * - `payment.*`: the payment's status, as before -- except a payment whose
- *   `refunded_money` equals its total is `refunded`. A partial refund leaves
- *   the status alone (logged); Square keeps such a payment `COMPLETED`.
+ *   `refunded_money` equals its total is `refunded`. A partial refund is
+ *   logged and otherwise ignored: the payment's own status still applies
+ *   (Square keeps such a payment `COMPLETED`).
  * - `refund.*` with refund status `COMPLETED`: `refunded`, but the event
  *   carries no payment total, so it sets `onlyIfAmount` to the refund
  *   amount and the write only lands on a row whose `amount` matches -- a
  *   partial refund matches nothing.
+ * - `refund.*` with status `FAILED`: logged at error level for the FS to
+ *   reconcile by hand; no status change.
  * - Anything else (no payment or refund, or a refund still PENDING or
- *   REJECTED/FAILED): ignored. Previously these fell through as an update
+ *   REJECTED): ignored. Previously these fell through as an update
  *   keyed by `''`, which never matched a row.
  */
 export function mapSquareWebhookEvent(
@@ -172,12 +175,14 @@ export function mapSquareWebhookEvent(
         };
       }
 
-      console.warn('Square partial refund; payment status left unchanged.', {
+      // A partial refund is not a refund of the dues, but this event may
+      // still be the first to report the payment's own status (an earlier
+      // update may have been lost), so that status is still applied.
+      console.warn('Square partial refund ignored; applying payment status.', {
         paymentId: payment.id,
         total,
         refunded,
       });
-      return null;
     }
 
     return {
@@ -189,6 +194,22 @@ export function mapSquareWebhookEvent(
 
   const refund = event.data?.object?.refund;
   const refundAmount = refund?.amount_money?.amount;
+
+  if (refund?.status === 'FAILED') {
+    // The status is left alone: `refunded` is terminal (see
+    // `PaymentService.updatePaymentStatus`), so if an earlier event already
+    // marked this payment refunded and voided its dues period, only a person
+    // can put that right.
+    console.error(
+      'Square refund FAILED; the council may still hold this money. The Financial Secretary must reconcile this payment and its dues period by hand.',
+      {
+        paymentId: refund.payment_id,
+        refundId: refund.id,
+        amount: refundAmount,
+      },
+    );
+    return null;
+  }
 
   if (
     refund?.status === 'COMPLETED' &&

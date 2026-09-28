@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { DuesLevel, MemberDuesSummary } from '@kit/dues/types';
+import type { DuesLevel, MyDuesSummary } from '@kit/dues/types';
 
 const USER_ID = '6b5f6f1c-3d1a-4d5e-9d4b-1f2c3d4e5f60';
 
@@ -14,7 +14,7 @@ const USER_ID = '6b5f6f1c-3d1a-4d5e-9d4b-1f2c3d4e5f60';
 const h = vi.hoisted(() => ({
   canCheckout: true,
   levels: [] as DuesLevel[],
-  mine: null as MemberDuesSummary | null,
+  mine: null as MyDuesSummary | null,
   providerCalls: [] as Record<string, unknown>[],
   rowCalls: [] as Record<string, unknown>[],
   duesClient: null as unknown,
@@ -109,8 +109,13 @@ const LEVELS: DuesLevel[] = [
   { slug: 'honorary', name: 'Honorary', amountCents: 1900, selfService: false },
 ];
 
-function member(overrides: Partial<MemberDuesSummary> = {}): MemberDuesSummary {
+function member(overrides: Partial<MyDuesSummary> = {}): MyDuesSummary {
+  const slug = overrides.duesLevel ?? 'regular_contrib';
+
   return {
+    levelSelfService:
+      LEVELS.find((level) => level.slug === slug)?.selfService ?? true,
+    levelActive: true,
     memberId: 'm1',
     duesLevel: 'regular_contrib',
     levelName: 'Regular (with voluntary contribution)',
@@ -159,21 +164,15 @@ describe('createPaymentAction: dues', () => {
     expect(h.duesClient).toBe(h.serverClient);
   });
 
-  it('never lets client metadata override the server-chosen level', async () => {
+  it('ignores client metadata entirely; the server builds it', async () => {
     await createPaymentAction({
       payment_type: 'dues',
       level: 'regular',
-      metadata: { dues_level: 'honorary', note: 'kept' },
+      metadata: { dues_level: 'honorary', note: 'dropped', userId: 'evil' },
     });
 
-    expect(h.rowCalls[0]?.metadata).toEqual({
-      note: 'kept',
-      dues_level: 'regular',
-    });
-    expect(h.providerCalls[0]?.metadata).toEqual({
-      note: 'kept',
-      dues_level: 'regular',
-    });
+    expect(h.rowCalls[0]?.metadata).toEqual({ dues_level: 'regular' });
+    expect(h.providerCalls[0]?.metadata).toEqual({ dues_level: 'regular' });
   });
 
   it('refuses a sign-in with no member record', async () => {
@@ -250,6 +249,27 @@ describe('createPaymentAction: donations', () => {
       description: 'Building fund',
     });
   });
+
+  it.each([
+    [49, false],
+    [50, true],
+  ])(
+    'enforces the 50-cent minimum on the server (%i cents)',
+    async (amount, ok) => {
+      const call = createPaymentAction({
+        payment_type: 'donation',
+        amount,
+        currency: 'usd',
+      });
+
+      if (ok) {
+        await expect(call).resolves.toBeDefined();
+      } else {
+        await expect(call).rejects.toThrow();
+        expect(h.rowCalls).toHaveLength(0);
+      }
+    },
+  );
 
   it('rejects a donation with no amount', async () => {
     await expect(

@@ -33,4 +33,19 @@ describe('CreatePaymentSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('donations and event fees must be whole cents, at least 50', () => {
+    for (const payment_type of ['donation', 'event_fee'] as const) {
+      const parse = (amount: number) =>
+        CreatePaymentSchema.safeParse({
+          payment_type,
+          amount,
+          currency: 'usd',
+        });
+
+      expect(parse(49).success).toBe(false);
+      expect(parse(50.5).success).toBe(false);
+      expect(parse(50).success).toBe(true);
+    }
+  });
 });
