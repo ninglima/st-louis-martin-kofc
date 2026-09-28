@@ -514,9 +514,10 @@ export type Database = {
       dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
       // HAND-CORRECTED, do not regenerate away: same generator limitation as
       // members_list above. check_number is null except for method = 'check';
-      // recorded_by_email is null when recorded_by is null (set null on user
-      // delete) or the period predates recorded_by; voided_at/void_reason are
-      // null until the period is voided.
+      // recorded_by_email is null when recorded_by is null, which only online
+      // periods created by the payments trigger are (the recorded_by FK is on
+      // delete restrict, so a recorder's user cannot be deleted from under a
+      // period); voided_at/void_reason are null until the period is voided.
       member_dues_ledger: {
         Args: { p_member_id: string }
         Returns: {
