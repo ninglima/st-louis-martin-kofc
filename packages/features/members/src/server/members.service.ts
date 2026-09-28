@@ -164,6 +164,13 @@ export class MembersService {
    * nothing to decrypt at all. It returns `null` rather than throwing on a
    * missing id -- the caller (the page) turns that into `notFound()`, which
    * is a normal outcome and not an error.
+   *
+   * A malformed id (not a uuid at all) is treated the same way: Postgres
+   * raises `22P02` ("invalid input syntax for type uuid") for `.eq('id',
+   * ...)` on a non-uuid string, and a typo'd or truncated link is exactly as
+   * ordinary an outcome as a well-formed id that no longer exists. The page
+   * validates the id before ever calling this, so this branch is a second
+   * line of defence for any other caller that does not.
    */
   async getMember(id: string): Promise<MemberDetail | null> {
     const { data, error } = await this.client
@@ -172,7 +179,10 @@ export class MembersService {
       .eq('id', id)
       .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '22P02') return null;
+      throw new Error(error.message);
+    }
     if (!data) return null;
 
     return {

@@ -23,8 +23,14 @@ export const IsoDate = z
  * payment entered late in the evening Central time is never rejected as "in
  * the future" purely because UTC has already rolled to the next calendar
  * day.
+ *
+ * Exported so `RecordPaymentForm` can default and cap its "received on"
+ * input to the same day this schema judges "today" by -- the browser's own
+ * local date would default the form to "tomorrow", and then reject its own
+ * default, for an FS signed in from east of Central in the last hour or so
+ * of the Chicago day.
  */
-function chicagoToday(): string {
+export function chicagoToday(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Chicago',
     year: 'numeric',

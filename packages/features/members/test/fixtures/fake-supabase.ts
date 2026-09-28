@@ -45,7 +45,7 @@ export type Interaction =
 export interface FakeClientOptions {
   /** Rows returned by `from('members').select(...)`. */
   rows?: Record<string, unknown>[];
-  selectError?: { message: string };
+  selectError?: { message: string; code?: string };
   /**
    * Per-call result for `rpc()`, keyed by call order; default is success. The
    * permission probe is not counted, so indexes line up with the member rows.

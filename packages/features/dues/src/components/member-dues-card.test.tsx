@@ -80,6 +80,7 @@ function render(
       levels={LEVELS}
       canManage={options.canManage ?? false}
       memberId="6f1c1b1e-1111-4111-8111-111111111111"
+      memberName="Jane Member"
     />,
   );
 }
@@ -111,6 +112,22 @@ describe('MemberDuesCard', () => {
     const html = render();
 
     expect(html).toContain('$58.00');
+  });
+
+  it('prices the header off summary.amountCents, even for a level not in the active list', () => {
+    // A member left on a deactivated level: `levels` (only active ones) has
+    // no entry for it, so a lookup-based price would go missing even though
+    // `summary.amountCents` already carries the right number.
+    const html = render({
+      summaryOverrides: {
+        duesLevel: 'retired_level',
+        levelName: 'Retired Level',
+        amountCents: 999,
+      },
+    });
+
+    expect(html).toContain('$9.99');
+    expect(html).toContain('Retired Level');
   });
 
   it('hides every management control without canManage', () => {
@@ -191,5 +208,36 @@ describe('MemberDuesCard', () => {
     });
 
     expect(html).toContain('Check #1042');
+  });
+
+  it('gives the empty actions column header an sr-only label', () => {
+    const html = render({ canManage: true });
+
+    expect(html).toContain('sr-only');
+    expect(html).toContain('Actions');
+  });
+
+  it("names each Void button with that row's covered period", () => {
+    const html = render({
+      canManage: true,
+      ledger: [
+        ledgerRow({
+          voidedAt: null,
+          periodStart: '2026-01-01',
+          periodEnd: '2026-12-31',
+        }),
+      ],
+    });
+
+    expect(html).toContain('aria-label="Void period 2026-01-01 → 2026-12-31"');
+  });
+
+  it('does not show the level-change confirmation dialog until a new level is picked', () => {
+    // `AlertDialog` is always in the tree (Base UI mounts its Popup lazily
+    // while closed), so the confirm/cancel hooks must not leak into a
+    // fresh render before the FS has touched the Select.
+    const html = render({ canManage: true });
+
+    expect(html).not.toContain('data-test="dues-level-confirm"');
   });
 });

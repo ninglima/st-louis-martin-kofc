@@ -4,6 +4,16 @@ import { useState, useTransition } from 'react';
 
 import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@kit/ui/alert-dialog';
 import { Button } from '@kit/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 import { If } from '@kit/ui/if';
@@ -72,20 +82,27 @@ export function MemberDuesCard({
   levels,
   canManage,
   memberId,
+  memberName,
 }: {
   summary: MemberDuesSummary;
   ledger: DuesLedgerRow[];
   levels: DuesLevel[];
   canManage: boolean;
   memberId: string;
+  memberName: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [acceptedOnDraft, setAcceptedOnDraft] = useState(
     summary.acceptedOn ?? '',
   );
+  // The level the FS just picked from the `Select`, held here only until
+  // they confirm or cancel the `AlertDialog`. The `Select` itself stays
+  // bound to `summary.duesLevel` (the committed, server-sent value) the
+  // whole time, so a cancel needs no explicit revert -- there was never
+  // anything for it to have changed.
+  const [pendingLevel, setPendingLevel] = useState<string | null>(null);
 
   const hasActivePeriod = ledger.some((row) => row.voidedAt === null);
-  const level = levels.find((l) => l.slug === summary.duesLevel);
 
   const onSaveAcceptedOn = () => {
     if (!acceptedOnDraft) return;
@@ -106,21 +123,20 @@ export function MemberDuesCard({
 
   const onChangeLevel = (next: string | null) => {
     const nextLevel = levels.find((l) => l.slug === next);
-    if (!nextLevel || next === null) return;
+    if (!nextLevel || next === null || next === summary.duesLevel) return;
 
-    // The brief's confirmation text names the member ("Change {name}'s
-    // dues level..."), but `MemberDuesCard`'s props (as specified) carry no
-    // member name -- only `summary`, `ledger`, `levels`, `canManage` and
-    // `memberId`. "This member" says the same thing without a name this
-    // component was never given.
-    const confirmed = window.confirm(
-      `Change this member's dues level to ${nextLevel.name}?`,
-    );
+    setPendingLevel(next);
+  };
 
-    if (!confirmed) return;
+  const pendingLevelName = levels.find((l) => l.slug === pendingLevel)?.name;
+
+  const confirmLevelChange = () => {
+    const level = pendingLevel;
+    setPendingLevel(null);
+    if (!level) return;
 
     startTransition(async () => {
-      const result = await setDuesLevelAction({ memberId, level: next });
+      const result = await setDuesLevelAction({ memberId, level });
 
       if (result.success) {
         toast.success('Dues level updated.');
@@ -162,8 +178,7 @@ export function MemberDuesCard({
           </span>
 
           <span className="text-sm">
-            {summary.levelName}
-            {level ? ` — ${formatAmountCents(level.amountCents)}` : null}
+            {summary.levelName} — {formatAmountCents(summary.amountCents)}
           </span>
 
           <span className="text-muted-foreground text-sm">
@@ -200,7 +215,11 @@ export function MemberDuesCard({
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-y-1">
                 <Label htmlFor="dues-level">Level</Label>
-                <Select value={summary.duesLevel} onValueChange={onChangeLevel}>
+                <Select
+                  value={summary.duesLevel}
+                  onValueChange={onChangeLevel}
+                  disabled={isPending}
+                >
                   <SelectTrigger id="dues-level" data-test="dues-level-select">
                     <SelectValue>
                       {(value: string | null) =>
@@ -246,6 +265,33 @@ export function MemberDuesCard({
           </div>
         </If>
 
+        <AlertDialog
+          open={pendingLevel !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingLevel(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Change dues level</AlertDialogTitle>
+              <AlertDialogDescription>
+                Change {memberName}&apos;s dues level to {pendingLevelName}?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-test="dues-level-cancel">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                data-test="dues-level-confirm"
+                onClick={confirmLevelChange}
+              >
+                Change level
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <div className="rounded-lg border">
           <Table>
             <TableHeader>
@@ -257,7 +303,9 @@ export function MemberDuesCard({
                 <TableHead>Covers</TableHead>
                 <TableHead>Recorded by</TableHead>
                 <If condition={canManage}>
-                  <TableHead />
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </If>
               </TableRow>
             </TableHeader>
@@ -310,7 +358,11 @@ export function MemberDuesCard({
                             </span>
                           }
                         >
-                          <VoidPeriodButton periodId={row.id} />
+                          <VoidPeriodButton
+                            periodId={row.id}
+                            periodStart={row.periodStart}
+                            periodEnd={row.periodEnd}
+                          />
                         </If>
                       </TableCell>
                     </If>

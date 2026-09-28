@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 
+import * as z from 'zod';
+
 import { MemberDuesCard } from '@kit/dues/components/member-dues-card';
 import { DuesService } from '@kit/dues/server/dues.service';
 import { MembersService } from '@kit/members/server/members.service';
@@ -35,6 +37,16 @@ async function MemberDetailPage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('members', 'view');
 
   const { id } = await props.params;
+
+  // A malformed id (a typo'd link, a truncated one) must read as "no such
+  // member", not as a crash: `.eq('id', id)` on a non-uuid string makes
+  // Postgres raise 22P02 ("invalid input syntax for type uuid"), which
+  // `getMember` would otherwise surface as a thrown error and send this page
+  // to the error boundary instead of `notFound()`. Checked before any read.
+  if (!z.string().uuid().safeParse(id).success) {
+    notFound();
+  }
+
   const permissions = await getCurrentPermissions();
 
   const membersService = new MembersService(getSupabaseServerClient());
@@ -122,6 +134,7 @@ async function MemberDetailPage(props: { params: Promise<{ id: string }> }) {
                 levels={loaded.levels}
                 canManage={loaded.canManage}
                 memberId={id}
+                memberName={member.fullName}
               />
             )}
           </If>

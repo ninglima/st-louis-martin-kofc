@@ -37,7 +37,7 @@ import {
 
 import { formatAmountCents } from '../lib/format-amount';
 import { periodPreview } from '../lib/period-preview';
-import { RecordPaymentSchema } from '../schemas';
+import { chicagoToday, RecordPaymentSchema } from '../schemas';
 import { recordDuesPaymentAction } from '../server/dues-actions';
 import type { DuesLevel, DuesMethodFs } from '../types';
 
@@ -47,19 +47,6 @@ const METHOD_LABELS: Record<DuesMethodFs, string> = {
   waived: 'Waived',
 };
 
-/** The browser's own local date, as `YYYY-MM-DD` -- never the server's or
- * UTC's idea of "today". `RecordPaymentSchema` compares this against
- * America/Chicago separately (see `schemas.ts`); this is only ever the
- * form's starting point, and the officer can still change it. */
-function localToday(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
 type RecordPaymentValues = z.infer<typeof RecordPaymentSchema>;
 
 function buildDefaultValues(memberId: string, defaultLevel: string) {
@@ -67,7 +54,7 @@ function buildDefaultValues(memberId: string, defaultLevel: string) {
     memberId,
     level: defaultLevel,
     method: 'check' as DuesMethodFs,
-    receivedOn: localToday(),
+    receivedOn: chicagoToday(),
     checkNumber: '',
   };
 }
@@ -247,6 +234,7 @@ export function RecordPaymentForm({
                     <Input
                       data-test="record-payment-received-on"
                       type="date"
+                      max={chicagoToday()}
                       {...field}
                     />
                   </FormControl>

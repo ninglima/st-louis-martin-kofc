@@ -314,6 +314,24 @@ describe('MembersService.getMember', () => {
       ),
     ).rejects.toThrow('permission denied');
   });
+
+  it('returns null rather than throwing when the id is not a uuid at all (22P02)', async () => {
+    // The page validates the id before calling this, but a malformed id
+    // reaching this method by some other path (a caller that skips that
+    // check) must read the same as "no such member" -- not as a 500.
+    const fake = fakeClient({
+      selectError: {
+        message: 'invalid input syntax for type uuid: "not-a-uuid"',
+        code: '22P02',
+      },
+    });
+
+    const member = await new MembersService(fake.client).getMember(
+      'not-a-uuid',
+    );
+
+    expect(member).toBeNull();
+  });
 });
 
 describe('MembersService.cities', () => {

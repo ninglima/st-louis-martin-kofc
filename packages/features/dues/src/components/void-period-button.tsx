@@ -37,7 +37,18 @@ type VoidPeriodValues = z.infer<typeof VoidPeriodSchema>;
  * `voided_at`, never deletes the row -- so a reason is required and shown
  * with the struck-through row from then on.
  */
-export function VoidPeriodButton({ periodId }: { periodId: string }) {
+export function VoidPeriodButton({
+  periodId,
+  periodStart,
+  periodEnd,
+}: {
+  periodId: string;
+  /** The covered period, only for the button's accessible name -- every
+   * row's Void button would otherwise announce as just "Void", with
+   * nothing to tell one row's control apart from another's. */
+  periodStart: string;
+  periodEnd: string;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -70,7 +81,12 @@ export function VoidPeriodButton({ periodId }: { periodId: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="sm" data-test="void-period">
+          <Button
+            variant="outline"
+            size="sm"
+            data-test="void-period"
+            aria-label={`Void period ${periodStart} → ${periodEnd}`}
+          >
             Void
           </Button>
         }
