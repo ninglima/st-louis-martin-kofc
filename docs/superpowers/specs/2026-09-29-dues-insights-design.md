@@ -88,8 +88,8 @@ These terms apply throughout:
 
 - **Renewal rate for year `Y`:**
   - **Denominator:** non-honorary members with an active period whose `period_end` falls in `Y`, counting each member's latest such period.
-  - **Numerator:** those with an active period starting in `[period_end, period_end + 90]`, or starting any time before `period_end + 90` and ending after `period_end`. Early renewals count.
-  - For the current year, only periods whose grace window has already closed (`period_end + 90 ≤ today`) are counted.
+  - **Numerator:** those with a later active period (`period_start ≥ period_end`) whose `received_on ≤ period_end + 90`. Periods are anchored at the previous end, so the received date, not the start date, tells a late payment from an on-time one. Early renewals count.
+  - For the current year, only periods whose grace window has already closed (`period_end + 90 < today`) are counted.
   - When the denominator is 0, show "—".
 - **New lapses per month:** non-honorary members whose `paid_through + 90` falls in that calendar month without a renewal in the grace window, for each month of the last 5 years up to today.
 

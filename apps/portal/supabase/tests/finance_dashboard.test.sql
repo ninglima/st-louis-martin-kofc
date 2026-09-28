@@ -104,8 +104,8 @@ select is(
      from kit.finance_follow_up_at('2030-01-15') with ordinality
           as f(member_id, first_name, last_name, membership_number, dues_status, paid_through, level_name, amount_cents, ord)
     where f.membership_number like 'FS-%'),
-  array['FS-HON', 'FS-LAPSED', 'FS-DUE', 'FS-SOON'],
-  'follow-up: lapsed by paid-through, then due, then due within 30 days');
+  array['FS-DUE', 'FS-SOON'],
+  'follow-up: due, then due within 30 days (lapsed members are on the Lapses tab)');
 
 -- payments to check
 select tests.make_user('fd-payer@example.com', 'member') as payer \gset

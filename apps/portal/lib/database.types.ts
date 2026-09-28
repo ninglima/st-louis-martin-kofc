@@ -583,6 +583,7 @@ export type Database = {
     }
     Functions: {
       dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
+      finance_collection_progress: { Args: { p_year: number }; Returns: Json }
       finance_dashboard: { Args: { p_year: number }; Returns: Json }
       // HAND-CORRECTED, do not regenerate away: paid_through is null until
       // the first dues period is recorded.
@@ -597,6 +598,44 @@ export type Database = {
           member_id: string
           membership_number: string
           paid_through: string | null
+        }[]
+      }
+      // HAND-CORRECTED, do not regenerate away: paid_through is null until
+      // the first dues period is recorded.
+      finance_forecast_members: {
+        Args: { p_month: string }
+        Returns: {
+          amount_cents: number
+          first_name: string
+          last_name: string
+          level_name: string
+          member_id: string
+          membership_number: string
+          paid_through: string | null
+        }[]
+      }
+      finance_lapse_aging: {
+        Args: never
+        Returns: {
+          bucket: string
+          cents: number
+          members: number
+        }[]
+      }
+      // HAND-CORRECTED, do not regenerate away: last_paid_on is null when
+      // the member has no active dues period at all.
+      finance_lapsed_members: {
+        Args: never
+        Returns: {
+          amount_cents: number
+          bucket: string
+          days_unpaid: number
+          first_name: string
+          last_name: string
+          last_paid_on: string | null
+          level_name: string
+          member_id: string
+          membership_number: string
         }[]
       }
       finance_net_by_year: {
@@ -622,6 +661,15 @@ export type Database = {
           provider: string
         }[]
       }
+      finance_renewals_forecast: {
+        Args: never
+        Returns: {
+          cents: number
+          members: number
+          month: string
+        }[]
+      }
+      finance_retention: { Args: never; Returns: Json }
       hosting_cost_delete: { Args: { p_id: string }; Returns: undefined }
       hosting_cost_latest: {
         Args: never
