@@ -27,6 +27,8 @@
     "supabase:web:stop": "pnpm --filter portal supabase:stop",
     "supabase:web:typegen": "pnpm --filter portal supabase:typegen",
     "supabase:web:reset": "pnpm --filter portal supabase:reset",
+    "stack:up": "LOCAL_SUPABASE_ANON_KEY=$(grep '^NEXT_PUBLIC_SUPABASE_ANON_KEY=' apps/portal/.env.development | cut -d= -f2-) docker compose up --build --detach && echo 'Stack at http://localhost:3000'",
+    "stack:down": "docker compose down",
     "lint": "oxlint",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",

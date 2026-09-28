@@ -1,0 +1,32 @@
+# Build from the repo root: docker build -f apps/router/Dockerfile.dev .
+FROM node:24-slim AS base
+RUN npm install -g pnpm@11.18.0 turbo@2.10.8
+
+FROM base AS prune
+WORKDIR /repo
+COPY . .
+# `scripts` is named for the same reason as in apps/portal/Dockerfile: the
+# root preinstall runs it, and pruning it away breaks --frozen-lockfile.
+RUN turbo prune router site scripts --docker
+
+FROM base AS run
+WORKDIR /repo
+COPY --from=prune /repo/out/json/ .
+# The root preinstall executes tooling/scripts, which only `out/full` carries.
+COPY --from=prune /repo/out/full/tooling/scripts ./tooling/scripts
+RUN CI=true pnpm install --frozen-lockfile
+COPY --from=prune /repo/out/full/ .
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# NEXT_PUBLIC_CI relaxes @kit/brand's HTTPS-only NEXT_PUBLIC_SITE_URL check,
+# as the portal's compose build does, so the site builds for http://localhost.
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_PUBLIC_SITE_URL=http://localhost:3000 \
+    NEXT_PUBLIC_PORTAL_URL= \
+    NEXT_PUBLIC_CI=true \
+    NEXT_TELEMETRY_DISABLED=1
+RUN cd apps/site && pnpm exec next build
+WORKDIR /repo/apps/router
+EXPOSE 3000
+CMD ["sh", "-c", "pnpm exec wrangler dev --ip 0.0.0.0 --port 3000 --var PORTAL_ORIGIN:http://portal:8080 --var ORIGIN_AUTH:local-stack --var SIMULATE_COLD_START_MS:${SIMULATE_COLD_START_MS:-0}"]

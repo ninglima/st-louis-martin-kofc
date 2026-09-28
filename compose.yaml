@@ -1,0 +1,47 @@
+# Production-like local stack: `pnpm stack:up`, then http://localhost:3000.
+# Supabase is NOT in here. It is the CLI-managed stack
+# (`pnpm supabase:web:start`), reached from the containers via
+# host.docker.internal.
+name: kofc
+
+x-supabase-public: &supabase-public
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${LOCAL_SUPABASE_ANON_KEY}
+
+services:
+  portal:
+    build:
+      context: .
+      dockerfile: apps/portal/Dockerfile
+      args:
+        <<: *supabase-public
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        NEXT_PUBLIC_CI: 'true'
+        # /version is prerendered at build time, so the hash is a build arg.
+        GIT_HASH: local
+    env_file: apps/portal/.env.development
+    environment:
+      ORIGIN_AUTH: local-stack
+      GIT_HASH: local
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
+  # The browser reaches Supabase at 127.0.0.1:54321 on the host. The portal's
+  # server code uses the same baked-in URL, so inside the portal's network
+  # namespace this sidecar makes 127.0.0.1:54321 lead to the host's Supabase.
+  supabase-bridge:
+    image: alpine/socat:1.8.0.3
+    network_mode: service:portal
+    command: TCP-LISTEN:54321,fork,reuseaddr TCP:host.docker.internal:54321
+    depends_on: [portal]
+
+  router:
+    build:
+      context: .
+      dockerfile: apps/router/Dockerfile.dev
+      args: *supabase-public
+    environment:
+      SIMULATE_COLD_START_MS: ${SIMULATE_COLD_START_MS:-0}
+    ports:
+      - '3000:3000'
+    depends_on: [portal]
