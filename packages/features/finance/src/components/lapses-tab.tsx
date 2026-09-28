@@ -26,6 +26,12 @@ export function LapsesTab({
 }) {
   return (
     <div className="flex flex-col gap-6">
+      <p
+        className="text-muted-foreground text-sm"
+        data-test="lapses-explanation"
+      >
+        Lapsed here means unpaid today, from day 1.
+      </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {buckets.map((b) => (
           <Card key={b.bucket} data-test={`lapses-bucket-${b.bucket}`}>

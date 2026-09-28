@@ -413,7 +413,7 @@ export function LapsesByMonthChart({
   return (
     <Card data-test="retention-lapses-chart">
       <CardHeader>
-        <CardTitle>New lapses per month</CardTitle>
+        <CardTitle>Members not renewed within 90 days, per month</CardTitle>
       </CardHeader>
       <CardContent>
         {isEmpty ? (
