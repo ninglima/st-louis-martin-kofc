@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BUCKET_LABELS,
+  hasCollectedDues,
+  monthYearHeading,
   progressLabel,
   toAgingChartData,
   toForecastChartData,
@@ -65,5 +67,26 @@ describe('insights data', () => {
     expect(toLapsesByMonthData([{ month: '2038-11-01', lapses: 2 }])).toEqual([
       { month: "Nov '38", lapses: 2 },
     ]);
+  });
+
+  it('tells whether any dues were actually collected', () => {
+    expect(hasCollectedDues([])).toBe(false);
+    expect(
+      hasCollectedDues([
+        { month: '2040-07-01', cents: 0, cumulativeCents: 0 },
+        { month: '2040-08-01', cents: 0, cumulativeCents: null },
+      ]),
+    ).toBe(false);
+    expect(
+      hasCollectedDues([
+        { month: '2040-07-01', cents: 0, cumulativeCents: 0 },
+        { month: '2040-08-01', cents: 10800, cumulativeCents: 10800 },
+      ]),
+    ).toBe(true);
+  });
+
+  it('formats a full month and year for the drill-down heading', () => {
+    expect(monthYearHeading('2026-10-01')).toBe('October 2026');
+    expect(monthYearHeading('2026-01-01')).toBe('January 2026');
   });
 });

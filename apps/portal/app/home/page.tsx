@@ -172,10 +172,6 @@ async function OverviewTab({
 
   return (
     <>
-      <YearPicker
-        year={current}
-        options={yearOptions(current, net[0]?.year ?? current)}
-      />
       <HeadlineCards dashboard={dashboard} showHosting={showHosting} />
       <div className="grid gap-4 lg:grid-cols-2">
         <DuesByMonthChart rows={dashboard.duesByMonth} />

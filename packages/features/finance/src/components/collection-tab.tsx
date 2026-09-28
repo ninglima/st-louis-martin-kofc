@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@kit/ui/table';
 
-import { progressLabel } from '../lib/insights-data';
+import { monthYearHeading, progressLabel } from '../lib/insights-data';
 import type {
   CollectionProgress,
   ForecastMember,
@@ -104,7 +104,7 @@ export function CollectionTab({
       {month ? (
         <Card data-test="collection-forecast-members">
           <CardHeader>
-            <CardTitle>Coming due in {month.slice(0, 7)}</CardTitle>
+            <CardTitle>Coming due in {monthYearHeading(month)}</CardTitle>
           </CardHeader>
           <CardContent>
             {monthMembers.length === 0 ? (

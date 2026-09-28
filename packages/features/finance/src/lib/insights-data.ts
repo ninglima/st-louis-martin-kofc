@@ -10,12 +10,44 @@ import type {
 
 const dollars = (cents: number) => cents / 100;
 
+const FULL_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
 export const BUCKET_LABELS: Record<AgingBucketKey, string> = {
   '1-30': '1–30 days',
   '31-90': '31–90 days',
   '91-180': '91–180 days',
   '181+': '181+ days',
 };
+
+/** `true` when any month has actually collected dues, so the running-total
+ * chart can tell "nothing recorded yet" apart from "every month is $0 on
+ * the axis." A `null` `cumulativeCents` means the month hasn't happened
+ * yet, so it doesn't count as collected either. */
+export function hasCollectedDues(rows: CollectionProgress['byMonth']): boolean {
+  return rows.some((r) => (r.cumulativeCents ?? 0) > 0);
+}
+
+/** "October 2026", for the coming-due drill-down heading. `iso` is a
+ * `YYYY-MM-01` month key. */
+export function monthYearHeading(iso: string): string {
+  const monthIndex = Number(iso.slice(5, 7)) - 1;
+  const year = iso.slice(0, 4);
+
+  return `${FULL_MONTHS[monthIndex] ?? iso} ${year}`;
+}
 
 export function progressLabel(renewed: number, expected: number): string {
   return expected === 0 ? '—' : `${Math.round((renewed / expected) * 100)}%`;

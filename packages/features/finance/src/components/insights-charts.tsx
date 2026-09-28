@@ -22,6 +22,7 @@ import {
 
 import { moneyTooltipFormatter } from './finance-charts';
 import {
+  hasCollectedDues,
   toAgingChartData,
   toForecastChartData,
   toLapsesByMonthData,
@@ -72,7 +73,7 @@ export function RunningTotalChart({
         <CardTitle>Collected so far vs. expected</CardTitle>
       </CardHeader>
       <CardContent>
-        {rows.length === 0 ? (
+        {!hasCollectedDues(rows) ? (
           <p className="text-muted-foreground text-sm">
             No dues recorded this year.
           </p>
@@ -214,12 +215,15 @@ export function ForecastChart({
                 />
               </BarChart>
             </ChartContainer>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm">
+              <label
+                htmlFor="forecast-month-select"
+                className="text-muted-foreground"
+              >
                 Show members for month
-              </span>
+              </label>
               <select
-                aria-label="Show members for month"
+                id="forecast-month-select"
                 className="border-input bg-background rounded-md border px-2 py-1 text-sm"
                 value={selected ?? ''}
                 onChange={(e) => {
@@ -233,7 +237,7 @@ export function ForecastChart({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           </>
         )}
       </CardContent>
@@ -342,6 +346,7 @@ function retentionTooltipFormatter(
 
 export function RetentionRateChart({ years }: { years: Retention['years'] }) {
   const data = toRetentionRateData(years);
+  const isEmpty = years.every((y) => y.eligible === 0);
 
   return (
     <Card data-test="retention-rate-chart">
@@ -349,39 +354,45 @@ export function RetentionRateChart({ years }: { years: Retention['years'] }) {
         <CardTitle>Renewal rate (renewed within 90 days)</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer
-          config={RETENTION_RATE_CONFIG}
-          className="aspect-auto h-64 w-full"
-        >
-          <LineChart accessibilityLayer data={data}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="year"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-            />
-            <YAxis
-              domain={[0, 100]}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              tickFormatter={(value: number) => `${value}%`}
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent formatter={retentionTooltipFormatter} />
-              }
-            />
-            <Line
-              dataKey="rate"
-              type="monotone"
-              stroke="var(--color-rate)"
-              strokeWidth={2}
-              connectNulls={false}
-            />
-          </LineChart>
-        </ChartContainer>
+        {isEmpty ? (
+          <p className="text-muted-foreground text-sm">
+            Not enough renewal history yet.
+          </p>
+        ) : (
+          <ChartContainer
+            config={RETENTION_RATE_CONFIG}
+            className="aspect-auto h-64 w-full"
+          >
+            <LineChart accessibilityLayer data={data}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="year"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                tickFormatter={(value: number) => `${value}%`}
+              />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent formatter={retentionTooltipFormatter} />
+                }
+              />
+              <Line
+                dataKey="rate"
+                type="monotone"
+                stroke="var(--color-rate)"
+                strokeWidth={2}
+                connectNulls={false}
+              />
+            </LineChart>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );
