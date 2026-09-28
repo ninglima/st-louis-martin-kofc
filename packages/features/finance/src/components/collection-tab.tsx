@@ -59,6 +59,9 @@ export function CollectionSummary({
           <div className="text-2xl font-semibold">
             {formatAmountCents(progress.collectedCents)}
           </div>
+          <p className="text-muted-foreground text-xs">
+            All dues received this year, including honorary
+          </p>
         </CardContent>
       </Card>
       <Card data-test="collection-expected">
@@ -72,7 +75,7 @@ export function CollectionSummary({
             {formatAmountCents(progress.expectedCents)}
           </div>
           <p className="text-muted-foreground text-xs">
-            At each expected member's current level
+            Excluding honorary, at each expected member's current level
           </p>
         </CardContent>
       </Card>
