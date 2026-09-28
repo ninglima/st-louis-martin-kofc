@@ -55,5 +55,6 @@ end $$;
 -- schema tests" before it ever reaches the behaviour under test.
 grant usage on schema tests to authenticated;
 grant execute on function tests.act_as(uuid) to authenticated;
+grant execute on function tests.act_as_service() to authenticated;
 grant execute on function tests.make_member(text, uuid) to authenticated;
 grant execute on function tests.make_user(text, text) to authenticated;

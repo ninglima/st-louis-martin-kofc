@@ -153,6 +153,77 @@ export type Database = {
           },
         ]
       }
+      hosting_costs: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_on: string
+          period_end: string
+          period_start: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_on: string
+          period_end: string
+          period_start: string
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_on?: string
+          period_end?: string
+          period_start?: string
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hosting_costs_provider_fkey"
+            columns: ["provider"]
+            isOneToOne: false
+            referencedRelation: "hosting_providers"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      hosting_providers: {
+        Row: {
+          active: boolean
+          name: string
+          slug: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          name: string
+          slug: string
+          sort_order: number
+        }
+        Update: {
+          active?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       members: {
         Row: {
           accepted_on: string | null
@@ -512,6 +583,96 @@ export type Database = {
     }
     Functions: {
       dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
+      hosting_cost_delete: { Args: { p_id: string }; Returns: undefined }
+      hosting_cost_latest: {
+        Args: never
+        Returns: {
+          amount_cents: number
+          period_end: string
+          period_start: string
+          provider: string
+        }[]
+      }
+      hosting_cost_overlaps: {
+        Args: {
+          p_exclude_id?: string
+          p_period_end: string
+          p_period_start: string
+          p_provider: string
+        }
+        Returns: string[]
+      }
+      hosting_cost_repeat_last: {
+        Args: { p_provider: string }
+        Returns: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_on: string
+          period_end: string
+          period_start: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hosting_costs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      hosting_cost_upsert: {
+        Args: {
+          p_amount_cents: number
+          p_id?: string
+          p_note?: string
+          p_paid_on: string
+          p_period_end: string
+          p_period_start: string
+          p_provider: string
+        }
+        Returns: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_on: string
+          period_end: string
+          period_start: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hosting_costs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      // HAND-CORRECTED, do not regenerate away: note is optional on a bill;
+      // recorded_by_email is null when neither updated_by nor created_by
+      // resolves to a user (the FKs are on delete restrict, so this is only
+      // possible before any write, which cannot happen here).
+      hosting_costs_list: {
+        Args: { p_year: number }
+        Returns: {
+          amount_cents: number
+          id: string
+          note: string | null
+          paid_on: string
+          period_end: string
+          period_start: string
+          provider: string
+          provider_name: string
+          recorded_by_email: string | null
+          updated_at: string
+        }[]
+      }
       // HAND-CORRECTED, do not regenerate away: same generator limitation as
       // members_list above. check_number is null except for method = 'check';
       // recorded_by_email is null when recorded_by is null, which only online

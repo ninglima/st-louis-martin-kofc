@@ -72,14 +72,15 @@ functions with `set search_path = ''`. Default privileges for `anon` and
 
 ### Write functions (`finance.manage`)
 
-- `hosting_cost_upsert(p_id uuid, p_provider text, p_amount_cents int, p_paid_on date, p_period_start date, p_period_end date, p_note text) returns public.hosting_costs`:
+- `hosting_cost_upsert(p_provider text, p_amount_cents integer, p_paid_on date, p_period_start date, p_period_end date, p_note text default null, p_id uuid default null) returns public.hosting_costs`:
   insert when `p_id` is null, otherwise update. It validates the provider (active), the amount (≥ 0), the dates (`period_end > period_start`, span at most 3 years) and the note length. It raises P0001 with a readable message.
 - `hosting_cost_delete(p_id uuid) returns void`
-- `hosting_cost_repeat_last(p_provider text) returns public.hosting_costs`: copies that provider's bill with the latest `period_end`. The new period starts at that end and has the same length in days, and `paid_on` is today (America/Chicago). It raises P0001 if the provider has no bills.
+- `hosting_cost_repeat_last(p_provider text) returns public.hosting_costs`: copies that provider's bill with the latest `period_end`. The new period starts at that end and has the same length in days, and `paid_on` is today (America/Chicago). It raises P0001 if the provider has no bills. A bill whose start and end fall on the same day of the month repeats by the same number of calendar months (Oct 1 → Nov 1 becomes Nov 1 → Dec 1); any other bill repeats by the same number of days.
 
 ### Read functions (`finance.view`)
 
 - `hosting_costs_list(p_year int)`: bills overlapping the fraternal year (July 1 of `p_year` to July 1 of `p_year + 1`), newest first, with the recorder's email.
+- `hosting_cost_latest()`: Each provider's bill with the latest end, used to preview Repeat last bill.
 - `hosting_cost_overlaps(p_provider text, p_period_start date, p_period_end date, p_exclude_id uuid)`: ids of that provider's bills overlapping the range, for the overlap warning.
 
 ## Calculations
