@@ -1,4 +1,4 @@
-![Makerkit - Next.js Supabase SaaS Starter Kit \[Lite version\]](apps/portal/public/images/makerkit.webp)
+![Makerkit - Next.js Supabase SaaS Starter Kit \[Lite version\]](apps/site/public/images/makerkit.webp)
 
 # NEW! Next.js Supabase SaaS Starter Kit (Lite)
 
@@ -177,26 +177,35 @@ Turborepo will cache the results of these commands, so you can run them as many 
 
 ## Project Structure
 
-The project is organized into the following folders:
+The project is split into three deployable apps plus shared packages:
 
 ```
 apps/
-├── web/                  # Next.js application
+├── site/                 # Static marketing site (Cloudflare Workers static assets)
 │   ├── app/             # App Router pages
-│   │   ├── (marketing)/ # Public marketing pages
+│   │   └── (marketing)/ # Public marketing pages
+│   └── public/          # Static assets (images, makerkit.webp, etc.)
+│
+├── portal/               # Next.js application (Cloud Run, scale to zero)
+│   ├── app/             # App Router pages
 │   │   ├── auth/        # Authentication pages
 │   │   └── home/        # Protected app pages
 │   ├── supabase/        # Database & migrations
 │   └── config/          # App configuration
 │
+├── router/               # Cloudflare Worker: serves the site's static
+│                         # assets and proxies portal paths to Cloud Run
+└── e2e/                  # Playwright end-to-end tests
+
 packages/
+├── brand/               # Shared config (portal path prefixes, etc.)
 ├── ui/                  # Shared UI components
 └── features/           # Core feature packages
     ├── auth/           # Authentication logic
     └── ...
 ```
 
-For more information about this project structure, see the article [Next.js App Router: Project Structure](https://makerkit.dev/blog/tutorials/nextjs-app-router-project-structure).
+See [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for how these three apps are deployed and operated together.
 
 ### Environment Variables
 
@@ -219,18 +228,20 @@ Here are the available variables:
 
 ## Architecture
 
-This starter kit uses a monorepo architecture.
+This starter kit uses a monorepo architecture, split into three deployable apps:
 
-1. The `apps/portal` directory is the Next.js application.
-2. The `packages` directory contains all the packages used by the application.
-3. The `packages/features` directory contains all the features of the application.
-4. The `packages/ui` directory contains all the UI components.
+1. The `apps/site` directory is the static marketing site (public pages, statically exported).
+2. The `apps/portal` directory is the Next.js application that requires a server (auth, gated pages, APIs).
+3. The `apps/router` directory is the Cloudflare Worker that serves the site's static assets and proxies portal paths to the portal.
+4. The `packages` directory contains all the packages shared by the apps.
+5. The `packages/features` directory contains all the features of the application.
+6. The `packages/ui` directory contains all the UI components.
 
-For more information about the architecture, please refer to the [Makerkit blog post about Next.js Project Structure](https://makerkit.dev/blog/tutorials/nextjs-app-router-project-structure).
+For more information about the architecture, please refer to the [Makerkit blog post about Next.js Project Structure](https://makerkit.dev/blog/tutorials/nextjs-app-router-project-structure), and to [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for how the three apps are deployed and operated.
 
 ### Marketing Pages
 
-Marketing pages are located in the `apps/portal/app/(marketing)` directory. These pages are used to showcase the features of the SaaS and provide information about the product.
+Marketing pages are located in the `apps/site/app/(marketing)` directory. These pages are used to showcase the features of the SaaS and provide information about the product.
 
 ### Authentication
 
@@ -311,23 +322,24 @@ Please set the callback URL in the Supabase project settings to the following UR
 
 Where `<url>` is the URL of your application.
 
-#### 4. Deploy to Vercel or any other hosting provider
+#### 4. Deploy
 
-You can deploy your application to any hosting provider that supports Next.js.
+See [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for the full deploy and operations runbook (one-time cloud setup, CI/CD, rollback, secret rotation, and the cutover checklist).
 
-#### 5. Deploy to Cloudflare
+## Hosting
 
-The configuration should work as is, but you need to set the runtime to `edge` in the root layout file (`apps/portal/app/layout.tsx`).
+The site is split across three apps:
 
-```tsx
-export const runtime = 'edge';
-```
+- **`apps/site`** — the static marketing site, built with `next build` (static export) and served as static assets by the Cloudflare Worker in `apps/router`.
+- **`apps/portal`** — the authenticated Next.js application (sign-in, gated pages, APIs), deployed as a container to Google Cloud Run, scaling to zero when idle.
+- **`apps/router`** — a Cloudflare Worker that serves `apps/site`'s static assets directly and proxies portal paths (`/auth`, `/home`, `/api`, `/version`, `/update-password`, `/portal-assets`) to the Cloud Run service.
 
-Remember to enable Node.js compatibility in the Cloudflare dashboard.
+For local development:
 
-## Deployment Options
+- `pnpm dev` runs the site and portal directly (site on port 3000, portal on port 3001) against a local Supabase instance started with `pnpm supabase:web:start`.
+- `pnpm stack:up` (and `pnpm stack:down`) runs the full production-like stack (router + portal, built as containers) at [http://localhost:3000](http://localhost:3000).
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/9r-iFh?referralCode=RmCO-Z&utm_medium=integration&utm_source=template&utm_campaign=generic)
+See [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for the full deploy and operations runbook: one-time cloud setup, CI/CD, migrations, rollback, secret rotation, and the cutover checklist.
 
 ## Contributing
 
