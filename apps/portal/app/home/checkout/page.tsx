@@ -8,11 +8,13 @@ import { Skeleton } from '@kit/ui/skeleton';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { DuesService } from '@kit/dues/server/dues.service';
 import { CheckoutForm } from '@kit/payments/components/checkout-form';
 import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import { requirePermission } from '~/lib/server/require-permission';
 
+import type { DuesLevel, MyDuesSummary } from '@kit/dues/types';
 import type { PublicPaymentConfig } from '@kit/payments/types';
 
 /**
@@ -51,16 +53,20 @@ async function CheckoutContent() {
   // The member's own session: `my_dues_summary` answers for `auth.uid()`.
   const dues = new DuesService(getSupabaseServerClient());
 
-  const [{ data: configData }, duesLevels, myDues] = await Promise.all([
+  const [{ data: configData }, duesRead] = await Promise.all([
     adminClient
       .from('payment_config')
       .select(
         'active_provider, stripe_publishable_key, square_application_id, square_location_id, environment',
       )
       .single(),
-    dues.levels(),
-    dues.mySummary(),
+    // Before the dues migrations land (they deploy in parallel with the
+    // app), checkout still works for everything else: no dues option.
+    readDuesIfDeployed(() => Promise.all([dues.levels(), dues.mySummary()])),
   ]);
+
+  const [duesLevels, myDues]: [DuesLevel[], MyDuesSummary | null] =
+    duesRead.deployed ? duesRead.value : [[], null];
 
   const config: PublicPaymentConfig = {
     activeProvider: (configData?.active_provider ??
@@ -75,7 +81,12 @@ async function CheckoutContent() {
   };
 
   return (
-    <CheckoutForm config={config} duesLevels={duesLevels} myDues={myDues} />
+    <CheckoutForm
+      config={config}
+      duesAvailable={duesRead.deployed}
+      duesLevels={duesLevels}
+      myDues={myDues}
+    />
   );
 }
 

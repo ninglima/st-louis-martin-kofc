@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import * as z from 'zod';
 
 import { MemberDuesCard } from '@kit/dues/components/member-dues-card';
+import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { DuesService } from '@kit/dues/server/dues.service';
 import { MembersService } from '@kit/members/server/members.service';
 import { hasPermission } from '@kit/rbac/types';
@@ -152,11 +153,21 @@ async function loadDues(memberId: string, canManage: boolean) {
   // same thing for the roster read above).
   const duesService = new DuesService(getSupabaseServerClient());
 
-  const [summaries, ledger, levels] = await Promise.all([
-    duesService.summaries([memberId]),
-    duesService.ledger(memberId),
-    duesService.levels(),
-  ]);
+  // Before the dues migrations land (they deploy in parallel with the app)
+  // the page is the roster half only: no dues card, not an error.
+  const read = await readDuesIfDeployed(() =>
+    Promise.all([
+      duesService.summaries([memberId]),
+      duesService.ledger(memberId),
+      duesService.levels(),
+    ]),
+  );
+
+  if (!read.deployed) {
+    return null;
+  }
+
+  const [summaries, ledger, levels] = read.value;
 
   const summary = summaries.get(memberId);
 

@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 
 import Link from 'next/link';
 
+import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { DuesService } from '@kit/dues/server/dues.service';
 import { MembersList } from '@kit/members/components/members-list';
 import { parseDuesFilter } from '@kit/members/lib/dues-filter';
@@ -180,9 +181,16 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
   // `member_dues_summary` is `security definer` and gates on
   // `kit.has_permission('finance', 'view')` against `auth.uid()`, so this
   // must run as the signed-in officer, not the admin client.
-  const dues = canSeeDues
-    ? await new DuesService(client).summaries(pageMembers.map((r) => r.id))
-    : undefined;
+  //
+  // `readDuesIfDeployed`: before the dues migrations land (they deploy in
+  // parallel with the app) a finance viewer gets the plain roster -- no dues
+  // columns, no status filter -- exactly as if they lacked the grant.
+  const duesRead = canSeeDues
+    ? await readDuesIfDeployed(() =>
+        new DuesService(client).summaries(pageMembers.map((r) => r.id)),
+      )
+    : null;
+  const dues = duesRead?.deployed ? duesRead.value : undefined;
 
   return (
     <MembersList
@@ -195,7 +203,7 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
       pageSize={PAGE_SIZE}
       hasMore={rows.length > PAGE_SIZE}
       dues={dues}
-      duesFilter={duesFilter}
+      duesFilter={dues ? duesFilter : 'all'}
     />
   );
 }

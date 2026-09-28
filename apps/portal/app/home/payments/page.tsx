@@ -10,6 +10,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 import { MyDuesCard } from '@kit/dues/components/my-dues-card';
+import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { DuesService } from '@kit/dues/server/dues.service';
 import { PaymentHistoryTable } from '@kit/payments/components/payment-history-table';
 import { PaymentService } from '@kit/payments/server/payment.service';
@@ -68,14 +69,20 @@ async function PaymentsContent() {
   // client `/home/checkout` already reads its own summary through.
   const duesService = new DuesService(getSupabaseServerClient());
 
-  const [payments, myDues] = await Promise.all([
+  // `readDuesIfDeployed`: before the dues migrations land (they deploy in
+  // parallel with the app) the page is just the payment history, no card.
+  const [payments, myDuesRead] = await Promise.all([
     paymentService.getPayments(user.id, isAdmin),
-    duesService.mySummary(),
+    readDuesIfDeployed(() => duesService.mySummary()),
   ]);
 
   // No members row linked to this sign-in: not an error, just nothing new
   // on a page every signed-in member can already reach.
-  const myLedger = myDues ? await duesService.myLedger() : [];
+  const myDues = myDuesRead.deployed ? myDuesRead.value : null;
+  const myLedgerRead = myDues
+    ? await readDuesIfDeployed(() => duesService.myLedger())
+    : null;
+  const myLedger = myLedgerRead?.deployed ? myLedgerRead.value : [];
 
   return (
     <div className="flex flex-col gap-y-6">

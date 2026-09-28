@@ -218,6 +218,11 @@ migration integration and the Cloud Run deploy are two independent systems),
 a migration that immediately requires new code to be present would break the
 window between the two.
 
+The reverse holds too: new code must work before its migrations land. Dues
+migrations deploy before or with the app; the app tolerates their absence
+(`readDuesIfDeployed` in `@kit/dues/lib/dues-schema` renders the pages
+without dues until the dues functions and tables exist).
+
 ## 4. Rollback
 
 **Portal (Cloud Run):** shift traffic back to the previous revision:

@@ -91,10 +91,17 @@ type CheckoutFormValues = z.infer<ReturnType<typeof checkoutFormSchema>>;
 
 export function CheckoutForm({
   config,
+  duesAvailable = true,
   duesLevels,
   myDues,
 }: {
   config: PublicPaymentConfig;
+  /**
+   * `false` when the dues schema is not in this database yet (the app can
+   * deploy before the dues migrations): the dues option is not offered at
+   * all, and the form opens on a donation.
+   */
+  duesAvailable?: boolean;
   /** Active levels (`DuesService.levels()`). */
   duesLevels: DuesLevel[];
   /** The member's own summary; `null` when the sign-in has no member row. */
@@ -113,10 +120,12 @@ export function CheckoutForm({
   // `default:` case would (see `payment-settings-form.tsx` for the same
   // pattern applied to `PROVIDER_OPTIONS`/`ENVIRONMENT_OPTIONS`).
   const PAYMENT_TYPE_OPTIONS = [
-    { value: 'dues', label: t('types.dues') },
-    { value: 'donation', label: t('types.donation') },
-    { value: 'event_fee', label: t('types.eventFee') },
-  ] as const;
+    ...(duesAvailable
+      ? [{ value: 'dues' as const, label: t('types.dues') }]
+      : []),
+    { value: 'donation' as const, label: t('types.donation') },
+    { value: 'event_fee' as const, label: t('types.eventFee') },
+  ];
 
   // Same rule the server enforces in `createPaymentAction`.
   const offeredLevels = useMemo(
@@ -139,7 +148,7 @@ export function CheckoutForm({
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      payment_type: 'dues',
+      payment_type: duesAvailable ? 'dues' : 'donation',
       level: defaultLevel,
       amount: 0,
       description: '',
