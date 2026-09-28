@@ -76,3 +76,21 @@ export const StudentSchema = z.object({
   memberId: z.string().uuid(),
   isStudent: z.boolean(),
 });
+
+/**
+ * A single parsed row of the paid-through CSV load, re-validated before it is
+ * sent to `dues_opening_balances_apply`. The client only ever gets a row here
+ * by way of `parsePaidThroughCsv`, but the action never trusts that --
+ * `applyPaidThroughAction` is a Server Action, reachable with any payload a
+ * caller cares to construct.
+ */
+export const PaidThroughRowSchema = z
+  .object({
+    line: z.number().int().positive(),
+    membershipNumber: z.string().trim().min(1),
+    paidThrough: IsoDate,
+    duesLevel: z.string().trim().min(1).optional(),
+  })
+  .strip();
+
+export const PaidThroughRowsSchema = z.array(PaidThroughRowSchema).min(1);

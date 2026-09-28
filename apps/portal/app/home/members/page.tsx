@@ -73,6 +73,7 @@ async function MembersPage(props: { searchParams: Promise<SearchParams> }) {
 
   const permissions = await getCurrentPermissions();
   const canManage = hasPermission(permissions, 'members', 'manage');
+  const canManageDues = hasPermission(permissions, 'finance', 'manage');
 
   return (
     <>
@@ -93,6 +94,22 @@ async function MembersPage(props: { searchParams: Promise<SearchParams> }) {
             render={<Link href={'/home/members/import'} />}
           >
             Import roster
+          </Button>
+        </If>
+
+        {/*
+          Same reasoning as the roster import link above: hidden without
+          `finance.manage`, which is cosmetic since the dues-import page and
+          its actions all re-check the grant themselves.
+        */}
+        <If condition={canManageDues}>
+          <Button
+            data-test="members-dues-import-link"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={'/home/members/dues-import'} />}
+          >
+            Load paid-through dates
           </Button>
         </If>
       </PageHeader>
