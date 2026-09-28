@@ -22,8 +22,12 @@ declare
 begin
   perform kit.assert_finance_manage();
 
-  if p_method not in ('check', 'cash', 'waived') then
+  if p_method is null or p_method not in ('check', 'cash', 'waived') then
     raise exception 'the FS records only check, cash or waived dues';
+  end if;
+
+  if p_received_on is null or p_received_on > current_date then
+    raise exception 'received date is required and cannot be in the future';
   end if;
 
   select * into v_level from public.dues_levels where slug = p_level and active;
@@ -47,7 +51,9 @@ begin
   values
     (p_member_id, p_level,
      case when p_method = 'waived' then 0 else v_level.amount_cents end,
-     p_method, nullif(btrim(p_check_number), ''), p_received_on, v_start, v_start + 365, (select auth.uid()))
+     p_method,
+     case when p_method = 'check' then nullif(btrim(p_check_number), '') end,
+     p_received_on, v_start, v_start + 365, (select auth.uid()))
   returning * into v_row;
 
   update public.members set dues_level = p_level where id = p_member_id and dues_level <> p_level;
@@ -74,11 +80,21 @@ create or replace function public.set_member_accepted_on(p_member_id uuid, p_acc
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   perform kit.assert_finance_manage();
+
+  -- Lock the member row before checking for active periods, so a concurrent
+  -- record_dues_payment either finishes and commits first (and this call
+  -- then correctly sees its period) or blocks behind this transaction.
+  -- Checking the periods before taking the lock let a racing insert land
+  -- after the check passed, breaking the "locked once paid" rule.
+  perform 1 from public.members where id = p_member_id for update;
+  if not found then
+    raise exception 'unknown member';
+  end if;
+
   if exists (select 1 from public.dues_periods where member_id = p_member_id and voided_at is null) then
     raise exception 'the acceptance date cannot change once dues are recorded; void them first';
   end if;
   update public.members set accepted_on = p_accepted_on where id = p_member_id;
-  if not found then raise exception 'unknown member'; end if;
 end $$;
 
 create or replace function public.set_member_dues_level(p_member_id uuid, p_level text)
