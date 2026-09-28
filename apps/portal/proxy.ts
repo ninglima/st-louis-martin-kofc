@@ -6,10 +6,12 @@ import { createMiddlewareClient } from '@kit/supabase/middleware-client';
 
 import pathsConfig from '@kit/brand/config/paths';
 
+import { checkOriginAuth } from '~/lib/origin-lock';
+
 const NEXT_ACTION_HEADER = 'next-action';
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|images|locales|assets|api/*).*)'],
+  matcher: ['/((?!_next/static|_next/image|images|locales|assets).*)'],
 };
 
 const getUser = (request: NextRequest, response: NextResponse) => {
@@ -19,6 +21,20 @@ const getUser = (request: NextRequest, response: NextResponse) => {
 };
 
 export async function proxy(request: NextRequest) {
+  const originAuth = checkOriginAuth(
+    request.headers.get('x-origin-auth'),
+    process.env.ORIGIN_AUTH,
+    process.env.NODE_ENV,
+  );
+
+  if (originAuth === 'misconfigured') {
+    return new NextResponse('Origin lock not configured', { status: 500 });
+  }
+
+  if (originAuth === 'deny') {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const response = NextResponse.next();
 
   // set a unique request ID for each request
