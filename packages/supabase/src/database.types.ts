@@ -583,6 +583,45 @@ export type Database = {
     }
     Functions: {
       dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
+      finance_dashboard: { Args: { p_year: number }; Returns: Json }
+      // HAND-CORRECTED, do not regenerate away: paid_through is null until
+      // the first dues period is recorded.
+      finance_follow_up: {
+        Args: never
+        Returns: {
+          amount_cents: number
+          dues_status: string
+          first_name: string
+          last_name: string
+          level_name: string
+          member_id: string
+          membership_number: string
+          paid_through: string | null
+        }[]
+      }
+      finance_net_by_year: {
+        Args: never
+        Returns: {
+          dues_cents: number
+          hosting_cents: number
+          year: number
+        }[]
+      }
+      // HAND-CORRECTED, do not regenerate away: member_id, member_name and
+      // dues_level are null when the payment has no linked member, or its
+      // metadata names no dues level.
+      finance_payments_to_check: {
+        Args: never
+        Returns: {
+          amount_cents: number
+          created_at: string
+          dues_level: string | null
+          member_id: string | null
+          member_name: string | null
+          payment_id: string
+          provider: string
+        }[]
+      }
       hosting_cost_delete: { Args: { p_id: string }; Returns: undefined }
       hosting_cost_latest: {
         Args: never
