@@ -6,6 +6,8 @@ import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 import pathsConfig from '@kit/brand/config/paths';
 
+import { safeRedirectPath } from '~/lib/safe-redirect-path';
+
 export async function GET(request: NextRequest) {
   const service = createAuthCallbackService(getSupabaseServerClient());
 
@@ -13,5 +15,6 @@ export async function GET(request: NextRequest) {
     redirectPath: pathsConfig.app.home,
   });
 
-  return redirect(nextPath);
+  // `nextPath` is the caller-supplied `next` parameter.
+  return redirect(safeRedirectPath(nextPath, pathsConfig.app.home));
 }

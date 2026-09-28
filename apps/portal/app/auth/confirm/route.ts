@@ -6,6 +6,8 @@ import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
 import pathsConfig from '@kit/brand/config/paths';
 
+import { safeRedirectPath } from '~/lib/safe-redirect-path';
+
 export async function GET(request: NextRequest) {
   const service = createAuthCallbackService(getSupabaseServerClient());
 
@@ -16,6 +18,9 @@ export async function GET(request: NextRequest) {
   // Behind the router, `request.url` carries the container's own listen
   // address (`http://0.0.0.0:8080`), not the public origin, so an absolute
   // redirect built from it sends the browser nowhere. A path-only Location
-  // resolves against whatever origin the visitor used.
-  return redirect(`${url.pathname}${url.search}`);
+  // resolves against whatever origin the visitor used. The path comes from
+  // the caller-supplied `next`, hence `safeRedirectPath`.
+  return redirect(
+    safeRedirectPath(`${url.pathname}${url.search}`, pathsConfig.app.home),
+  );
 }
