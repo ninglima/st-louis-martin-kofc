@@ -54,14 +54,23 @@
               {
                 "name": "next/headers",
                 "message": "apps/site is a static export; there is no request."
+              },
+              {
+                "name": "@kit/supabase/server-client",
+                "message": "apps/site is a static export; use the browser client only."
+              },
+              {
+                "name": "@kit/supabase/server-admin-client",
+                "message": "apps/site is a static export; use the browser client only."
+              },
+              {
+                "name": "@kit/supabase/middleware-client",
+                "message": "apps/site is a static export; use the browser client only."
               }
             ],
             "patterns": [
               {
-                "group": [
-                  "@kit/supabase/server*",
-                  "@kit/supabase/*-server-client*"
-                ],
+                "group": ["@kit/supabase/server*"],
                 "message": "apps/site is a static export; use the browser client only."
               }
             ]
