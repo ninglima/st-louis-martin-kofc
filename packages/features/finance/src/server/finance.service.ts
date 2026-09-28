@@ -3,14 +3,21 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@kit/supabase/database';
 
 import type {
+  AgingBucket,
+  AgingBucketKey,
+  CollectionProgress,
   FinanceDashboard,
   FollowUpRow,
+  ForecastMember,
+  ForecastMonth,
   HostingCost,
   HostingCostInput,
   HostingProvider,
+  LapsedMember,
   LatestBill,
   NetYear,
   PaymentToCheck,
+  Retention,
 } from '../types';
 import type { DuesStatus } from '@kit/dues/types';
 
@@ -154,5 +161,72 @@ export class FinanceService {
       amountCents: r.amount_cents,
       provider: r.provider,
     }));
+  }
+
+  async collectionProgress(year: number): Promise<CollectionProgress> {
+    const { data, error } = await this.client.rpc(
+      'finance_collection_progress',
+      { p_year: year },
+    );
+    if (error) throw error;
+    return data as unknown as CollectionProgress;
+  }
+
+  async renewalsForecast(): Promise<ForecastMonth[]> {
+    const { data, error } = await this.client.rpc('finance_renewals_forecast');
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      month: r.month,
+      members: Number(r.members),
+      cents: Number(r.cents),
+    }));
+  }
+
+  async forecastMembers(month: string): Promise<ForecastMember[]> {
+    const { data, error } = await this.client.rpc('finance_forecast_members', {
+      p_month: month,
+    });
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      memberId: r.member_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      membershipNumber: r.membership_number,
+      paidThrough: r.paid_through,
+      levelName: r.level_name,
+      amountCents: r.amount_cents,
+    }));
+  }
+
+  async lapseAging(): Promise<AgingBucket[]> {
+    const { data, error } = await this.client.rpc('finance_lapse_aging');
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      bucket: r.bucket as AgingBucketKey,
+      members: Number(r.members),
+      cents: Number(r.cents),
+    }));
+  }
+
+  async lapsedMembers(): Promise<LapsedMember[]> {
+    const { data, error } = await this.client.rpc('finance_lapsed_members');
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      memberId: r.member_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      membershipNumber: r.membership_number,
+      daysUnpaid: r.days_unpaid,
+      bucket: r.bucket as AgingBucketKey,
+      levelName: r.level_name,
+      amountCents: r.amount_cents,
+      lastPaidOn: r.last_paid_on,
+    }));
+  }
+
+  async retention(): Promise<Retention> {
+    const { data, error } = await this.client.rpc('finance_retention');
+    if (error) throw error;
+    return data as unknown as Retention;
   }
 }
