@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { Page, expect, test } from '@playwright/test';
 
-import { PUBLIC_ROUTES } from '../../../portal/config/site-navigation.config';
+import { PUBLIC_ROUTES } from '../../../site/config/site-navigation.config';
 
 /**
  * The public marketing site is not gated, so unlike the rbac and account

@@ -1,4 +1,3 @@
-import { cacheLife } from 'next/cache';
 import Link from 'next/link';
 
 import { Trans } from '@kit/ui/trans';
@@ -53,19 +52,10 @@ const SOCIAL_LINKS = [
 ];
 
 /**
- * The copyright year is an unstable value, and `<Suspense>` does not fix those,
- * only uncached data. It is the same for every visitor and changes once a year,
- * so caching it is the right tool. `await connection()` would also silence the
- * error, but it would make the footer render per request and take every
- * marketing page's static shell down with it.
+ * The site is a static export, so the copyright year is fixed when the site is
+ * built; the next build after New Year refreshes it.
  */
-async function getCopyrightYear() {
-  'use cache';
-
-  cacheLife('days');
-
-  return new Date().getFullYear();
-}
+const COPYRIGHT_YEAR = new Date().getFullYear();
 
 function FooterHeading(props: React.PropsWithChildren) {
   return (
@@ -75,9 +65,7 @@ function FooterHeading(props: React.PropsWithChildren) {
   );
 }
 
-export async function SiteFooter() {
-  const year = await getCopyrightYear();
-
+export function SiteFooter() {
   return (
     // `relative` is load-bearing, not decoration:
     // `packages/brand/styles/makerkit.css` draws the footer's top hairline as
@@ -178,7 +166,7 @@ export async function SiteFooter() {
 
         <div className="text-muted-foreground mt-10 flex flex-col gap-3 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>
-            &copy; {year} St. Louis Martin Council #15256 —{' '}
+            &copy; {COPYRIGHT_YEAR} St. Louis Martin Council #15256 —{' '}
             <a
               href="https://www.kofc.org"
               target="_blank"

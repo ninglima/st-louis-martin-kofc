@@ -11,13 +11,7 @@ import {
 
 const MARKETING_DIR = join(__dirname, '..', 'app', '(marketing)');
 
-const SITEMAP_ROUTE_FILE = join(
-  __dirname,
-  '..',
-  'app',
-  'sitemap.xml',
-  'route.ts',
-);
+const SITEMAP_ROUTE_FILE = join(__dirname, '..', 'app', 'sitemap.ts');
 
 /**
  * Routes that live outside the (marketing) group or are not .mdx pages.
@@ -115,8 +109,8 @@ describe('navigation link integrity', () => {
  * engine at all.
  *
  * Two assertions, because either one alone is escapable. The first pins the
- * contents of `SITEMAP_ROUTES`; the second pins the sitemap route handler to
- * `SITEMAP_ROUTES`, so re-inlining a literal array in `route.ts` fails here
+ * contents of `SITEMAP_ROUTES`; the second pins the sitemap metadata route to
+ * `SITEMAP_ROUTES`, so re-inlining a literal array in `sitemap.ts` fails here
  * rather than quietly reintroducing the original defect with a green suite.
  */
 describe('sitemap coverage', () => {
@@ -142,7 +136,7 @@ describe('sitemap coverage', () => {
     },
   );
 
-  it('derives app/sitemap.xml/route.ts from SITEMAP_ROUTES', () => {
+  it('derives app/sitemap.ts from SITEMAP_ROUTES', () => {
     const source = readFileSync(SITEMAP_ROUTE_FILE, 'utf8');
 
     expect(source).toContain(

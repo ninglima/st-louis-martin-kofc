@@ -122,7 +122,7 @@ export const PUBLIC_ROUTES: readonly string[] = [
 ];
 
 /**
- * What `app/sitemap.xml/route.ts` submits to search engines. Derived from
+ * What `app/sitemap.ts` submits to search engines. Derived from
  * `PUBLIC_ROUTES` rather than listed again: the route handler shipped with a
  * hand-maintained array of five paths, so the nineteen content pages this site
  * exists to serve were advertised to no crawler while three unfinished legal

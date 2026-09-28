@@ -7,7 +7,7 @@ import { Button } from '@kit/ui/button';
 import { Heading } from '@kit/ui/heading';
 import { Trans } from '@kit/ui/trans';
 
-import { PortalHeader } from '~/components/portal-header';
+import { SiteHeader } from '~/(marketing)/_components/site-header';
 
 export const generateMetadata = async () => {
   const t = await getTranslations();
@@ -21,7 +21,7 @@ export const generateMetadata = async () => {
 const NotFoundPage = () => {
   return (
     <div className={'flex h-screen flex-1 flex-col'}>
-      <PortalHeader />
+      <SiteHeader />
 
       <div
         className={
