@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(43);
+select plan(44);
 
 select tests.make_user('fd-admin@example.com', 'administrator') as admin \gset
 select tests.make_user('fd-knight@example.com', 'member') as knight \gset
@@ -107,6 +107,16 @@ select is(
   array['FS-DUE', 'FS-SOON'],
   'follow-up: due, then due within 30 days (lapsed members are on the Lapses tab)');
 
+-- 35 a member accepted in the future is not due yet, so is not on follow-up (T1-a)
+select tests.make_member('FS-FUTURE') as s_future \gset
+select tests.act_as(:'admin');
+select public.set_member_accepted_on(:'s_future', '2030-02-01');
+select tests.act_as_service();
+select is(
+  (select count(*)::int from kit.finance_follow_up_at('2030-01-15') where membership_number = 'FS-FUTURE'),
+  0,
+  'a member accepted in the future is not due yet, so is not on follow-up (T1-a)');
+
 -- payments to check
 select tests.make_user('fd-payer@example.com', 'member') as payer \gset
 select tests.make_member('FP-001', :'payer') as fp \gset
@@ -119,7 +129,7 @@ insert into public.dues_periods (member_id, level, amount_cents, method, receive
 values (:'fp', 'regular_contrib', 5800, 'online', '2031-01-01', '2031-01-01', '2031-01-01'::date + 365, '00000000-0000-0000-0000-0000000fd0a2');
 
 select tests.act_as(:'admin');
--- 35-36
+-- 36-37
 select is(
   (select array_agg(payment_id) from public.finance_payments_to_check()
     where payment_id::text like '00000000-0000-0000-0000-0000000fd0a%'),
@@ -131,19 +141,19 @@ select results_eq(
   $$values ('Test Knight FP-001'::text, 'regular_contrib'::text, 5800)$$,
   'payments to check name the member and level');
 
--- 37-40 refused without finance.view
+-- 38-41 refused without finance.view
 select tests.act_as(:'knight');
 select throws_ok($$select public.finance_dashboard(2026)$$, '42501', 'forbidden', 'member cannot read the dashboard');
 select throws_ok($$select * from public.finance_follow_up()$$, '42501', 'forbidden', 'member cannot read the follow-up list');
 select throws_ok($$select * from public.finance_net_by_year()$$, '42501', 'forbidden', 'member cannot read net by year');
 select throws_ok($$select * from public.finance_payments_to_check()$$, '42501', 'forbidden', 'member cannot read payments to check');
 
--- 41-42 year validation
+-- 42-43 year validation
 select tests.act_as(:'admin');
 select throws_ok($$select public.finance_dashboard(1999)$$, 'P0001', 'unknown fraternal year: 1999', 'years before 2000 are refused');
 select lives_ok($$select public.finance_dashboard(kit.fraternal_year_of(kit.council_today()))$$, 'the current fraternal year works');
 
--- 43 kit internals are not callable directly
+-- 44 kit internals are not callable directly
 select tests.act_as_service();
 select is(has_function_privilege('authenticated', 'kit.finance_dashboard_at(integer, date)', 'execute'), false,
   'kit.finance_dashboard_at is not executable by authenticated');

@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(43);
+select plan(48);
 
 select tests.make_user('di-admin@example.com', 'administrator') as admin \gset
 select tests.make_user('di-knight@example.com', 'member') as knight \gset
@@ -68,6 +68,43 @@ select is((select e ->> 'cumulativeCents'
              from jsonb_array_elements(kit.collection_progress_at(2040, '2040-10-15') -> 'byMonth') e
             where e ->> 'month' = '2040-11-01'), null::text, 'months after today are blank in the current year');
 
+-- M5: a member accepted in the future is not expected yet, in collection progress too
+select tests.make_member('DI-C-FUT') as cfut \gset
+select tests.act_as(:'admin');
+select public.set_member_accepted_on(:'cfut', '2040-11-01');
+select tests.act_as_service();
+
+-- 8
+select is((kit.collection_progress_at(2040, '2040-10-15') ->> 'expected')::int
+          - (:'cbase'::jsonb ->> 'expected')::int, 5,
+          'expected unchanged: a member accepted in the future is not expected yet (M5)');
+
+-- I1: an imported member whose synthetic period_start falls in the year counts as renewed
+select tests.make_member('DI-C-IMP1') as cimp1 \gset
+-- period_start = 2040-07-15 (FY2040); period_end = 2041-07-15 (FY2041) --
+-- the previous, pre-portal period that ended in FY2040 was never loaded (I1)
+select tests.di_period(:'cimp1', '2041-07-15', '2040-07-20', 'opening_balance');
+
+-- 9-10
+select is((kit.collection_progress_at(2040, '2040-10-15') ->> 'expected')::int
+          - (:'cbase'::jsonb ->> 'expected')::int, 6,
+          'expected +1 more: the imported member counts via their synthetic start (I1)');
+select is((kit.collection_progress_at(2040, '2040-10-15') ->> 'renewed')::int
+          - (:'cbase'::jsonb ->> 'renewed')::int, 3,
+          'renewed +1 more: counted as renewed through the implied prior period (I1)');
+
+-- I1: an imported member whose period ends in the year and is not renewed is only expected
+select tests.make_member('DI-C-IMP2') as cimp2 \gset
+select tests.di_period(:'cimp2', '2040-09-01', '2040-09-01', 'opening_balance');
+
+-- 11-12
+select is((kit.collection_progress_at(2040, '2040-10-15') ->> 'expected')::int
+          - (:'cbase'::jsonb ->> 'expected')::int, 7,
+          'expected +1 more: an opening-balance period ending in the year still counts (I1)');
+select is((kit.collection_progress_at(2040, '2040-10-15') ->> 'renewed')::int
+          - (:'cbase'::jsonb ->> 'renewed')::int, 3,
+          'renewed unchanged: this imported member has not renewed (I1)');
+
 ------------------------------------------------------------------ coming due (from 2040-10-15)
 select tests.make_member('DI-F1') as f1 \gset
 select tests.make_member('DI-F2') as f2 \gset
@@ -78,7 +115,7 @@ select tests.di_period(:'f2', '2040-10-10', '2039-10-10', 'waived');
 select tests.di_period(:'f3', '2041-09-30', '2040-09-30', 'waived');
 select tests.di_period(:'f4', '2041-10-01', '2040-10-01', 'waived');
 
--- 8-12
+-- 13-17
 select is((select count(*)::int from kit.renewals_forecast_at('2040-10-15')), 12, 'twelve months');
 select results_eq($$select min(month), max(month) from kit.renewals_forecast_at('2040-10-15')$$,
                   $$values ('2040-10-01'::date, '2041-09-01'::date)$$, 'from this month through eleven months on');
@@ -120,7 +157,7 @@ select public.set_member_accepted_on(:'d31', '2040-10-15'::date - 30);
 select public.set_member_accepted_on(:'fut', '2040-11-01');
 select tests.act_as_service();
 
--- 13-18
+-- 18-23
 select results_eq(
   $$select membership_number, days_unpaid, bucket from kit.lapsed_members_at('2040-10-15')
      where membership_number in ('DI-A30','DI-A31','DI-A90','DI-A91','DI-A180','DI-A181','DI-D30','DI-D31')
@@ -139,13 +176,13 @@ select is((select members from kit.lapse_aging_at('2040-10-15') where bucket = '
 select is((select array_agg(bucket order by ord) from kit.lapse_aging_at('2040-10-15') with ordinality as t(bucket, members, cents, ord)),
           array['1-30', '31-90', '91-180', '181+'], 'four buckets in order');
 
--- 19-20
+-- 24-25
 select is((select last_paid_on from kit.lapsed_members_at('2040-10-15') where membership_number = 'DI-A30'),
            '2039-01-01'::date, 'last payment date is the latest received date, from a real payment');
 select is((select last_paid_on from kit.lapsed_members_at('2040-10-15') where membership_number = 'DI-WV'),
            null::date, 'a member whose only row is a waiver has no last payment date (I1/R3)');
 
--- 21
+-- 26
 select is((select count(*)::int from kit.lapsed_members_at('2040-10-15') where membership_number = 'DI-FUT'), 0,
           'a member accepted in the future is not lapsed yet (M1)');
 
@@ -176,7 +213,7 @@ select tests.di_period(:'r3', '2039-09-01', '2038-08-01');
 select tests.di_period(:'r6', '2040-08-01', '2039-08-01', 'waived');
 select tests.di_period(:'r7', '2040-07-10', '2039-07-10', 'waived');
 
--- 22-27
+-- 27-32
 select is((select (y ->> 'eligible')::int from jsonb_array_elements(kit.retention_at('2040-10-15') -> 'years') y where (y ->> 'year')::int = 2038)
           - (select (y ->> 'eligible')::int from jsonb_array_elements(:'rbase'::jsonb -> 'years') y where (y ->> 'year')::int = 2038),
           4, 'FY2038 eligible: r1-r4 (honorary r5 left out)');
@@ -213,7 +250,7 @@ values (:'rvoid', 'regular', 5000, 'check', '9', '2037-10-01', '2037-09-01', '20
 update public.dues_periods set voided_at = now(), void_reason = 'test'
  where member_id = :'rvoid' and period_start = '2037-09-01';
 
--- 28-32
+-- 33-37
 select is((select (y ->> 'eligible')::int from jsonb_array_elements(kit.retention_at('2040-10-15') -> 'years') y where (y ->> 'year')::int = 2040)
           - (select (y ->> 'eligible')::int from jsonb_array_elements(:'rbase2'::jsonb -> 'years') y where (y ->> 'year')::int = 2040),
           0, 'period_end + 90 = today: the window is still open, not yet counted (M5)');
@@ -231,7 +268,7 @@ select is((select (y ->> 'renewed')::int from jsonb_array_elements(kit.retention
           0, 'a voided renewal does not count as kept (M5)');
 
 ------------------------------------------------------------------ public wrappers
--- 33-38 refused without finance.view
+-- 38-43 refused without finance.view
 select tests.act_as(:'knight');
 select throws_ok($$select public.finance_collection_progress(2026)$$, '42501', 'forbidden', 'member: collection progress refused');
 select throws_ok($$select * from public.finance_renewals_forecast()$$, '42501', 'forbidden', 'member: forecast refused');
@@ -240,7 +277,7 @@ select throws_ok($$select * from public.finance_lapse_aging()$$, '42501', 'forbi
 select throws_ok($$select * from public.finance_lapsed_members()$$, '42501', 'forbidden', 'member: lapsed list refused');
 select throws_ok($$select public.finance_retention()$$, '42501', 'forbidden', 'member: retention refused');
 
--- 39-43 validation and a working call
+-- 44-48 validation and a working call
 select tests.act_as(:'admin');
 select throws_ok($$select public.finance_collection_progress(1999)$$, 'P0001', 'unknown fraternal year: 1999', 'year validated');
 select throws_ok($$select * from public.finance_forecast_members('2026-10-15')$$, 'P0001', 'unknown forecast month: 2026-10-15',
