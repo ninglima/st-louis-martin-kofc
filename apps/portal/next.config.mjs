@@ -26,6 +26,13 @@ const config = {
   images: {
     remotePatterns: getRemotePatterns(),
     /**
+     * `assetPrefix` does not move the image optimizer, and `/_next/image`
+     * is not a portal path, so the router would serve it from the site and
+     * 404. Under `/portal-assets` it reaches the portal, and the router
+     * strips the prefix back to `/_next/image`.
+     */
+    path: '/portal-assets/_next/image',
+    /**
      * Supabase Storage runs on 127.0.0.1 locally, and Next.js 16 blocks
      * optimizing local IPs by default. Only relax this outside production.
      */
