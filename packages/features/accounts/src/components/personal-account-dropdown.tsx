@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import type React from 'react';
 
 import Link from 'next/link';
 
@@ -31,6 +32,7 @@ export function PersonalAccountDropdown({
   paths,
   features,
   account,
+  linkComponent: LinkComponent = Link,
 }: {
   user: JwtPayload;
 
@@ -53,6 +55,17 @@ export function PersonalAccountDropdown({
   showProfileName?: boolean;
 
   className?: string;
+
+  /**
+   * Renders the dropdown's internal links. Defaults to `next/link`. An app
+   * that does not serve these routes itself (the static site linking into the
+   * portal) passes a component that renders a plain `<a>`, so following the
+   * link is a full page load instead of a client-side transition.
+   */
+  linkComponent?: React.ComponentType<{
+    href: string;
+    className?: string;
+  }>;
 }) {
   const personalAccountData = usePersonalAccountData(user.id, account);
 
@@ -135,7 +148,7 @@ export function PersonalAccountDropdown({
 
         <DropdownMenuItem
           render={
-            <Link
+            <LinkComponent
               className={'s-full flex cursor-pointer items-center space-x-2'}
               href={paths.home}
             />

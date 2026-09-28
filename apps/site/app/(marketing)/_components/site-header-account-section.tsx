@@ -58,6 +58,7 @@ export function SiteHeaderAccountSection() {
       features={features}
       user={user}
       signOutRequested={() => signOut.mutateAsync()}
+      linkComponent={SiteLink}
     />
   );
 }
