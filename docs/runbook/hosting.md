@@ -84,7 +84,8 @@ and a second step (2.4 below) closes the loop once the portal's URL exists.
 ### 2.1. Google Cloud
 
 ```bash
-PROJECT_ID=<your-gcp-project-id> ./infra/gcp/setup.sh
+GITHUB_REPOSITORY_ID=$(gh api repos/ninglima/st-louis-martin-kofc --jq .id) \
+  PROJECT_ID=<your-gcp-project-id> ./infra/gcp/setup.sh
 ```
 
 This is idempotent — safe to re-run. It enables the required APIs, creates the
@@ -93,6 +94,13 @@ accounts, the Workload Identity Federation pool/provider scoped to
 `ninglima/st-louis-martin-kofc` on `refs/heads/main`, and the three empty
 Secret Manager secrets. It prints the values you need for the GitHub
 variables below.
+
+The provider's condition pins the repository's numeric ID
+(`GITHUB_REPOSITORY_ID`) as well as its name, so a repository that later
+reclaims the name after a rename or transfer cannot deploy. Re-running the
+script does **not** update a provider that already exists; in that case it
+prints the `gcloud iam workload-identity-pools providers update-oidc` command
+that applies the current mapping and condition, for you to run.
 
 Every secret needs at least one version before the first deploy — the deploy
 workflow mounts each as `NAME:latest`, and that fails if the secret has no
@@ -131,7 +139,7 @@ Repository **variables**:
   which does not exist until the portal has been deployed once. Skip it for
   now; step 2.4 below comes back to it. Until it is set, the `router` job in
   `deploy.yml` will deploy the router with an empty `PORTAL_ORIGIN`, so portal
-  paths will 502 until you set it and redeploy the router.
+  paths will return 500 until you set it and redeploy the router.
 
 Repository **secrets**:
 
@@ -140,10 +148,21 @@ Repository **secrets**:
 
 ### 2.3. Cloudflare
 
-Create an API token with **Workers Scripts: Edit** permission scoped to your
-account (Cloudflare dashboard → My Profile → API Tokens → Create Token →
-custom token). Put its value in the `CLOUDFLARE_API_TOKEN` GitHub secret above,
-and your account ID in `CLOUDFLARE_ACCOUNT_ID`.
+Create a custom API token (Cloudflare dashboard → My Profile → API Tokens →
+Create Token → custom token) with these permissions:
+
+- **Account** → Workers Scripts: Edit (your account) — deploys the Worker.
+- **Zone** → Workers Routes: Edit, DNS: Edit, SSL and Certificates: Edit and
+  Zone: Read, with Zone Resources set to the `kofc-15256.org` zone — needed at
+  cutover (section 6), when `--env production` attaches the custom domain
+  (Cloudflare creates the DNS record and certificate for it).
+
+Put its value in the `CLOUDFLARE_API_TOKEN` GitHub secret above, and your
+account ID in `CLOUDFLARE_ACCOUNT_ID`.
+
+Local `wrangler secret put` commands (here and in sections 5 and 6) need local
+Cloudflare auth: run `pnpm --filter router exec wrangler login` once, or export
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in your shell.
 
 Set the router's `ORIGIN_AUTH` secret to the same value you put in the
 `origin-auth` GCP secret in step 2.1:
@@ -159,10 +178,22 @@ section 6.
 
 ### 2.4. First deploy and closing the loop on `PORTAL_ORIGIN`
 
+The first deploy is the merge of the branch that renamed `apps/web` to
+`apps/portal`. At (or just before) that merge:
+
+- [ ] Change the Supabase GitHub integration's working directory from
+      `apps/web` to `apps/portal` (Supabase dashboard → Project Settings →
+      Integrations → GitHub). The migrations now live in
+      `apps/portal/supabase`; with the old directory, new migrations silently
+      stop being applied.
+- [ ] After the merge, confirm the next migration applied (the integration's
+      run for that merge succeeds, and the migration shows up in the hosted
+      database).
+
 Merge to `main` once with the variables above in place (`PORTAL_ORIGIN` still
 unset). The `portal` job in `deploy.yml` builds and deploys the portal to
 Cloud Run; the `router` job runs too, but deploys the router with an empty
-`PORTAL_ORIGIN` (portal-proxied paths will 502 until the next step — the
+`PORTAL_ORIGIN` (portal-proxied paths return 500 until the next step — the
 static site itself is unaffected).
 
 Once the portal has deployed at least once, get its URL:
@@ -255,9 +286,8 @@ this stack. Do this once everything above has been running against
 
 **Before switching the domain:**
 
-- [ ] At the next merge to `main`, change the Supabase GitHub integration's
-      working directory from `apps/web` to `apps/portal` (the migrations now
-      live there), then confirm the next migration applies successfully.
+- [ ] Confirm the Supabase GitHub integration's working directory is
+      `apps/portal` (changed at the first deploy — see 2.4).
 - [ ] Deploy to `*.workers.dev` and smoke-test it:
   - [ ] A public (site) page loads.
   - [ ] `/version` returns the deployed commit hash.
@@ -266,29 +296,45 @@ this stack. Do this once everything above has been running against
 - [ ] Add `https://kofc-15256.org` and the `*.workers.dev` URL to the
       Supabase project's auth redirect URLs (Supabase dashboard →
       Authentication → URL Configuration).
+- [ ] Set the hosted Supabase project's **Site URL** to
+      `https://kofc-15256.org` (same page: Authentication → URL
+      Configuration). The auth email templates build every link from
+      `{{ .SiteURL }}`, so until this is set, confirmation, magic-link,
+      invite and password-reset emails link to the wrong host.
+- [ ] Make sure the hosted project's email templates (Authentication → Email
+      Templates) match the repo's `apps/portal/supabase/templates/*.html`.
+      The files in the repo only configure the local Supabase; the hosted
+      project keeps whatever was last pasted into the dashboard.
 - [ ] Register the production webhook endpoints with Stripe and Square:
   - `https://kofc-15256.org/api/webhooks/stripe`
   - `https://kofc-15256.org/api/webhooks/square`
 
 **Switch the domain:**
 
-- [ ] Change the router deploy to use the production environment, which
-      attaches the custom domain:
-
-  ```bash
-  pnpm --filter router exec wrangler deploy --env production --var PORTAL_ORIGIN:<portal-url>
-  ```
-
-  (in CI, this means changing `deploy.yml`'s router step to add `--env
-  production`; do this in the same change that you've verified against
-  `*.workers.dev`). Also re-set the Worker secret for the production
-  environment, since Worker secrets are per-environment:
+- [ ] **First**, set the Worker secret for the production environment
+      (Worker secrets are per-environment; same value as the `origin-auth`
+      GCP secret, pasted when prompted):
 
   ```bash
   pnpm --filter router exec wrangler secret put ORIGIN_AUTH --env production
   ```
 
-  (same value as the `origin-auth` GCP secret).
+  This must come before the production deploy: `secret put` creates the
+  production Worker if it does not exist yet, so by the time the custom
+  domain is attached the router already sends the real origin secret, never an
+  empty one (which the portal would reject).
+
+- [ ] **Then** switch CI to the production environment, which attaches the
+      custom domain: in `.github/workflows/deploy.yml`, change the router
+      job's deploy step to
+
+  ```bash
+  pnpm --filter router exec wrangler deploy --env production --var PORTAL_ORIGIN:${{ vars.PORTAL_ORIGIN }}
+  ```
+
+  and commit that to `main`. Do not run `wrangler deploy --env production`
+  from your machine: it would publish whatever `apps/site/out` you last built
+  locally instead of the site CI builds from `main`.
 
 - [ ] Keep WordPress running, unrouted (not receiving traffic — e.g. DNS
       pointed away from it, but the server left up), for two weeks after
