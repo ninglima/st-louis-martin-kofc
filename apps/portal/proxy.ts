@@ -14,6 +14,18 @@ export const config = {
   matcher: ['/((?!_next/static|_next/image|images|locales|assets).*)'],
 };
 
+/**
+ * A redirect with a path-only Location. `req.nextUrl.origin` is whatever
+ * Host the portal saw, which behind the router can be the container's own
+ * address, so no absolute URL may reach the browser. Next's proxy adapter
+ * only accepts an absolute Location and rewrites it to a bare path when its
+ * host matches the request's (`getRelativeURL` in `next/dist/server/web/
+ * adapter.js`), so resolving against `req.url` guarantees the bare path.
+ */
+function redirectToPath(req: NextRequest, path: string) {
+  return NextResponse.redirect(new URL(path, req.url));
+}
+
 const getUser = (request: NextRequest, response: NextResponse) => {
   const supabase = createMiddlewareClient(request, response);
 
@@ -91,9 +103,7 @@ function getPatterns() {
         // If user is logged in and does not need to verify MFA,
         // redirect to home page.
         if (!isVerifyMfa) {
-          return NextResponse.redirect(
-            new URL(pathsConfig.app.home, req.nextUrl.origin).href,
-          );
+          return redirectToPath(req, pathsConfig.app.home);
         }
       },
     },
@@ -102,7 +112,6 @@ function getPatterns() {
       handler: async (req: NextRequest, res: NextResponse) => {
         const { data } = await getUser(req, res);
 
-        const origin = req.nextUrl.origin;
         const next = req.nextUrl.pathname;
 
         // If user is not logged in, redirect to sign in page.
@@ -110,7 +119,7 @@ function getPatterns() {
           const signIn = pathsConfig.auth.signIn;
           const redirectPath = `${signIn}?next=${next}`;
 
-          return NextResponse.redirect(new URL(redirectPath, origin).href);
+          return redirectToPath(req, redirectPath);
         }
 
         const supabase = createMiddlewareClient(req, res);
@@ -120,9 +129,7 @@ function getPatterns() {
 
         // If user requires multi-factor authentication, redirect to MFA page.
         if (requiresMultiFactorAuthentication) {
-          return NextResponse.redirect(
-            new URL(pathsConfig.auth.verifyMfa, origin).href,
-          );
+          return redirectToPath(req, pathsConfig.auth.verifyMfa);
         }
       },
     },
