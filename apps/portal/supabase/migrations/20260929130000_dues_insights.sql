@@ -2,8 +2,16 @@
 -- Grace period: a renewal is kept when the next period's received_on is at
 -- most period_end + 90 (periods are anchored at the previous end, so
 -- period_start cannot tell a late payment from an on-time one). A window is
--- closed once period_end + 90 < today. Honorary members are left out of
--- counts and rates; they stay in dollars, coming due and aging.
+-- closed once period_end + 90 < today, for every fraternal year. Honorary
+-- members are left out of counts and rates; they stay in dollars, coming
+-- due and aging.
+--
+-- Fix round 1: last payment date only counts real money (online, check,
+-- cash), not a waiver or an opening-balance import row (I1/R3). An
+-- opening-balance row whose grace window had already closed before it was
+-- loaded is excluded from retention entirely -- the load date is not a
+-- real renewal event (I2/R4). A member accepted in the future is not yet
+-- lapsed or due (M1).
 
 create or replace function kit.collection_progress_at(p_year integer, p_today date)
 returns jsonb language sql stable security definer set search_path = '' as $$
@@ -106,17 +114,23 @@ returns table (member_id uuid, first_name text, last_name text, membership_numbe
 language sql stable security definer set search_path = '' as $$
   with base as (
     select s.*, m.accepted_on,
-           greatest(1, case when s.paid_through is not null then p_today - s.paid_through + 1
-                            else p_today - m.accepted_on + 1 end) as days
+           case when s.paid_through is not null then p_today - s.paid_through + 1
+                else p_today - m.accepted_on + 1 end as days
       from kit.member_dues_snapshot(p_today) s
       join public.members m on m.id = s.member_id
      where s.dues_status in ('lapsed', 'due')
+       -- a member accepted in the future is not lapsed or due yet (M1)
+       and (s.paid_through is not null or m.accepted_on <= p_today)
   )
   select b.member_id, b.first_name, b.last_name, b.membership_number, b.days,
          case when b.days <= 30 then '1-30' when b.days <= 90 then '31-90'
               when b.days <= 180 then '91-180' else '181+' end,
          b.level_name, b.amount_cents,
-         (select max(q.received_on) from public.dues_periods q where q.member_id = b.member_id and q.voided_at is null)
+         -- last payment: real money only, not a waiver or an opening-balance
+         -- import row (I1/R3)
+         (select max(q.received_on) from public.dues_periods q
+           where q.member_id = b.member_id and q.voided_at is null
+             and q.method in ('online', 'check', 'cash'))
     from base b
    order by b.days desc, b.last_name, b.first_name;
 $$;
@@ -137,7 +151,10 @@ create or replace function kit.retention_at(p_today date)
 returns jsonb language sql stable security definer set search_path = '' as $$
   with cur as (select kit.fraternal_year_of(p_today) as y),
   periods as (
-    -- every closed grace window of a non-honorary member, and whether it was renewed in time
+    -- every active, non-honorary period, and whether it was renewed in time.
+    -- An opening-balance row whose grace window had already closed before it
+    -- was loaded is excluded here, from both eligibility and lapses: the
+    -- load date is not a real renewal event (I2/R4).
     select p.member_id, p.period_end,
            exists (select 1 from public.dues_periods q
                     where q.member_id = p.member_id and q.voided_at is null
@@ -147,20 +164,26 @@ returns jsonb language sql stable security definer set search_path = '' as $$
       join public.members m on m.id = p.member_id
      where p.voided_at is null
        and m.dues_level <> 'honorary'
-       and p.period_end + 90 < p_today
+       and not (p.method = 'opening_balance' and p.period_end + 90 < p.received_on)
   ),
   latest_per_year as (
+    -- the latest period per member per fraternal year, picked before the
+    -- closed-window filter, so a still-open later window -- not an earlier
+    -- closed one -- decides whether the member counts for that year (M3)
     select distinct on (pe.member_id, kit.fraternal_year_of(pe.period_end))
-           kit.fraternal_year_of(pe.period_end) as year, pe.kept
+           kit.fraternal_year_of(pe.period_end) as year, pe.period_end, pe.kept
       from periods pe
      order by pe.member_id, kit.fraternal_year_of(pe.period_end), pe.period_end desc
+  ),
+  closed_per_year as (
+    select * from latest_per_year where period_end + 90 < p_today
   )
   select jsonb_build_object(
     'years', (
       select jsonb_agg(jsonb_build_object(
                'year', g.y,
-               'eligible', (select count(*) from latest_per_year l where l.year = g.y),
-               'renewed', (select count(*) from latest_per_year l where l.year = g.y and l.kept))
+               'eligible', (select count(*) from closed_per_year l where l.year = g.y),
+               'renewed', (select count(*) from closed_per_year l where l.year = g.y and l.kept))
              order by g.y)
         from cur c cross join lateral generate_series(c.y - 4, c.y) as g(y)),
     'lapsesByMonth', (
@@ -168,6 +191,7 @@ returns jsonb language sql stable security definer set search_path = '' as $$
                'month', mo.month,
                'lapses', (select count(*) from periods pe
                            where not pe.kept
+                             and pe.period_end + 90 < p_today
                              and date_trunc('month', pe.period_end + 90)::date = mo.month))
              order by mo.month)
         from cur c
@@ -224,14 +248,17 @@ returns table (member_id uuid, first_name text, last_name text, membership_numbe
                paid_through date, level_name text, amount_cents integer)
 language plpgsql stable security definer set search_path = '' as $$
 declare
-  v_first date := date_trunc('month', kit.council_today())::date;
+  -- read once (M6): a call made exactly at midnight in Chicago could
+  -- otherwise validate against one month window and query against the next.
+  v_today date := kit.council_today();
+  v_first date := date_trunc('month', v_today)::date;
 begin
   perform kit.assert_finance_view();
   if p_month is null or p_month <> date_trunc('month', p_month)::date
      or p_month < v_first or p_month > (v_first + interval '11 months')::date then
     raise exception 'unknown forecast month: %', coalesce(p_month::text, '(none)');
   end if;
-  return query select * from kit.forecast_members_at(p_month, kit.council_today());
+  return query select * from kit.forecast_members_at(p_month, v_today);
 end $$;
 
 create or replace function public.finance_lapse_aging()

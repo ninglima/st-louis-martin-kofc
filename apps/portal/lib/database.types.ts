@@ -600,8 +600,6 @@ export type Database = {
           paid_through: string | null
         }[]
       }
-      // HAND-CORRECTED, do not regenerate away: paid_through is null until
-      // the first dues period is recorded.
       finance_forecast_members: {
         Args: { p_month: string }
         Returns: {
@@ -611,7 +609,7 @@ export type Database = {
           level_name: string
           member_id: string
           membership_number: string
-          paid_through: string | null
+          paid_through: string
         }[]
       }
       finance_lapse_aging: {

@@ -68,7 +68,9 @@ These terms apply throughout:
   - for members with a `paid_through`: `today − paid_through + 1`, counted when status is `lapsed`, meaning `paid_through ≤ today`;
   - for `due` members (no periods, `accepted_on` set): `today − accepted_on + 1`.
 
-  A member whose `paid_through` is today has 1 day unpaid.
+  A member whose `paid_through` is today has 1 day unpaid. A member whose
+  `accepted_on` is in the future is not yet due or lapsed, and is left out
+  of the list and the aging buckets entirely.
 - **Buckets:** 1–30, 31–90, 91–180 and 181+ days.
   - Each bucket shows its member count and dollars owed, the sum of level amounts.
   - Honorary members are included and labelled, because they still owe.
@@ -81,17 +83,20 @@ These terms apply throughout:
     - bucket
     - level
     - owed
-    - last payment date: the latest `received_on` among active periods, or "—"
+    - last payment date: the latest `received_on` among active periods paid with
+      real money (`online`, `check` or `cash`), or "—". A waiver or an
+      opening-balance import row is not a payment.
 - **Overview's follow-up list:** from now on it shows only members who are `due` or whose `paid_through` is within 30 days. Lapsed members move to this tab.
 
 ### Retention (Retention tab; the last 5 fraternal years, ending with the current one)
 
 - **Renewal rate for year `Y`:**
-  - **Denominator:** non-honorary members with an active period whose `period_end` falls in `Y`, counting each member's latest such period.
-  - **Numerator:** those with a later active period (`period_start ≥ period_end`) whose `received_on ≤ period_end + 90`. Periods are anchored at the previous end, so the received date, not the start date, tells a late payment from an on-time one. Early renewals count.
-  - For the current year, only periods whose grace window has already closed (`period_end + 90 < today`) are counted.
+  - **Denominator:** non-honorary members with an active period whose `period_end` falls in `Y`, counting each member's latest such period, picked before the closed-window filter below is applied.
+  - **Numerator:** those with a later active period (`period_start ≥ period_end`) whose `received_on ≤ period_end + 90`. Periods are anchored at the previous end, so the received date, not the start date, tells a late payment from an on-time one. Early renewals count. A voided renewal does not count.
+  - Only periods whose grace window has already closed (`period_end + 90 < today`) are counted, for every year, not only the current one.
+  - An opening-balance row whose grace window had already closed before it was loaded (`period_end + 90 < received_on`) is excluded entirely, from both eligibility and lapses: the load date is not a real renewal event.
   - When the denominator is 0, show "—".
-- **New lapses per month:** non-honorary members whose `paid_through + 90` falls in that calendar month without a renewal in the grace window, for each month of the last 5 years up to today.
+- **New lapses per month:** non-honorary members whose `paid_through + 90` falls in that calendar month without a renewal in the grace window, for each month of the last 5 years up to today. The same opening-balance exclusion applies here.
 
 ## Functions
 
