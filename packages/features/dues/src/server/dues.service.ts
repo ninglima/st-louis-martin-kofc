@@ -8,6 +8,7 @@ import type {
   DuesMethodFs,
   DuesStatus,
   MemberDuesSummary,
+  MyLedgerRow,
 } from '../types';
 
 type Client = SupabaseClient<Database>;
@@ -17,9 +18,6 @@ type SummaryRow =
 
 type LedgerRow =
   Database['public']['Functions']['member_dues_ledger']['Returns'][number];
-
-type MyLedgerRow =
-  Database['public']['Functions']['my_dues_ledger']['Returns'][number];
 
 type OpeningBalancesResult = {
   applied: number;
@@ -77,7 +75,7 @@ export class DuesService {
       .order('sort_order');
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     return data.map((level) => ({
@@ -100,7 +98,7 @@ export class DuesService {
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     return new Map((data ?? []).map((row) => [row.member_id, toSummary(row)]));
@@ -112,7 +110,7 @@ export class DuesService {
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     return (data ?? []).map(toLedgerRow);
@@ -122,7 +120,7 @@ export class DuesService {
     const { data, error } = await this.client.rpc('my_dues_summary');
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     return data?.[0] ? toSummary(data[0]) : null;
@@ -132,7 +130,7 @@ export class DuesService {
     const { data, error } = await this.client.rpc('my_dues_ledger');
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     return data ?? [];
