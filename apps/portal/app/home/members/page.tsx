@@ -2,7 +2,11 @@ import { Suspense } from 'react';
 
 import Link from 'next/link';
 
-import { MembersList } from '@kit/members/components/members-list';
+import { DuesService } from '@kit/dues/server/dues.service';
+import {
+  MembersList,
+  parseDuesFilter,
+} from '@kit/members/components/members-list';
 import { MembersService } from '@kit/members/server/members.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
@@ -137,11 +141,24 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
   const city = firstValue(params.city);
   const account = parseAccount(firstValue(params.account));
 
+  // The dues columns, the status filter, and the summaries they're built
+  // from all sit behind this one grant -- nothing dues-shaped is fetched, let
+  // alone sent to the client, for a caller who lacks it.
+  const canSeeDues = hasPermission(
+    await getCurrentPermissions(),
+    'finance',
+    'view',
+  );
+  const duesFilter = canSeeDues
+    ? parseDuesFilter(firstValue(params.dues))
+    : 'all';
+
   // Read as the OFFICER, not the service role: `members_list` is
   // `security definer` and gates on `kit.has_permission(...)`, which reads
   // `auth.uid()` -- and the service-role key carries no `sub`, so under it the
   // function returns nothing at all. See the fuller note in roster-actions.ts.
-  const service = new MembersService(getSupabaseServerClient());
+  const client = getSupabaseServerClient();
+  const service = new MembersService(client);
 
   const filters = {
     search: search === '' ? null : search,
@@ -159,9 +176,19 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
     service.cities(),
   ]);
 
+  const pageMembers = rows.slice(0, PAGE_SIZE);
+
+  // Same client, same reasoning `DuesService`'s own doc comment gives:
+  // `member_dues_summary` is `security definer` and gates on
+  // `kit.has_permission('finance', 'view')` against `auth.uid()`, so this
+  // must run as the signed-in officer, not the admin client.
+  const dues = canSeeDues
+    ? await new DuesService(client).summaries(pageMembers.map((r) => r.id))
+    : undefined;
+
   return (
     <MembersList
-      members={rows.slice(0, PAGE_SIZE)}
+      members={pageMembers}
       search={search}
       city={city}
       account={account}
@@ -169,6 +196,8 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
       page={page}
       pageSize={PAGE_SIZE}
       hasMore={rows.length > PAGE_SIZE}
+      dues={dues}
+      duesFilter={duesFilter}
     />
   );
 }

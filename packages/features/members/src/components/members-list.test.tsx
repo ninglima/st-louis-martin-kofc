@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MemberDuesSummary } from '@kit/dues/types';
+
 import type { MemberListRow } from '../server/members.service';
-import { hrefFor, MembersList } from './members-list';
+import { hrefFor, MembersList, parseDuesFilter } from './members-list';
 import type { AccountFilter } from './members-list';
 
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -34,6 +36,22 @@ function member(overrides: Partial<MemberListRow> = {}): MemberListRow {
   };
 }
 
+function duesSummary(
+  overrides: Partial<MemberDuesSummary> = {},
+): MemberDuesSummary {
+  return {
+    memberId: 'bd1d9c3a-1111-2222-3333-444455556666',
+    duesLevel: 'regular_full',
+    levelName: 'Regular',
+    amountCents: 5800,
+    acceptedOn: '2026-01-01',
+    isStudent: false,
+    paidThrough: '2027-03-14',
+    duesStatus: 'due',
+    ...overrides,
+  };
+}
+
 function render(
   options: {
     members?: MemberListRow[];
@@ -41,6 +59,7 @@ function render(
     city?: string;
     account?: AccountFilter;
     cities?: string[];
+    dues?: Map<string, MemberDuesSummary>;
   } = {},
 ) {
   return renderToStaticMarkup(
@@ -53,6 +72,7 @@ function render(
       page={1}
       pageSize={50}
       hasMore={false}
+      dues={options.dues}
     />,
   );
 }
@@ -142,6 +162,46 @@ describe('MembersList', () => {
     expect(html).toContain(
       'href="/home/members?city=Saint+Louis&amp;account=no&amp;page=2"',
     );
+  });
+
+  it('shows no dues columns without a dues map -- finance.view is the gate', () => {
+    // No `dues` prop at all, the shape a caller without `finance.view` sends.
+    // "Paid through" is the header text the column would carry if it were
+    // there, so its absence is the whole test.
+    const html = render();
+
+    expect(html).not.toContain('Paid through');
+    expect(html).not.toContain('data-test="member-dues-status"');
+  });
+
+  it('renders the status badge for a member the dues map covers', () => {
+    const html = render({
+      members: [member({ id: 'bd1d9c3a-1111-2222-3333-444455556666' })],
+      dues: new Map([['bd1d9c3a-1111-2222-3333-444455556666', duesSummary()]]),
+    });
+
+    expect(html).toContain('Paid through');
+    expect(html).toContain('data-test="member-dues-status"');
+  });
+});
+
+describe('parseDuesFilter', () => {
+  it('accepts each of the five dues statuses', () => {
+    for (const status of [
+      'current',
+      'due_soon',
+      'due',
+      'lapsed',
+      'no_record',
+    ]) {
+      expect(parseDuesFilter(status)).toBe(status);
+    }
+  });
+
+  it('ignores anything that is not a real dues status', () => {
+    expect(parseDuesFilter('bogus')).toBe('all');
+    expect(parseDuesFilter('')).toBe('all');
+    expect(parseDuesFilter('Due')).toBe('all');
   });
 });
 

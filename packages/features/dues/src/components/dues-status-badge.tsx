@@ -14,7 +14,12 @@ const VARIANT_BY_STATUS: Record<DuesStatus, BadgeVariant> = {
   no_record: 'outline',
 };
 
-const LABEL_BY_STATUS: Record<DuesStatus, string> = {
+/**
+ * Exported so any other screen that lists dues statuses in words -- the
+ * members-list filter, most notably -- reads the same five labels as the
+ * badge itself, instead of a second hand-copied set that can drift.
+ */
+export const LABEL_BY_STATUS: Record<DuesStatus, string> = {
   current: 'Current',
   due_soon: 'Due soon',
   due: 'Due',

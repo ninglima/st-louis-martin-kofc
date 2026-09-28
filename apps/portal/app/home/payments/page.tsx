@@ -3,10 +3,14 @@ import { Suspense } from 'react';
 import { getTranslations } from 'next-intl/server';
 
 import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
+import { If } from '@kit/ui/if';
 import { PageBody, PageHeader } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import { MyDuesCard } from '@kit/dues/components/my-dues-card';
+import { DuesService } from '@kit/dues/server/dues.service';
 import { PaymentHistoryTable } from '@kit/payments/components/payment-history-table';
 import { PaymentService } from '@kit/payments/server/payment.service';
 import { hasPermission } from '@kit/rbac/types';
@@ -57,9 +61,31 @@ async function PaymentsContent() {
   const isAdmin = hasPermission(perms, 'payments', 'manage');
 
   const paymentService = new PaymentService(adminClient);
-  const payments = await paymentService.getPayments(user.id, isAdmin);
 
-  return <PaymentHistoryTable payments={payments} showMember={isAdmin} />;
+  // The member's own session, not the admin client: `my_dues_summary` and
+  // `my_dues_ledger` are both `security definer` and answer for `auth.uid()`
+  // -- same reasoning `DuesService`'s own doc comment gives, and the same
+  // client `/home/checkout` already reads its own summary through.
+  const duesService = new DuesService(getSupabaseServerClient());
+
+  const [payments, myDues] = await Promise.all([
+    paymentService.getPayments(user.id, isAdmin),
+    duesService.mySummary(),
+  ]);
+
+  // No members row linked to this sign-in: not an error, just nothing new
+  // on a page every signed-in member can already reach.
+  const myLedger = myDues ? await duesService.myLedger() : [];
+
+  return (
+    <div className="flex flex-col gap-y-6">
+      <If condition={myDues}>
+        {(summary) => <MyDuesCard summary={summary} ledger={myLedger} />}
+      </If>
+
+      <PaymentHistoryTable payments={payments} showMember={isAdmin} />
+    </div>
+  );
 }
 
 function PaymentsSkeleton() {

@@ -25,6 +25,7 @@
     "next-intl": "catalog:"
   },
   "devDependencies": {
+    "@kit/dues": "workspace:*",
     "@kit/next": "workspace:*",
     "@kit/rbac": "workspace:*",
     "@kit/supabase": "workspace:*",
