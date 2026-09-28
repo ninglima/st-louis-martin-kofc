@@ -1,0 +1,79 @@
+name: Deploy
+on:
+  workflow_run:
+    workflows: [Workflow]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  portal:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: us-east4-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/portal/portal
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker us-east4-docker.pkg.dev --quiet
+      # GIT_HASH is a build arg because /version is prerendered at build time.
+      - name: Build and push
+        run: |
+          docker build -f apps/portal/Dockerfile \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            --build-arg NEXT_PUBLIC_SITE_URL=https://kofc-15256.org \
+            --build-arg NEXT_PUBLIC_CAPTCHA_SITE_KEY="${{ vars.NEXT_PUBLIC_CAPTCHA_SITE_KEY }}" \
+            --build-arg GIT_HASH="$SHA" \
+            -t "$IMAGE:$SHA" .
+          docker push "$IMAGE:$SHA"
+      - name: Deploy to Cloud Run
+        run: |
+          DIGEST=$(gcloud artifacts docker images describe "$IMAGE:$SHA" --format='value(image_summary.digest)')
+          gcloud run deploy portal \
+            --image "$IMAGE@$DIGEST" \
+            --region us-east4 \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --min-instances 0 --max-instances 3 \
+            --cpu 1 --memory 1Gi --cpu-throttling \
+            --timeout 300 \
+            --allow-unauthenticated \
+            --set-env-vars GIT_HASH="$SHA" \
+            --set-secrets SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ORIGIN_AUTH=origin-auth:latest,CAPTCHA_SECRET_TOKEN=captcha-secret-token:latest
+
+  router:
+    needs: portal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter site build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: https://kofc-15256.org
+      - run: pnpm --filter router exec wrangler deploy --var PORTAL_ORIGIN:${{ vars.PORTAL_ORIGIN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

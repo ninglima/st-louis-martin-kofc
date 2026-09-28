@@ -38,6 +38,17 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # Runs before the unit tests: the router's tests serve apps/site/out.
+      - name: Build static site (split guard)
+        run: pnpm --filter site build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          NEXT_PUBLIC_SITE_URL: https://kofc-15256.org
+
+      - name: Unit tests
+        run: pnpm turbo test:unit
+
   test:
     name: ⚫️ Test
     timeout-minutes: 12
@@ -70,7 +81,7 @@ jobs:
         run: |
           PLAYWRIGHT_VERSION=$(pnpm ls @playwright/test --filter web-e2e | grep @playwright | sed 's/.*@//')
           echo "Playwright's Version: $PLAYWRIGHT_VERSION"
-          echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
+          echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> "$GITHUB_ENV"
 
       - name: Cache Playwright Browsers for Playwright's Version
         id: cache-playwright-browsers
