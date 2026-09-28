@@ -7,7 +7,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { PageBody } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 
-import { Delayed } from '~/components/skeletons/page-skeletons';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import { getCurrentPermissions } from '~/lib/server/require-permission';
 
 /**

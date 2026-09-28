@@ -2,7 +2,7 @@ import { HomeGkWelcome } from '~/(marketing)/_components/home-gk-welcome';
 import { HomeInsuranceResources } from '~/(marketing)/_components/home-insurance-resources';
 import { HomeMemberJoinSplit } from '~/(marketing)/_components/home-member-join-split';
 import { HomeStatsBar } from '~/(marketing)/_components/home-stats-bar';
-import appConfig from '~/config/app.config';
+import appConfig from '@kit/brand/config/app';
 import { createPageMetadata } from '~/lib/page-metadata';
 
 /**

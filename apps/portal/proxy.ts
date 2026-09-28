@@ -4,7 +4,7 @@ import { NextResponse, URLPattern } from 'next/server';
 import { checkRequiresMultiFactorAuthentication } from '@kit/supabase/check-requires-mfa';
 import { createMiddlewareClient } from '@kit/supabase/middleware-client';
 
-import pathsConfig from '~/config/paths.config';
+import pathsConfig from '@kit/brand/config/paths';
 
 const NEXT_ACTION_HEADER = 'next-action';
 

@@ -11,7 +11,7 @@ import {
 import { SidebarNavigation } from '@kit/ui/sidebar-navigation';
 import { Skeleton } from '@kit/ui/skeleton';
 
-import { AppEmblem, AppLogo } from '~/components/app-logo';
+import { AppEmblem, AppLogo } from '@kit/brand/app-logo';
 import { ProfileAccountDropdownContainer } from '~/components/personal-account-dropdown-container';
 import type { navigationConfig } from '~/config/navigation.config';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';

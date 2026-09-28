@@ -5,9 +5,9 @@ import { Toaster } from '@kit/ui/sonner';
 import { cn } from '@kit/ui/utils';
 
 import { RootProviders } from '~/components/root-providers';
-import appConfig from '~/config/app.config';
-import { heading, sans } from '~/lib/fonts';
-import { generateRootMetadata } from '~/lib/root-metdata';
+import appConfig from '@kit/brand/config/app';
+import { heading, sans } from '@kit/brand/fonts';
+import { generateRootMetadata } from '@kit/brand/root-metadata';
 
 import '../styles/globals.css';
 

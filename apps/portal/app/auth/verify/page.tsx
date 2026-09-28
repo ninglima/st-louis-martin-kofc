@@ -9,8 +9,8 @@ import { MultiFactorChallengeContainer } from '@kit/auth/mfa';
 import { checkRequiresMultiFactorAuthentication } from '@kit/supabase/check-requires-mfa';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
-import { AuthFormSkeleton } from '~/components/skeletons/page-skeletons';
-import pathsConfig from '~/config/paths.config';
+import { AuthFormSkeleton } from '@kit/brand/skeletons/page-skeletons';
+import pathsConfig from '@kit/brand/config/paths';
 
 interface Props {
   searchParams: Promise<{

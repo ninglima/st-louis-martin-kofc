@@ -8,7 +8,7 @@ import { Heading } from '@kit/ui/heading';
 import { Trans } from '@kit/ui/trans';
 
 import authConfig from '~/config/auth.config';
-import pathsConfig from '~/config/paths.config';
+import pathsConfig from '@kit/brand/config/paths';
 
 export const generateMetadata = async () => {
   const t = await getTranslations();

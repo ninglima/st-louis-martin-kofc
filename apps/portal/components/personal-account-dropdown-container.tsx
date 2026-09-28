@@ -6,8 +6,8 @@ import { PersonalAccountDropdown } from '@kit/accounts/personal-account-dropdown
 import { useSignOut } from '@kit/supabase/hooks/use-sign-out';
 import { useUser } from '@kit/supabase/hooks/use-user';
 
-import featuresFlagConfig from '~/config/feature-flags.config';
-import pathsConfig from '~/config/paths.config';
+import featuresFlagConfig from '@kit/brand/config/feature-flags';
+import pathsConfig from '@kit/brand/config/paths';
 
 const paths = {
   home: pathsConfig.app.home,

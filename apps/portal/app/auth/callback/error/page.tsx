@@ -10,8 +10,8 @@ import { alertExtras } from '@kit/ui/alert-extras';
 import { Button } from '@kit/ui/button';
 import { Trans } from '@kit/ui/trans';
 
-import { AuthFormSkeleton } from '~/components/skeletons/page-skeletons';
-import pathsConfig from '~/config/paths.config';
+import { AuthFormSkeleton } from '@kit/brand/skeletons/page-skeletons';
+import pathsConfig from '@kit/brand/config/paths';
 
 interface AuthCallbackErrorPageProps {
   searchParams: Promise<{

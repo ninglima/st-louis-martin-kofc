@@ -3,7 +3,7 @@ import {
   BorderedNavigationMenuItem,
 } from '@kit/ui/bordered-navigation-menu';
 
-import { AppLogo } from '~/components/app-logo';
+import { AppLogo } from '@kit/brand/app-logo';
 import { ProfileAccountDropdownContainer } from '~/components/personal-account-dropdown-container';
 import type { navigationConfig } from '~/config/navigation.config';
 

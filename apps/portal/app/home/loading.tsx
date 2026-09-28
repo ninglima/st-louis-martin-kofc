@@ -3,7 +3,7 @@ import { PageBody } from '@kit/ui/page';
 import {
   ChartCardsSkeleton,
   PageHeaderSkeleton,
-} from '~/components/skeletons/page-skeletons';
+} from '@kit/brand/skeletons/page-skeletons';
 
 /**
  * The dashboard shape is fixed: a page header, then a grid of chart cards.

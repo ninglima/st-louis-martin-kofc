@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import appConfig from '~/config/app.config';
+import appConfig from '@kit/brand/config/app';
 
 /**
  * Per-page metadata for the public marketing site.

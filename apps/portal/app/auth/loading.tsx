@@ -1,4 +1,4 @@
-import { AuthFormSkeleton } from '~/components/skeletons/page-skeletons';
+import { AuthFormSkeleton } from '@kit/brand/skeletons/page-skeletons';
 
 /**
  * Rendered inside AuthLayoutShell, which already provides the centered card.

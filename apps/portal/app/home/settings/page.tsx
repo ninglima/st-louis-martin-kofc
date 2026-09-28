@@ -6,9 +6,9 @@ import { PersonalAccountSettingsContainer } from '@kit/accounts/personal-account
 import { PageBody } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 
-import { Delayed } from '~/components/skeletons/page-skeletons';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import authConfig from '~/config/auth.config';
-import pathsConfig from '~/config/paths.config';
+import pathsConfig from '@kit/brand/config/paths';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 /**

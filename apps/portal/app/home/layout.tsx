@@ -4,8 +4,8 @@ import { filterRoutesByPermission } from '@kit/rbac/server/filter-navigation';
 import { Page, PageMobileNavigation, PageNavigation } from '@kit/ui/page';
 import { SidebarProvider } from '@kit/ui/sidebar';
 
-import { AppLogo } from '~/components/app-logo';
-import pathsConfig from '~/config/paths.config';
+import { AppLogo } from '@kit/brand/app-logo';
+import pathsConfig from '@kit/brand/config/paths';
 import { navigationConfig } from '~/config/navigation.config';
 import { getCurrentPermissions } from '~/lib/server/require-permission';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';

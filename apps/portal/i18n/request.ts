@@ -1,25 +1,15 @@
 /**
  * App-specific i18n request configuration.
- * Loads translation messages from the app's messages directory.
+ * Loads translation messages via `@kit/brand/i18n`, which both apps share.
  *
- * Namespaces live in separate files under `messages/${locale}/`, so adding a
- * namespace means adding a file here and an entry in `namespaces` below.
+ * Namespaces live in separate files under
+ * `packages/brand/i18n/messages/${locale}/`, so adding a namespace means
+ * adding a file there and an entry in `MESSAGE_NAMESPACES`.
  */
 import { getRequestConfig } from 'next-intl/server';
 
+import { loadMessages } from '@kit/brand/i18n';
 import { routing } from '@kit/i18n/routing';
-
-// Define the namespaces to load
-const namespaces = [
-  'common',
-  'auth',
-  'account',
-  'teams',
-  'billing',
-  'marketing',
-  'payments',
-  'rbac',
-] as const;
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -63,34 +53,3 @@ export default getRequestConfig(async () => {
     },
   };
 });
-
-/**
- * Loads translation messages for all namespaces.
- * Each namespace is loaded from a separate file for better code splitting.
- */
-async function loadMessages(locale: string) {
-  const loadedMessages: Record<string, unknown> = {};
-
-  // Load each namespace file
-  await Promise.all(
-    namespaces.map(async (namespace) => {
-      try {
-        const namespaceMessages = await import(
-          `./messages/${locale}/${namespace}.json`
-        );
-
-        loadedMessages[namespace] = namespaceMessages.default;
-      } catch (error) {
-        console.warn(
-          `Failed to load namespace "${namespace}" for locale "${locale}":`,
-          error,
-        );
-
-        // Set empty object as fallback
-        loadedMessages[namespace] = {};
-      }
-    }),
-  );
-
-  return loadedMessages;
-}

@@ -1,6 +1,6 @@
 import { Header } from '@kit/ui/marketing';
 
-import { AppLogo } from '~/components/app-logo';
+import { AppLogo } from '@kit/brand/app-logo';
 
 import {
   SiteHeaderAccountSection,

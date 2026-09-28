@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import { Trans } from '@kit/ui/trans';
 
-import { AppLogo } from '~/components/app-logo';
+import { AppLogo } from '@kit/brand/app-logo';
 import { LEGAL_LINKS, SITE_NAV } from '~/config/site-navigation.config';
 
 const COUNCIL_EMAIL = 'kofc15256@googlegroups.com';
@@ -79,8 +79,9 @@ export async function SiteFooter() {
   const year = await getCopyrightYear();
 
   return (
-    // `relative` is load-bearing, not decoration: `styles/makerkit.css` draws
-    // the footer's top hairline as `.site-footer > .container::before` with
+    // `relative` is load-bearing, not decoration:
+    // `packages/brand/styles/makerkit.css` draws the footer's top hairline as
+    // `.site-footer > .container::before` with
     // `position: absolute; top: 0`. With no positioned ancestor anywhere up the
     // tree it resolves against the initial containing block, so the hairline
     // paints at the top of the document instead of the top of the footer.

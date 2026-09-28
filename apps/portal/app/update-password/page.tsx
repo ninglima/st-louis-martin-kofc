@@ -5,9 +5,9 @@ import { getTranslations } from 'next-intl/server';
 import { UpdatePasswordForm } from '@kit/auth/password-reset';
 import { AuthLayoutShell } from '@kit/auth/shared';
 
-import { AppLogo } from '~/components/app-logo';
-import { AuthFormSkeleton } from '~/components/skeletons/page-skeletons';
-import pathsConfig from '~/config/paths.config';
+import { AppLogo } from '@kit/brand/app-logo';
+import { AuthFormSkeleton } from '@kit/brand/skeletons/page-skeletons';
+import pathsConfig from '@kit/brand/config/paths';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 export const generateMetadata = async () => {

@@ -2,7 +2,7 @@ import { cacheLife } from 'next/cache';
 
 import { getServerSideSitemap } from 'next-sitemap';
 
-import appConfig from '~/config/app.config';
+import appConfig from '@kit/brand/config/app';
 import { SITEMAP_ROUTES } from '~/config/site-navigation.config';
 
 /**

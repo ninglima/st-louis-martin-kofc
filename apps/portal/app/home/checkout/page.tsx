@@ -8,7 +8,7 @@ import { Skeleton } from '@kit/ui/skeleton';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 
 import { CheckoutForm } from '@kit/payments/components/checkout-form';
-import { Delayed } from '~/components/skeletons/page-skeletons';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import { requirePermission } from '~/lib/server/require-permission';
 
 import type { PublicPaymentConfig } from '@kit/payments/types';

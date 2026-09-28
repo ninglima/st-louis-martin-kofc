@@ -43,3 +43,24 @@ const pathsConfig = PathsSchema.parse({
 } satisfies z.infer<typeof PathsSchema>);
 
 export default pathsConfig;
+
+/**
+ * Every path the member portal serves. The router proxies exactly these to
+ * Cloud Run and serves everything else from the static site, and the portal's
+ * `proxy.ts` reads the same list, so the two cannot drift apart. Matching is
+ * per path segment: `/home` and `/home/x` are portal paths, `/homework` is not.
+ */
+export const PORTAL_PREFIXES = [
+  '/home',
+  '/auth',
+  '/update-password',
+  '/api',
+  '/version',
+  '/portal-assets',
+] as const;
+
+export function isPortalPath(pathname: string): boolean {
+  return PORTAL_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}

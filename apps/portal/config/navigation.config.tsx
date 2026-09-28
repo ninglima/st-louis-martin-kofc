@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { NavigationConfigSchema } from '@kit/ui/navigation-schema';
 
-import pathsConfig from '~/config/paths.config';
+import pathsConfig from '@kit/brand/config/paths';
 
 const iconClasses = 'w-4';
 

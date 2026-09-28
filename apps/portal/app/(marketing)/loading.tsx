@@ -1,4 +1,4 @@
-import { ContentFallback } from '~/components/skeletons/page-skeletons';
+import { ContentFallback } from '@kit/brand/skeletons/page-skeletons';
 
 /**
  * Marketing pages have no shared shape: the landing page, the FAQ and the legal

@@ -12,8 +12,8 @@ import { If } from '@kit/ui/if';
 import { SubMenuModeToggle } from '@kit/ui/mode-toggle';
 import { Trans } from '@kit/ui/trans';
 
-import featuresFlagConfig from '~/config/feature-flags.config';
-import pathsConfig from '~/config/paths.config';
+import featuresFlagConfig from '@kit/brand/config/feature-flags';
+import pathsConfig from '@kit/brand/config/paths';
 
 const ModeToggle = dynamic(
   () =>

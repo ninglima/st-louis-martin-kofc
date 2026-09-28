@@ -11,7 +11,7 @@ import { If } from '@kit/ui/if';
 import { PageBody, PageHeader } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 
-import { Delayed } from '~/components/skeletons/page-skeletons';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import {
   getCurrentPermissions,
   requirePermission,

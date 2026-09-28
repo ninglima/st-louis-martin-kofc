@@ -9,7 +9,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 
 import { PaymentSettingsForm } from '@kit/payments/components/payment-settings-form';
 import type { PaymentConfig } from '@kit/payments/types';
-import { Delayed } from '~/components/skeletons/page-skeletons';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import { requirePermission } from '~/lib/server/require-permission';
 
 /**

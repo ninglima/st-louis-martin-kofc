@@ -8,11 +8,11 @@
 @import 'tailwindcss';
 
 /* local styles - update the below if you add a new style */
-@import './theme.css';
-@import './theme.utilities.css';
-@import './shadcn-ui.css';
-@import './markdoc.css';
-@import './makerkit.css';
+@import '../../../packages/brand/styles/theme.css';
+@import '../../../packages/brand/styles/theme.utilities.css';
+@import '../../../packages/brand/styles/shadcn-ui.css';
+@import '../../../packages/brand/styles/markdoc.css';
+@import '../../../packages/brand/styles/makerkit.css';
 
 /* plugins - update the below if you add a new plugin */
 @plugin "tailwindcss-animate";
@@ -23,6 +23,7 @@
 @source "../../../packages/billing/*/src/**/*.{ts,tsx}";
 @source "../../../packages/plugins/*/src/**/*.{ts,tsx}";
 @source "../../../packages/cms/*/src/**/*.{ts,tsx}";
+@source "../../../packages/brand/src/**/*.{ts,tsx}";
 @source "../{app,components,config,lib}/**/*.{ts,tsx}";
 
 /* variants - update the below if you add a new variant */

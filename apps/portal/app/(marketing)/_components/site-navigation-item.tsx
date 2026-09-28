@@ -10,7 +10,8 @@ import { cn, isRouteActive } from '@kit/ui/utils';
  * Semantic tokens only. This shipped as `dark:text-gray-300` /
  * `dark:text-white`, which pinned the top-level navigation of all 24 public
  * routes to Tailwind's palette rather than the council's: revise the dark
- * palette in `styles/shadcn-ui.css` and the nav would silently ignore it.
+ * palette in `packages/brand/styles/shadcn-ui.css` and the nav would silently
+ * ignore it.
  *
  * The `dark:`-only spelling also meant light mode had no active state at all
  * -- `text-current` and the inherited colour are the same colour -- so the

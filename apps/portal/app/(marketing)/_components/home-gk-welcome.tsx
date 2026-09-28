@@ -1,4 +1,4 @@
-import { AppLogo } from '~/components/app-logo';
+import { AppLogo } from '@kit/brand/app-logo';
 
 /**
  * The Grand Knight's welcome message.

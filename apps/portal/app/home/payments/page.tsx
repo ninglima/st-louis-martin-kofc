@@ -10,7 +10,7 @@ import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client'
 import { PaymentHistoryTable } from '@kit/payments/components/payment-history-table';
 import { PaymentService } from '@kit/payments/server/payment.service';
 import { hasPermission } from '@kit/rbac/types';
-import { Delayed } from '~/components/skeletons/page-skeletons';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
 import {
   getCurrentPermissions,
   requirePermission,
