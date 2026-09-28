@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
 # One-time Google Cloud setup for the portal. Idempotent: safe to re-run.
-# Run it yourself (it changes shared cloud state):  PROJECT_ID=... ./infra/gcp/setup.sh
+# Run it yourself (it changes shared cloud state):
+#   PROJECT_ID=... GITHUB_REPOSITORY_ID=... ./infra/gcp/setup.sh
+#
+# GITHUB_REPOSITORY_ID is the repository's numeric ID. The Workload Identity
+# provider pins it, not only the name, because a name can be reclaimed by
+# someone else after a rename or transfer; the ID cannot. Get it with:
+#   gh api repos/ninglima/st-louis-martin-kofc --jq .id
 set -euo pipefail
 
 : "${PROJECT_ID:?Set PROJECT_ID}"
+: "${GITHUB_REPOSITORY_ID:?Set GITHUB_REPOSITORY_ID (gh api repos/ninglima/st-louis-martin-kofc --jq .id)}"
+case "$GITHUB_REPOSITORY_ID" in
+  '' | *[!0-9]*)
+    echo "GITHUB_REPOSITORY_ID must be the numeric repository ID, got: $GITHUB_REPOSITORY_ID" >&2
+    exit 1
+    ;;
+esac
 REGION=us-east4
 REPO=ninglima/st-louis-martin-kofc
 POOL=github
@@ -31,12 +44,27 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
 
 gcloud iam workload-identity-pools describe "$POOL" --location global >/dev/null 2>&1 ||
   gcloud iam workload-identity-pools create "$POOL" --location global
-gcloud iam workload-identity-pools providers describe "$PROVIDER" --workload-identity-pool "$POOL" --location global >/dev/null 2>&1 ||
+# Only tokens from this repository (by ID and by name) on main are accepted.
+# Re-running does NOT update an existing provider's mapping or condition; when
+# the provider already exists the script prints the update-oidc command that
+# applies the values below, for you to run:
+#   gcloud iam workload-identity-pools providers update-oidc github-main \
+#     --workload-identity-pool github --location global \
+#     --attribute-mapping "<ATTRIBUTE_MAPPING>" --attribute-condition "<ATTRIBUTE_CONDITION>"
+ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref"
+ATTRIBUTE_CONDITION="assertion.repository_id=='$GITHUB_REPOSITORY_ID' && assertion.repository=='$REPO' && assertion.ref=='refs/heads/main'"
+if gcloud iam workload-identity-pools providers describe "$PROVIDER" --workload-identity-pool "$POOL" --location global >/dev/null 2>&1; then
+  echo "Provider $PROVIDER already exists; its mapping and condition were NOT updated. To apply the current ones:"
+  echo "  gcloud iam workload-identity-pools providers update-oidc $PROVIDER --workload-identity-pool $POOL --location global \\"
+  echo "    --attribute-mapping \"$ATTRIBUTE_MAPPING\" \\"
+  echo "    --attribute-condition \"$ATTRIBUTE_CONDITION\""
+else
   gcloud iam workload-identity-pools providers create-oidc "$PROVIDER" \
     --workload-identity-pool "$POOL" --location global \
     --issuer-uri https://token.actions.githubusercontent.com \
-    --attribute-mapping google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref \
-    --attribute-condition "assertion.repository=='$REPO' && assertion.ref=='refs/heads/main'"
+    --attribute-mapping "$ATTRIBUTE_MAPPING" \
+    --attribute-condition "$ATTRIBUTE_CONDITION"
+fi
 POOL_ID=$(gcloud iam workload-identity-pools describe "$POOL" --location global --format 'value(name)')
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" \
   --role roles/iam.workloadIdentityUser \
