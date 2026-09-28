@@ -187,7 +187,7 @@ preview-then-apply pattern but is a separate action.
 | `/home/members` list | `members.view`; dues columns need `finance.view` | Level, paid through, status badge, status filter |
 | `/home/members/[id]` | `finance.view` to see; `finance.manage` for actions | Dues card, ledger, record payment, void, accepted on, level, student |
 | `/home/members/dues-import` | `finance.manage` | Upload, preview, apply |
-| `/home/payments` | Any signed-in member, own record only | "Paid through", level, own ledger, Pay dues button when due or lapsed |
+| `/home/payments` | Any signed-in member, own record only | "Paid through", level, own ledger, Pay dues button when due, lapsed or due soon |
 
 Dues rows are not encrypted, matching `payments`; the encryption in `members`
 covers addresses and phone numbers.
