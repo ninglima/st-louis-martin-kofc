@@ -1,9 +1,11 @@
 name: Workflow
 on:
+  # Checks run on dev and main. Deploys run only after this workflow
+  # succeeds on a push to main (deploy.yml filters `branches: [main]`).
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 jobs:
   typescript:
     name: ʦ TypeScript
