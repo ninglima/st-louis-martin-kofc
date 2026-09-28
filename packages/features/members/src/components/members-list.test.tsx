@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MemberDuesSummary } from '@kit/dues/types';
 
 import type { MemberListRow } from '../server/members.service';
-import { hrefFor, MembersList, parseDuesFilter } from './members-list';
+import { hrefFor, MembersList } from './members-list';
 import type { AccountFilter } from './members-list';
 
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -182,26 +182,6 @@ describe('MembersList', () => {
 
     expect(html).toContain('Paid through');
     expect(html).toContain('data-test="member-dues-status"');
-  });
-});
-
-describe('parseDuesFilter', () => {
-  it('accepts each of the five dues statuses', () => {
-    for (const status of [
-      'current',
-      'due_soon',
-      'due',
-      'lapsed',
-      'no_record',
-    ]) {
-      expect(parseDuesFilter(status)).toBe(status);
-    }
-  });
-
-  it('ignores anything that is not a real dues status', () => {
-    expect(parseDuesFilter('bogus')).toBe('all');
-    expect(parseDuesFilter('')).toBe('all');
-    expect(parseDuesFilter('Due')).toBe('all');
   });
 });
 

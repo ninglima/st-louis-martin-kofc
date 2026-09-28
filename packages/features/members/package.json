@@ -12,7 +12,8 @@
   "exports": {
     "./types": "./src/types/roster.ts",
     "./server/*": "./src/server/*.ts",
-    "./components/*": "./src/components/*.tsx"
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",

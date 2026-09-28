@@ -3,10 +3,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 
 import { DuesService } from '@kit/dues/server/dues.service';
-import {
-  MembersList,
-  parseDuesFilter,
-} from '@kit/members/components/members-list';
+import { MembersList } from '@kit/members/components/members-list';
+import { parseDuesFilter } from '@kit/members/lib/dues-filter';
 import { MembersService } from '@kit/members/server/members.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';

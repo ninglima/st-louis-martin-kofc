@@ -9,7 +9,7 @@ import {
   DuesStatusBadge,
   LABEL_BY_STATUS,
 } from '@kit/dues/components/dues-status-badge';
-import type { DuesStatus, MemberDuesSummary } from '@kit/dues/types';
+import type { MemberDuesSummary } from '@kit/dues/types';
 
 import { Badge } from '@kit/ui/badge';
 import { badgeExtras } from '@kit/ui/badge-extras';
@@ -35,6 +35,7 @@ import {
 } from '@kit/ui/table';
 import { cn } from '@kit/ui/utils';
 
+import type { DuesFilter } from '../lib/dues-filter';
 import { exportMembersAction } from '../server/members-actions';
 import type { MemberListRow } from '../server/members.service';
 
@@ -79,36 +80,16 @@ const ACCOUNT_LABELS: Record<AccountFilter, string> = {
 };
 
 /**
- * The five states `dues_status` can carry, plus the unset one for the
- * Select. `finance.view` gates this filter entirely -- it only appears when
- * the caller passed a `dues` map, which is the same signal that gates the
- * three dues columns.
+ * `finance.view` gates this filter entirely -- it only appears when the
+ * caller passed a `dues` map, which is the same signal that gates the three
+ * dues columns. `DuesFilter` and `parseDuesFilter` themselves live in
+ * `../lib/dues-filter` -- see that file's doc comment for why they can't
+ * live in this `'use client'` component alongside their labels.
  */
-export type DuesFilter = DuesStatus | 'all';
-
-const DUES_FILTER_VALUES: DuesStatus[] = [
-  'current',
-  'due_soon',
-  'due',
-  'lapsed',
-  'no_record',
-];
-
 const DUES_FILTER_LABELS: Record<DuesFilter, string> = {
   all: 'Any dues status',
   ...LABEL_BY_STATUS,
 };
-
-/**
- * Validates an incoming `?dues=` value against the five real statuses,
- * falling back to `'all'` for anything else -- a typo'd or stale link must
- * read as "no filter", not as a crash or a silently narrowed roster.
- */
-export function parseDuesFilter(value: string): DuesFilter {
-  return (DUES_FILTER_VALUES as string[]).includes(value)
-    ? (value as DuesStatus)
-    : 'all';
-}
 
 /**
  * The sentinel the city Select uses for "no filter".
