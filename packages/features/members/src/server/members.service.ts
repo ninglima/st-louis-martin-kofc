@@ -37,6 +37,28 @@ export interface MemberListRow {
   phone: string | null;
 }
 
+/**
+ * The member detail page's roster half. Deliberately narrower than
+ * `MemberListRow`: it carries only plaintext columns (see `getMember`
+ * below), so there is no decrypted address or phone here.
+ */
+export interface MemberDetail {
+  id: string;
+  membershipNumber: string;
+  userId: string | null;
+  fullName: string;
+  primaryEmail: string | null;
+  city: string | null;
+  state: string | null;
+  badAddress: boolean;
+  rosterLastSeenAt: string | null;
+}
+
+/** Columns `getMember` selects directly, all plaintext -- see its doc
+ * comment for why decryption never enters into it. */
+const DETAIL_SELECT =
+  'id, membership_number, user_id, prefix, first_name, middle_name, last_name, suffix, primary_email, city, state, bad_address, roster_last_seen_at';
+
 type MemberColumn = keyof Database['public']['Tables']['members']['Row'];
 
 /**
@@ -128,6 +150,50 @@ export class MembersService {
       postalCode: row.postal_code,
       phone: row.phone,
     }));
+  }
+
+  /**
+   * One member by id, for the member detail page.
+   *
+   * Reads `members` directly rather than through `members_list`: that RPC
+   * decrypts a page of ciphertext columns and has no id filter, so bending
+   * it to find one row would mean decrypting up to 200 rows -- most of them
+   * thrown away -- to find the one that matches. `members_select_own`
+   * already grants `members.view` holders (and a member their own row) read
+   * access here, and every column this selects is plaintext, so there is
+   * nothing to decrypt at all. It returns `null` rather than throwing on a
+   * missing id -- the caller (the page) turns that into `notFound()`, which
+   * is a normal outcome and not an error.
+   */
+  async getMember(id: string): Promise<MemberDetail | null> {
+    const { data, error } = await this.client
+      .from('members')
+      .select(DETAIL_SELECT)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      membershipNumber: data.membership_number,
+      userId: data.user_id,
+      fullName: [
+        data.prefix,
+        data.first_name,
+        data.middle_name,
+        data.last_name,
+        data.suffix,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(' '),
+      primaryEmail: data.primary_email,
+      city: data.city,
+      state: data.state,
+      badAddress: data.bad_address,
+      rosterLastSeenAt: data.roster_last_seen_at,
+    };
   }
 
   /**

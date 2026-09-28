@@ -35,6 +35,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
+    "sonner": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
   }

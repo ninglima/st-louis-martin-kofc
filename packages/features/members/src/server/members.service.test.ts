@@ -234,6 +234,88 @@ describe('MembersService.list', () => {
   });
 });
 
+describe('MembersService.getMember', () => {
+  function detailRow(overrides: Record<string, unknown> = {}) {
+    return fullMemberRow({
+      id: 'bd1d9c3a-1111-2222-3333-444455556666',
+      user_id: null,
+      roster_last_seen_at: '2026-09-01T00:00:00Z',
+      ...overrides,
+    });
+  }
+
+  it('reads the member directly, not through members_list', async () => {
+    const fake = fakeClient({ rows: [detailRow()] });
+
+    await new MembersService(fake.client).getMember(
+      'bd1d9c3a-1111-2222-3333-444455556666',
+    );
+
+    // No decryption to do here (every selected column is plaintext), so
+    // there is nothing for members_list's RPC to earn its keep on -- a
+    // direct table read is both simpler and the whole point of the doc
+    // comment on `getMember`.
+    expect(fake.rpcs).toEqual([]);
+    expect(fake.selects[0]!.table).toBe('members');
+  });
+
+  it('builds the full name from prefix, middle name and suffix, skipping the blanks', async () => {
+    const fake = fakeClient({
+      rows: [detailRow({ prefix: '', suffix: null })],
+    });
+
+    const member = await new MembersService(fake.client).getMember(
+      'bd1d9c3a-1111-2222-3333-444455556666',
+    );
+
+    // fullMemberRow's defaults are 'Mr', 'Stored', 'Q', 'Member', 'Jr' --
+    // with prefix and suffix blanked out here, only the middle three survive.
+    expect(member?.fullName).toBe('Stored Q Member');
+  });
+
+  it('maps every plaintext field the detail page shows', async () => {
+    const fake = fakeClient({ rows: [detailRow()] });
+
+    const member = await new MembersService(fake.client).getMember(
+      'bd1d9c3a-1111-2222-3333-444455556666',
+    );
+
+    expect(member).toEqual({
+      id: 'bd1d9c3a-1111-2222-3333-444455556666',
+      membershipNumber: '1000001',
+      userId: null,
+      fullName: 'Mr Stored Q Member Jr',
+      primaryEmail: 'stored@example.com',
+      city: 'Saint Louis',
+      state: 'MO',
+      badAddress: false,
+      rosterLastSeenAt: '2026-09-01T00:00:00Z',
+    });
+  });
+
+  it('returns null for a member that does not exist, rather than throwing', async () => {
+    const fake = fakeClient({ rows: [] });
+
+    const member = await new MembersService(fake.client).getMember(
+      'bd1d9c3a-9999-9999-9999-999999999999',
+    );
+
+    expect(member).toBeNull();
+  });
+
+  it('throws rather than reporting "not found" when the read itself fails', async () => {
+    // RLS denying the read and the row simply not existing must not look
+    // the same to the caller -- one is `notFound()`, the other is a bug.
+    const fake = fakeClient({ selectError: { message: 'permission denied' } });
+
+    await expect(
+      new MembersService(fake.client).getMember(
+        'bd1d9c3a-1111-2222-3333-444455556666',
+      ),
+    ).rejects.toThrow('permission denied');
+  });
+});
+
 describe('MembersService.cities', () => {
   it('reads the roster-wide city list, not the rows on screen', async () => {
     const fake = fakeClient({

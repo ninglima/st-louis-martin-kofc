@@ -333,7 +333,13 @@ export function MembersList({
               >
                 <TableCell className={WRAP}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span>{member.fullName}</span>
+                    <Link
+                      href={`/home/members/${member.id}`}
+                      className="hover:underline"
+                      data-test="member-name-link"
+                    >
+                      {member.fullName}
+                    </Link>
 
                     <If condition={member.badAddress}>
                       <Badge

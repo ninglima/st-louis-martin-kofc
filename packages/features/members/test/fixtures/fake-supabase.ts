@@ -97,11 +97,53 @@ export function fakeClient(options: FakeClientOptions = {}): FakeClient {
           selects.push({ table, columns });
           order.push('select');
 
-          return Promise.resolve(
+          const resolveRows = () =>
             options.selectError
               ? { data: null, error: options.selectError }
-              : { data: options.rows ?? [], error: null },
-          );
+              : { data: options.rows ?? [], error: null };
+
+          // Thenable AND chainable: `existingForPlanning()` awaits
+          // `.select(...)` directly (resolves via `.then` below, the whole
+          // row set), while `getMember()` chains `.eq(...).maybeSingle()`
+          // (the first matching row, or null). One fake covers both without
+          // either caller needing to know the other exists.
+          return {
+            eq(_column: string, _value: unknown) {
+              return {
+                maybeSingle() {
+                  if (options.selectError) {
+                    return Promise.resolve({
+                      data: null,
+                      error: options.selectError,
+                    });
+                  }
+
+                  const rows = options.rows ?? [];
+
+                  return Promise.resolve({
+                    data: rows[0] ?? null,
+                    error: null,
+                  });
+                },
+              };
+            },
+            then<TResult1 = unknown, TResult2 = never>(
+              onFulfilled?:
+                | ((value: {
+                    data: unknown;
+                    error: unknown;
+                  }) => TResult1 | PromiseLike<TResult1>)
+                | null,
+              onRejected?:
+                | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+                | null,
+            ) {
+              return Promise.resolve(resolveRows()).then(
+                onFulfilled,
+                onRejected,
+              );
+            },
+          };
         },
       };
     },

@@ -76,6 +76,18 @@ describe('MembersList', () => {
     expect(html).toContain('john@example.com');
   });
 
+  it("links the member's name to their detail page", () => {
+    const html = render({
+      members: [member({ id: 'bd1d9c3a-1111-2222-3333-444455556666' })],
+    });
+
+    expect(html).toContain(
+      'href="/home/members/bd1d9c3a-1111-2222-3333-444455556666"',
+    );
+    expect(html).toContain('data-test="member-name-link"');
+    expect(html).toContain('>John Smith</a>');
+  });
+
   it('keeps the no-email marker and the no-account badge apart', () => {
     // A member with an account and no address on file. The two facts are
     // different questions and a single badge cannot answer both: this member
