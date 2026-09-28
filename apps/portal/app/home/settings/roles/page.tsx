@@ -37,13 +37,20 @@ function RolesPage() {
 }
 
 async function RolesContent() {
+  // getCurrentPermissions() reaches `connection()` (via
+  // requireUserInServerComponent) before touching anything else, and
+  // `connection()` never resolves during prerendering -- that is what marks
+  // this segment dynamic under Cache Components. It has to be awaited
+  // *before* getSupabaseServerAdminClient() runs: constructing the admin
+  // client first (or racing the two in Promise.all, as this used to) lets
+  // Next actually execute it during `next build`, where
+  // SUPABASE_SERVICE_ROLE_KEY is deliberately absent (it is a runtime-only
+  // secret, injected via Cloud Run), so the build fails instead of deferring
+  // this segment to request time.
+  const permissions = await getCurrentPermissions();
   const adminClient = getSupabaseServerAdminClient();
   const service = new RolesService(adminClient);
-
-  const [roles, permissions] = await Promise.all([
-    service.listRoles(),
-    getCurrentPermissions(),
-  ]);
+  const roles = await service.listRoles();
 
   const canManage = hasPermission(permissions, 'roles', 'manage');
 

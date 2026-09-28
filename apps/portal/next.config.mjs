@@ -37,6 +37,14 @@ const config = {
     },
   },
   serverExternalPackages: [],
+  /** Cloud Run runs `node server.js` from the standalone output. */
+  output: 'standalone',
+  /**
+   * The public site also emits /_next/static. Prefixing the portal's asset
+   * URLs keeps the two apart; the router strips the prefix before proxying,
+   * so the server still serves the files at /_next/static.
+   */
+  assetPrefix: '/portal-assets',
   /**
    * Partial Prerendering. Every route ships a static shell that serves
    * immediately, and anything behind a Suspense boundary streams in per

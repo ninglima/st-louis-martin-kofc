@@ -43,12 +43,21 @@ function UsersPage() {
 }
 
 async function UsersContent() {
+  // requireUserInServerComponent() reaches `connection()` before touching
+  // anything else, and `connection()` never resolves during prerendering --
+  // that is what marks this segment dynamic under Cache Components. It has
+  // to be awaited *before* getSupabaseServerAdminClient() runs: constructing
+  // the admin client first (or racing the two in Promise.all, as this used
+  // to) lets Next actually execute it during `next build`, where
+  // SUPABASE_SERVICE_ROLE_KEY is deliberately absent (it is a runtime-only
+  // secret, injected via Cloud Run), so the build fails instead of deferring
+  // this segment to request time.
+  const currentUser = await requireUserInServerComponent();
   const adminClient = getSupabaseServerAdminClient();
   const usersService = new UsersService(adminClient);
   const rolesService = new RolesService(adminClient);
 
-  const [currentUser, users, roles, permissions] = await Promise.all([
-    requireUserInServerComponent(),
+  const [users, roles, permissions] = await Promise.all([
     usersService.listUsers(),
     rolesService.listRoles(),
     getCurrentPermissions(),

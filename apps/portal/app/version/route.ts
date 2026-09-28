@@ -1,12 +1,7 @@
 import { cacheLife } from 'next/cache';
 
-// please provide your own implementation
-// if you're not using Vercel or Cloudflare Pages
-const KNOWN_GIT_ENV_VARS = [
-  'CF_PAGES_COMMIT_SHA',
-  'VERCEL_GIT_COMMIT_SHA',
-  'GIT_HASH',
-];
+// Set by the deploy workflow (`--set-env-vars GIT_HASH=…`) and by compose.yaml.
+const KNOWN_GIT_ENV_VARS = ['GIT_HASH'];
 
 /**
  * Cached for as long as the build is live. `export const dynamic =
@@ -15,6 +10,11 @@ const KNOWN_GIT_ENV_VARS = [
  *
  * The cache wraps the hash rather than the handler: a `Response` is a class
  * instance, and values crossing a `use cache` boundary have to be serializable.
+ *
+ * Because this route is prerendered (confirmed by the build output listing
+ * `/version` as ○ static), `getGitHash()` runs once at `next build` time, not
+ * per request. `GIT_HASH` must therefore be set as a build-time `ENV`/`ARG`
+ * in the Dockerfile; setting it only at `docker run` time has no effect.
  */
 async function getCachedGitHash() {
   'use cache';
