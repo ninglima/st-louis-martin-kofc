@@ -36,6 +36,10 @@
   // PORTAL_ORIGIN is set per environment with --var at deploy time.
   // ORIGIN_AUTH is a secret: `wrangler secret put ORIGIN_AUTH`.
   "vars": { "PORTAL_ORIGIN": "" },
+  // Daily dues notices job: wakes the portal and runs the notices job. See
+  // docs/runbook/hosting.md, "Dues notices". DUES_JOBS_SECRET is a secret:
+  // `wrangler secret put DUES_JOBS_SECRET`.
+  "triggers": { "crons": ["0 14 * * *"] },
   // Attaching the real domain is Cutover step 4. Until then, deploys run
   // without --env and traffic stays on *.workers.dev.
   "env": {

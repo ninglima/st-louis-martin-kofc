@@ -344,3 +344,37 @@ this stack. Do this once everything above has been running against
 - [ ] Keep WordPress running, unrouted (not receiving traffic — e.g. DNS
       pointed away from it, but the server left up), for two weeks after
       cutover, in case a rollback of the domain itself is needed.
+
+## 7. Dues notices
+
+1. **Resend**
+   - Register the webhook at `https://<site>/api/webhooks/resend` for the
+     events `email.sent`, `email.delivered`, `email.delivery_delayed`,
+     `email.bounced`, `email.complained`, `email.opened` and
+     `email.clicked`.
+   - Copy its signing secret (`whsec_…`).
+   - Confirm that open and click tracking are on for the domain.
+2. **Secret Manager.** Create `resend-api-key`, `resend-webhook-secret` and
+   `dues-jobs-secret`. Then add them to the `--set-secrets` line in
+   `.github/workflows/deploy.yml`:
+
+   ```
+   RESEND_API_KEY=resend-api-key:latest,RESEND_WEBHOOK_SECRET=resend-webhook-secret:latest,DUES_JOBS_SECRET=dues-jobs-secret:latest
+   ```
+
+   Also add `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM` and
+   `DUES_NOTICES_REPLY_TO` to `--set-env-vars`.
+
+   Only do this after the secrets exist: a missing secret fails the `main`
+   deploy.
+3. **Worker.** Run `wrangler secret put DUES_JOBS_SECRET`, using the same
+   value as `dues-jobs-secret`. Then deploy the router. The cron
+   `0 14 * * *` runs at 9 a.m. Central during daylight time and 8 a.m. in
+   standard time.
+4. **Going live**
+   1. Start with `DUES_NOTICES_MODE=dry-run` for a week.
+   2. Check `/home/dues-notices`.
+   3. Switch to `live`.
+   4. `off` stops everything.
+5. **Deploy order.** Deploy the migration before or with the app. The pages
+   show "Not available yet" until it has run.

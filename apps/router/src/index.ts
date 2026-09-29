@@ -2,6 +2,7 @@ import { ColdStartSimulator } from './cold-start';
 import type { Env } from './env';
 import { buildOriginRequest, rewriteLocation } from './forward';
 import { classify, pleaseWaitEligible } from './routing';
+import { runDuesNoticesTrigger } from './scheduled';
 
 const PLEASE_WAIT_AFTER_MS = 1500;
 
@@ -87,5 +88,13 @@ export default {
     );
 
     return pleaseWait(request, env);
+  },
+
+  async scheduled(
+    _controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    ctx.waitUntil(runDuesNoticesTrigger(env).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

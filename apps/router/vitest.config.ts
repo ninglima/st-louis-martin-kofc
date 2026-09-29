@@ -18,6 +18,7 @@ export default defineConfig({
         bindings: {
           PORTAL_ORIGIN: 'https://portal-abc.a.run.app',
           ORIGIN_AUTH: 'test-secret',
+          DUES_JOBS_SECRET: 'test-jobs',
         },
       },
     }),

@@ -6,4 +6,6 @@ export interface Env {
   SIMULATE_COLD_START_MS?: string;
   /** Local stack only: how long without portal traffic counts as idle. */
   SIMULATE_IDLE_MS?: string;
+  /** Shared secret for the daily dues notices cron; unset skips the job. */
+  DUES_JOBS_SECRET?: string;
 }
