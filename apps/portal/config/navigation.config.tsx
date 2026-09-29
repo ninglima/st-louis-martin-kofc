@@ -78,6 +78,9 @@ const routes = [
       {
         label: 'common.routes.profile',
         path: pathsConfig.app.profileSettings,
+        // Payment Settings, Users and Roles all live under /home/settings/,
+        // so the default prefix match would light Profile up on each of them.
+        highlightMatch: '^/home/settings/?$',
         Icon: <User className={iconClasses} />,
       },
       {

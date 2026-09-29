@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { isRouteActive } from '../is-route-active';
 
 describe('isRouteActive', () => {
+  // apps/portal/config/navigation.config.tsx: Profile sits at /home/settings,
+  // the parent of Payment Settings, Users and Roles.
+  it('keeps a parent item exact with an anchored highlightMatch', () => {
+    const profile = '^/home/settings/?$';
+
+    expect(isRouteActive('/home/settings', '/home/settings', profile)).toBe(true);
+    expect(isRouteActive('/home/settings', '/home/settings/', profile)).toBe(true);
+    expect(
+      isRouteActive('/home/settings', '/home/settings/payments', profile),
+    ).toBe(false);
+    expect(isRouteActive('/home/settings', '/home/settings/users', profile)).toBe(
+      false,
+    );
+  });
+
   describe('exact matching', () => {
     it('returns true for exact path match', () => {
       expect(isRouteActive('/projects', '/projects')).toBe(true);
