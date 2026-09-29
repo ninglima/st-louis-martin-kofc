@@ -52,6 +52,14 @@ const DEBOUNCE_MS = 300;
  */
 const WRAP = 'whitespace-normal break-words';
 
+/**
+ * Short, fixed-shape columns shrink to their content (`w-px` on a table
+ * column means "as narrow as the cells allow", and the cells don't wrap), so
+ * the spare width on a wide window goes to Address and City instead of being
+ * spread across every column.
+ */
+const FIT = 'w-px';
+
 function formatLastSeen(value: string | null) {
   if (value === null) return '—';
 
@@ -392,17 +400,17 @@ export function MembersList({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Member #</TableHead>
+              <TableHead className={FIT}>Member #</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>Last seen</TableHead>
-              <TableHead>Account</TableHead>
+              <TableHead className={FIT}>Phone</TableHead>
+              <TableHead className="min-w-56">Address</TableHead>
+              <TableHead className="min-w-36">City</TableHead>
+              <TableHead className={FIT}>Last seen</TableHead>
+              <TableHead className={FIT}>Account</TableHead>
               <If condition={Boolean(dues)}>
-                <TableHead>Level</TableHead>
-                <TableHead>Paid through</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className={FIT}>Level</TableHead>
+                <TableHead className={FIT}>Paid through</TableHead>
+                <TableHead className={FIT}>Status</TableHead>
               </If>
             </TableRow>
           </TableHeader>
