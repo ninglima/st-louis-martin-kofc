@@ -138,7 +138,7 @@ export function UpdateEmailForm({
           />
 
           <div>
-            <Button disabled={updateUserMutation.isPending}>
+            <Button type="submit" disabled={updateUserMutation.isPending}>
               <Trans i18nKey={'account.updateEmailSubmitLabel'} />
             </Button>
           </div>

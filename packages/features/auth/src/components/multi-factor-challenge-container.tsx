@@ -149,6 +149,7 @@ export function MultiFactorChallengeContainer({
           </div>
 
           <Button
+            type="submit"
             disabled={
               verifyMFAChallenge.isPending ||
               !verificationCodeForm.formState.isValid

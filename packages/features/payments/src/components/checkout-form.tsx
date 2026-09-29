@@ -392,6 +392,7 @@ export function CheckoutForm({
 
             <div>
               <Button
+                type="submit"
                 data-test="checkout-submit"
                 disabled={isPending || duesUnavailable}
               >

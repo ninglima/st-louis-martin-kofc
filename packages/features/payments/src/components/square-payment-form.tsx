@@ -148,7 +148,7 @@ export function SquarePaymentForm({
               </div>
             )}
 
-            <Button disabled={!isReady || isProcessing}>
+            <Button type="submit" disabled={!isReady || isProcessing}>
               {isProcessing ? t('processing') : t('payNow')}
             </Button>
           </form>

@@ -59,7 +59,7 @@ function StripeCheckoutForm() {
             </div>
           )}
 
-          <Button disabled={!stripe || isProcessing}>
+          <Button type="submit" disabled={!stripe || isProcessing}>
             {isProcessing ? t('processing') : t('payNow')}
           </Button>
         </form>
