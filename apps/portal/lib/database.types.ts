@@ -751,8 +751,8 @@ export type Database = {
         }[]
       }
       // HAND-CORRECTED, do not regenerate away: sent_at is null until the
-      // notice is actually sent (pending, failed and dry_run notices have no
-      // sent_at).
+      // notice is actually sent. Pending and failed notices have no sent_at;
+      // dry-run notices do get one, set at claim time.
       dues_notices_list: {
         Args: { p_kind?: string; p_limit?: number; p_tracking?: string }
         Returns: {

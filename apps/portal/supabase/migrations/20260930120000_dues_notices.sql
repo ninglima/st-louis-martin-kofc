@@ -16,9 +16,13 @@ create table public.dues_notices (
   resend_email_id text unique,
   error           text,
   created_at      timestamptz not null default now(),
-  sent_at         timestamptz,
-  unique (member_id, kind, cycle_date)
+  sent_at         timestamptz
 );
+
+-- Dry-run and live are separate ledgers: a dry run must never permanently
+-- occupy the once-only slot a later live claim needs (and vice versa).
+create unique index dues_notices_live_once_idx on public.dues_notices (member_id, kind, cycle_date) where mode = 'live';
+create unique index dues_notices_dry_run_once_idx on public.dues_notices (member_id, kind, cycle_date) where mode = 'dry_run';
 
 create table public.dues_notice_events (
   id          uuid primary key default gen_random_uuid(),
@@ -49,13 +53,19 @@ revoke all on public.dues_notices from anon, authenticated;
 revoke all on public.dues_notice_events from anon, authenticated;
 revoke all on public.dues_notice_runs from anon, authenticated;
 
+-- The job and webhook write these tables directly through the admin client;
+-- service_role bypasses RLS but not GRANTs, so it needs its own privileges.
+grant select, update on public.dues_notices to service_role;
+grant select, insert on public.dues_notice_events to service_role;
+grant select, insert on public.dues_notice_runs to service_role;
+
 create or replace function kit.dues_notice_due_at(p_today date)
 returns table (member_id uuid, first_name text, last_name text, membership_number text, email text,
                kind public.dues_notice_kind, cycle_date date, first_dues boolean, level_name text, amount_cents integer)
 language sql stable security definer set search_path = '' as $$
   with base as (
     select s.member_id, s.first_name, s.last_name, s.membership_number,
-           nullif(btrim(m.primary_email), '') as email,
+           nullif(btrim(m.primary_email, E' \t\r\n'), '') as email,
            s.level_name, s.amount_cents, s.dues_status,
            s.paid_through is null as first_dues,
            coalesce(s.paid_through, m.accepted_on) as c
@@ -82,7 +92,7 @@ language sql stable security definer set search_path = '' as $$
    where k.kind is not null;
 $$;
 
-create or replace function kit.dues_notice_candidates_at(p_today date)
+create or replace function kit.dues_notice_candidates_at(p_today date, p_mode text)
 returns table (member_id uuid, first_name text, last_name text, membership_number text, email text,
                kind public.dues_notice_kind, cycle_date date, first_dues boolean, level_name text, amount_cents integer)
 language sql stable security definer set search_path = '' as $$
@@ -90,9 +100,14 @@ language sql stable security definer set search_path = '' as $$
     from kit.dues_notice_due_at(p_today) d
    where d.email is not null
      and not exists (select 1 from public.dues_notices n
-                      where n.member_id = d.member_id and n.kind = d.kind and n.cycle_date = d.cycle_date);
+                      where n.member_id = d.member_id and n.kind = d.kind and n.cycle_date = d.cycle_date
+                        and n.mode = p_mode);
 $$;
 
+-- Dry-run and live claim independently (separate once-only ledgers, see the
+-- partial unique indexes above), so each mode is its own insert branch: the
+-- literal mode string in each ON CONFLICT lets Postgres infer the matching
+-- partial index, which it cannot do from a parameter.
 create or replace function kit.dues_notices_claim_at(p_mode text, p_today date)
 returns table (notice_id uuid, member_id uuid, first_name text, email text, kind public.dues_notice_kind,
                cycle_date date, first_dues boolean, level_name text, amount_cents integer)
@@ -103,23 +118,39 @@ begin
     raise exception 'unknown dues notice mode: %', coalesce(p_mode, '(none)');
   end if;
 
-  return query
-    with c as (
-      select * from kit.dues_notice_candidates_at(p_today)
-    ),
-    ins as (
-      insert into public.dues_notices (member_id, kind, cycle_date, email, mode, status, sent_at)
-      select c.member_id, c.kind, c.cycle_date, c.email, p_mode,
-             case when p_mode = 'dry_run' then 'dry_run' else 'pending' end,
-             case when p_mode = 'dry_run' then now() end
-        from c
-      on conflict (member_id, kind, cycle_date) do nothing
-      returning id, member_id, kind, cycle_date, email
-    )
-    select ins.id, ins.member_id, c.first_name, ins.email, ins.kind, ins.cycle_date,
-           c.first_dues, c.level_name, c.amount_cents
-      from ins
-      join c on c.member_id = ins.member_id and c.kind = ins.kind and c.cycle_date = ins.cycle_date;
+  if p_mode = 'dry_run' then
+    return query
+      with c as (
+        select * from kit.dues_notice_candidates_at(p_today, 'dry_run')
+      ),
+      ins as (
+        insert into public.dues_notices (member_id, kind, cycle_date, email, mode, status, sent_at)
+        select c.member_id, c.kind, c.cycle_date, c.email, 'dry_run', 'dry_run', now()
+          from c
+        on conflict (member_id, kind, cycle_date) where mode = 'dry_run' do nothing
+        returning id, member_id, kind, cycle_date, email
+      )
+      select ins.id, ins.member_id, c.first_name, ins.email, ins.kind, ins.cycle_date,
+             c.first_dues, c.level_name, c.amount_cents
+        from ins
+        join c on c.member_id = ins.member_id and c.kind = ins.kind and c.cycle_date = ins.cycle_date;
+  else
+    return query
+      with c as (
+        select * from kit.dues_notice_candidates_at(p_today, 'live')
+      ),
+      ins as (
+        insert into public.dues_notices (member_id, kind, cycle_date, email, mode, status, sent_at)
+        select c.member_id, c.kind, c.cycle_date, c.email, 'live', 'pending', null
+          from c
+        on conflict (member_id, kind, cycle_date) where mode = 'live' do nothing
+        returning id, member_id, kind, cycle_date, email
+      )
+      select ins.id, ins.member_id, c.first_name, ins.email, ins.kind, ins.cycle_date,
+             c.first_dues, c.level_name, c.amount_cents
+        from ins
+        join c on c.member_id = ins.member_id and c.kind = ins.kind and c.cycle_date = ins.cycle_date;
+  end if;
 end $$;
 
 create or replace function kit.dues_notice_tracking(p_notice_id uuid)
@@ -138,7 +169,7 @@ returns text language sql stable security definer set search_path = '' as $$
 $$;
 
 revoke all on function kit.dues_notice_due_at(date) from public, anon, authenticated;
-revoke all on function kit.dues_notice_candidates_at(date) from public, anon, authenticated;
+revoke all on function kit.dues_notice_candidates_at(date, text) from public, anon, authenticated;
 revoke all on function kit.dues_notices_claim_at(text, date) from public, anon, authenticated;
 revoke all on function kit.dues_notice_tracking(uuid) from public, anon, authenticated;
 
@@ -200,12 +231,19 @@ language sql stable security definer set search_path = '' as $$
     from kit.dues_notice_due_at(p_today) d
    where d.email is null
   union all
+  -- Only while the member is still eligible and the bounce/complaint is
+  -- against the address we would actually send to today: a corrected email,
+  -- an opt-out or a move to honorary should drop them from this list even
+  -- though the old notice's status doesn't change.
   select m.id, m.first_name, m.last_name, m.membership_number, t.tracking, t.email
     from (select distinct on (n.member_id) n.member_id, n.email, kit.dues_notice_tracking(n.id) as tracking
             from public.dues_notices n
            order by n.member_id, n.created_at desc) t
     join public.members m on m.id = t.member_id
-   where t.tracking in ('bounced', 'complained');
+   where t.tracking in ('bounced', 'complained')
+     and m.dues_level <> 'honorary'
+     and not m.dues_notices_opt_out
+     and t.email = nullif(btrim(m.primary_email, E' \t\r\n'), '');
 $$;
 revoke all on function kit.dues_notices_unreachable_at(date) from public, anon, authenticated;
 
