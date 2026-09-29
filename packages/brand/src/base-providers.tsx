@@ -6,6 +6,7 @@ import { ThemeProvider } from 'next-themes';
 import { I18nClientProvider } from '@kit/i18n/provider';
 
 import appConfig from './config/app.config';
+import featuresFlagConfig from './config/feature-flags.config';
 import { ReactQueryProvider } from './react-query-provider';
 
 /**
@@ -32,6 +33,10 @@ export function BaseProviders({
           enableSystem
           disableTransitionOnChange
           defaultTheme={theme}
+          // With the toggle off there is no way to change theme, so a choice
+          // a visitor made earlier (kept in their browser) is ignored rather
+          // than leaving them stuck in it.
+          forcedTheme={featuresFlagConfig.enableThemeToggle ? undefined : theme}
           enableColorScheme={false}
         >
           {children}

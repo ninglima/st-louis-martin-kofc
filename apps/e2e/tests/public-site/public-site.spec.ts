@@ -362,6 +362,11 @@ test.describe('public site', () => {
   test('the mobile menu theme toggle really switches the theme', async ({
     page,
   }) => {
+    test.skip(
+      process.env.NEXT_PUBLIC_ENABLE_THEME_TOGGLE !== 'true',
+      'the theme toggle is disabled',
+    );
+
     // `DEFAULT_THEME_MODE` is `light` and the header's icon toggle is `md:`-only,
     // so before this control existed a phone visitor could not reach dark mode
     // at all.
