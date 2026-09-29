@@ -84,13 +84,23 @@ async function PaymentsContent() {
     : null;
   const myLedger = myLedgerRead?.deployed ? myLedgerRead.value : [];
 
+  // Only the admin view has a Member column to fill.
+  const payers = isAdmin
+    ? await paymentService.getPayers(payments.map((p) => p.user_id))
+    : undefined;
+
   return (
     <div className="flex flex-col gap-y-6">
       <If condition={myDues}>
         {(summary) => <MyDuesCard summary={summary} ledger={myLedger} />}
       </If>
 
-      <PaymentHistoryTable payments={payments} showMember={isAdmin} />
+      <PaymentHistoryTable
+        payments={payments}
+        showMember={isAdmin}
+        payers={payers}
+        linkMembers={hasPermission(perms, 'members', 'view')}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@kit/supabase/database';
 
 import type { CreatePaymentParams, Payment, PaymentItem, PaymentStatus } from '../types/payment.types';
+import { resolvePayers, type Payer } from '../lib/payers';
 
 type PaymentsClient = SupabaseClient<Database>;
 
@@ -64,6 +65,36 @@ export class PaymentService {
     }
 
     return (data ?? []) as Payment[];
+  }
+
+  /**
+   * Names the people behind these payments, for the admin Payments table:
+   * the linked member record where there is one, otherwise the account.
+   * Uses whichever client this service holds; the page passes the admin
+   * client, and only renders the column for `payments.manage`.
+   */
+  async getPayers(userIds: string[]): Promise<Record<string, Payer>> {
+    const ids = [...new Set(userIds)];
+
+    if (ids.length === 0) return {};
+
+    const [members, accounts] = await Promise.all([
+      this.client
+        .from('members')
+        .select('id, user_id, first_name, last_name')
+        .in('user_id', ids),
+      this.client.from('accounts').select('id, name, email').in('id', ids),
+    ]);
+
+    if (members.error) {
+      throw new Error(`Failed to fetch payers: ${members.error.message}`);
+    }
+
+    if (accounts.error) {
+      throw new Error(`Failed to fetch payers: ${accounts.error.message}`);
+    }
+
+    return resolvePayers(ids, members.data ?? [], accounts.data ?? []);
   }
 
   async getPaymentItems(paymentId: string): Promise<PaymentItem[]> {
