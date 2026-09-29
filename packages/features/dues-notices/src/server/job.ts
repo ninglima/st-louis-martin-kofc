@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@kit/supabase/database';
 
 import type { NoticesConfig } from '../config';
-import { sendBatch } from '../resend';
+import { type SendResult, sendBatch } from '../resend';
 import { renderNotice } from '../templates';
 import type { ClaimedNotice, NoticeKind, NoticesMode } from '../types';
 
@@ -35,6 +35,20 @@ async function recordRun(client: Client, result: JobResult) {
     console.error('Could not record the dues notices run:', error);
   }
 }
+
+/**
+ * A conservative format check (one `@`, a dot in the domain, no whitespace
+ * or list separators). Resend's batch endpoint rejects the whole request when
+ * any one address is invalid, so a single bad roster value (`john@gmail`,
+ * `a@b.com; c@d.com`) would otherwise fail every notice in its batch.
+ */
+const EMAIL_FORMAT = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>.]+$/;
+
+export function isPlausibleEmail(email: string): boolean {
+  return EMAIL_FORMAT.test(email);
+}
+
+export const INVALID_EMAIL_ERROR = 'invalid email address';
 
 /** Runs once a day (and is safe to run again): claims today's notices once
  * each, and in live mode sends them. Call with the SERVICE-ROLE client. */
@@ -98,7 +112,11 @@ export async function runDuesNoticesJob({
   }
 
   try {
-    const emails = claimed.map((n) => {
+    // Invalid addresses never reach Resend: they are marked failed on their
+    // own and the rest of the batch still goes out.
+    const sendable = claimed.filter((n) => isPlausibleEmail(n.email));
+
+    const emails = sendable.map((n) => {
       const rendered = renderNotice(n, config.siteUrl);
       return {
         from: config.from,
@@ -112,7 +130,17 @@ export async function runDuesNoticesJob({
       };
     });
 
-    const sent = await sendBatch(config.apiKey, emails, fetchImpl);
+    const sentResults =
+      emails.length > 0
+        ? await sendBatch(config.apiKey, emails, fetchImpl)
+        : [];
+    const byNotice = new Map<string, SendResult>(
+      sendable.map((n, i) => [n.noticeId, sentResults[i]!]),
+    );
+    const sent: SendResult[] = claimed.map(
+      (n) =>
+        byNotice.get(n.noticeId) ?? { ok: false, error: INVALID_EMAIL_ERROR },
+    );
 
     // Updated in parallel, after the whole batch: sequentially, one round
     // trip per notice, the update for the k-th notice lands well after
