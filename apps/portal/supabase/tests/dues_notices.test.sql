@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(40);
+select plan(52);
 
 select tests.make_user('dn-admin@example.com', 'administrator') as admin \gset
 select tests.make_user('dn-knight@example.com', 'member') as knight \gset
@@ -125,11 +125,67 @@ update public.dues_notices set status = 'sent', resend_email_id = 're_2', sent_a
 insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n2', 'complained', now(), 'svx-5');
 select is(kit.dues_notice_tracking(:'n2'), 'complained', 'complained tracking');
 
+-- tracking precedence: real delivery events outrank the notice's own status,
+-- and suppressed ranks below bounced but above engagement
+select tests.dn_member('DN-TMO', 5);
+select notice_id as n3 from kit.dues_notices_claim_at('live', '2040-10-15') where email = 'DN-TMO@example.com' \gset
+select is(kit.dues_notice_tracking(:'n3'), 'pending', 'pending with no events');
+update public.dues_notices set status = 'failed', error = 'The operation was aborted due to timeout' where id = :'n3';
+select is(kit.dues_notice_tracking(:'n3'), 'failed', 'failed with no events');
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n3', 'delivered', now(), 'svx-6');
+select is(kit.dues_notice_tracking(:'n3'), 'delivered', 'a delivered event beats a failed (timed-out) send');
+update public.dues_notices set status = 'pending', error = null where id = :'n3';
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n3', 'opened', now(), 'svx-7');
+select is(kit.dues_notice_tracking(:'n3'), 'opened', 'an opened event beats a pending status');
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n3', 'failed', now(), 'svx-8');
+select is(kit.dues_notice_tracking(:'n3'), 'opened', 'a failed event is stored (it does not outrank engagement)');
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n3', 'suppressed', now(), 'svx-9');
+select is(kit.dues_notice_tracking(:'n3'), 'suppressed', 'suppressed is tracked and beats opened');
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n3', 'bounced', now(), 'svx-10');
+select is(kit.dues_notice_tracking(:'n3'), 'bounced', 'bounced beats suppressed');
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n3', 'complained', now(), 'svx-11');
+select is(kit.dues_notice_tracking(:'n3'), 'complained', 'complained beats bounced');
+
 -- 20-21 could-not-notify (core, pinned to the fixture date)
 select is((select reason from kit.dues_notices_unreachable_at('2040-10-15') where membership_number = 'DN-NOE'), 'no_email',
           'could-not-notify lists members without an email');
 select is((select reason from kit.dues_notices_unreachable_at('2040-10-15') where membership_number = 'DN-LIVE'), 'bounced',
-          'could-not-notify lists members whose last notice bounced');
+          'could-not-notify lists members whose notice bounced');
+
+-- a bounced older notice keeps the member listed after a newer notice to the
+-- same address (live "sent" with no events, and a dry-run row)
+select tests.dn_member('DN-OLD', 5) as oldm \gset
+select notice_id as n4 from kit.dues_notices_claim_at('live', '2040-10-15') where email = 'DN-OLD@example.com' \gset
+update public.dues_notices set status = 'sent', resend_email_id = 're_4', sent_at = now() where id = :'n4';
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n4', 'bounced', now(), 'svx-12');
+insert into public.dues_notices (member_id, kind, cycle_date, email, mode, status, sent_at, created_at)
+values (:'oldm', 'due_date', '2040-10-20', 'DN-OLD@example.com', 'live', 'sent', now() + interval '30 days', now() + interval '30 days'),
+       (:'oldm', 'after_30', '2040-10-20', 'DN-OLD@example.com', 'dry_run', 'dry_run', now() + interval '60 days', now() + interval '60 days');
+select is((select reason from kit.dues_notices_unreachable_at('2040-10-15') where membership_number = 'DN-OLD'), 'bounced',
+          'a bounced older notice keeps the member listed after newer notices');
+
+-- a suppressed notice lists the member, and the most severe reason wins
+select tests.dn_member('DN-SUP', 5) as supm \gset
+select notice_id as n5 from kit.dues_notices_claim_at('live', '2040-10-15') where email = 'DN-SUP@example.com' \gset
+update public.dues_notices set status = 'sent', resend_email_id = 're_5', sent_at = now() where id = :'n5';
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n5', 'suppressed', now(), 'svx-13');
+select is((select reason from kit.dues_notices_unreachable_at('2040-10-15') where membership_number = 'DN-SUP'), 'suppressed',
+          'could-not-notify lists members whose notice was suppressed');
+insert into public.dues_notices (member_id, kind, cycle_date, email, mode, status, sent_at)
+values (:'supm', 'due_date', '2040-10-20', 'DN-SUP@example.com', 'live', 'sent', now())
+returning id as n6 \gset
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n6', 'bounced', now(), 'svx-14');
+select results_eq($$select reason from kit.dues_notices_unreachable_at('2040-10-15') where membership_number = 'DN-SUP'$$,
+                  $$values ('bounced')$$, 'one row per member, with the most severe reason (bounced over suppressed)');
+
+-- a bounce on a dry-run row never lists anyone (only live notices count)
+select tests.dn_member('DN-DRYB', 5) as drybm \gset
+insert into public.dues_notices (member_id, kind, cycle_date, email, mode, status, sent_at)
+values (:'drybm', 'before_30', '2040-10-20', 'DN-DRYB@example.com', 'dry_run', 'dry_run', now())
+returning id as n7 \gset
+insert into public.dues_notice_events (notice_id, type, occurred_at, svix_id) values (:'n7', 'bounced', now(), 'svx-15');
+select is((select count(*)::int from kit.dues_notices_unreachable_at('2040-10-15') where membership_number = 'DN-DRYB'), 0,
+          'a dry-run notice never puts a member on the could-not-notify list');
 
 -- fixing the bounced address removes the member from could-not-notify
 update public.members set primary_email = 'DN-LIVE-fixed@example.com' where membership_number = 'DN-LIVE';

@@ -10,6 +10,8 @@ import { handleResendWebhook } from './webhook';
 const rawKey = Buffer.from('webhook-signing-key');
 const secret = `whsec_${rawKey.toString('base64')}`;
 const now = 1790000000;
+const NOTICE_ID = '6f1c2d3e-4a5b-4c6d-8e7f-901234567890';
+const MISSING_ID = '00000000-0000-4000-8000-000000000000';
 
 function signed(body: string, id = 'msg_1') {
   const signature = `v1,${createHmac('sha256', rawKey).update(`${id}.${now}.${body}`).digest('base64')}`;
@@ -25,11 +27,13 @@ function fakeClient({
   lookupError = null as string | null,
 } = {}) {
   const inserted: Record<string, unknown>[] = [];
+  const lookups: { col: string; value: string }[] = [];
   const client = {
     from: (table: string) => ({
       select: () => ({
         eq: (col: 'id' | 'resend_email_id', value: string) => ({
           maybeSingle: async () => {
+            lookups.push({ col, value });
             if (lookupError)
               return { data: null, error: new Error(lookupError) };
             const row = rows.find((r) =>
@@ -45,7 +49,7 @@ function fakeClient({
       },
     }),
   };
-  return { client: client as never, inserted };
+  return { client: client as never, inserted, lookups };
 }
 
 const event = JSON.stringify({
@@ -160,12 +164,15 @@ describe('handleResendWebhook', () => {
 
   it('matches an early event by its notice_id tag, before resend_email_id is stored (array tag shape)', async () => {
     const { client, inserted } = fakeClient({
-      rows: [{ id: 'n1', resend_email_id: null }],
+      rows: [{ id: NOTICE_ID, resend_email_id: null }],
     });
     const tagged = JSON.stringify({
       type: 'email.sent',
       created_at: '2026-10-01T12:00:00Z',
-      data: { email_id: 're_1', tags: [{ name: 'notice_id', value: 'n1' }] },
+      data: {
+        email_id: 're_1',
+        tags: [{ name: 'notice_id', value: NOTICE_ID }],
+      },
     });
     expect(
       await handleResendWebhook({
@@ -179,17 +186,17 @@ describe('handleResendWebhook', () => {
       status: 200,
       stored: true,
     });
-    expect(inserted[0]).toMatchObject({ notice_id: 'n1', type: 'sent' });
+    expect(inserted[0]).toMatchObject({ notice_id: NOTICE_ID, type: 'sent' });
   });
 
   it('matches by the notice_id tag given as an object', async () => {
     const { client, inserted } = fakeClient({
-      rows: [{ id: 'n1', resend_email_id: null }],
+      rows: [{ id: NOTICE_ID, resend_email_id: null }],
     });
     const tagged = JSON.stringify({
       type: 'email.sent',
       created_at: '2026-10-01T12:00:00Z',
-      data: { email_id: 're_1', tags: { notice_id: 'n1' } },
+      data: { email_id: 're_1', tags: { notice_id: NOTICE_ID } },
     });
     expect(
       await handleResendWebhook({
@@ -203,7 +210,7 @@ describe('handleResendWebhook', () => {
       status: 200,
       stored: true,
     });
-    expect(inserted[0]).toMatchObject({ notice_id: 'n1' });
+    expect(inserted[0]).toMatchObject({ notice_id: NOTICE_ID });
   });
 
   it('falls back to the email id when the notice_id tag matches no row', async () => {
@@ -215,7 +222,7 @@ describe('handleResendWebhook', () => {
       created_at: '2026-10-01T12:00:00Z',
       data: {
         email_id: 're_1',
-        tags: [{ name: 'notice_id', value: 'unknown' }],
+        tags: [{ name: 'notice_id', value: MISSING_ID }],
       },
     });
     expect(
@@ -231,6 +238,52 @@ describe('handleResendWebhook', () => {
       stored: true,
     });
     expect(inserted[0]).toMatchObject({ notice_id: 'n1' });
+  });
+
+  it('ignores a notice_id tag that is not a UUID and matches on the email id instead', async () => {
+    const { client, inserted, lookups } = fakeClient({
+      rows: [{ id: NOTICE_ID, resend_email_id: 're_1' }],
+    });
+    const tagged = JSON.stringify({
+      type: 'email.opened',
+      created_at: '2026-10-01T12:00:00Z',
+      data: {
+        email_id: 're_1',
+        tags: [{ name: 'notice_id', value: 'not-a-uuid' }],
+      },
+    });
+    expect(
+      await handleResendWebhook({
+        client,
+        secret,
+        headers: signed(tagged),
+        body: tagged,
+        nowSeconds: now,
+      }),
+    ).toEqual({ status: 200, stored: true });
+    expect(lookups).toEqual([{ col: 'resend_email_id', value: 're_1' }]);
+    expect(inserted[0]).toMatchObject({ notice_id: NOTICE_ID });
+  });
+
+  it.each(['suppressed', 'failed'])('stores email.%s events', async (type) => {
+    const { client, inserted } = fakeClient({
+      rows: [{ id: NOTICE_ID, resend_email_id: 're_1' }],
+    });
+    const body = JSON.stringify({
+      type: `email.${type}`,
+      created_at: '2026-10-01T12:00:00Z',
+      data: { email_id: 're_1' },
+    });
+    expect(
+      await handleResendWebhook({
+        client,
+        secret,
+        headers: signed(body),
+        body,
+        nowSeconds: now,
+      }),
+    ).toEqual({ status: 200, stored: true });
+    expect(inserted[0]).toMatchObject({ notice_id: NOTICE_ID, type });
   });
 
   it('throws on a database error during the notice lookup, instead of treating it as unknown', async () => {
