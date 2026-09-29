@@ -698,9 +698,15 @@ importers:
       '@kit/dues':
         specifier: workspace:*
         version: link:../dues
+      '@kit/supabase':
+        specifier: workspace:*
+        version: link:../../supabase
       '@kit/tsconfig':
         specifier: workspace:*
         version: link:../../../tooling/typescript
+      '@supabase/supabase-js':
+        specifier: 'catalog:'
+        version: 2.111.0
       '@testing-library/dom':
         specifier: ^10.4.2
         version: 10.4.2

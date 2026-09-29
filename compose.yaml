@@ -23,6 +23,10 @@ services:
     environment:
       ORIGIN_AUTH: local-stack
       GIT_HASH: local
+      DUES_NOTICES_MODE: dry-run
+      DUES_JOBS_SECRET: local-jobs
+      DUES_NOTICES_FROM: 'Council Financial Secretary <dues@localhost>'
+      DUES_NOTICES_REPLY_TO: fs@localhost
     extra_hosts:
       - host.docker.internal:host-gateway
 
