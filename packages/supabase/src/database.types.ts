@@ -77,6 +77,127 @@ export type Database = {
         }
         Relationships: []
       }
+      dues_notice_events: {
+        Row: {
+          created_at: string
+          id: string
+          notice_id: string
+          occurred_at: string
+          payload: Json
+          svix_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notice_id: string
+          occurred_at: string
+          payload?: Json
+          svix_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notice_id?: string
+          occurred_at?: string
+          payload?: Json
+          svix_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dues_notice_events_notice_id_fkey"
+            columns: ["notice_id"]
+            isOneToOne: false
+            referencedRelation: "dues_notices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dues_notice_runs: {
+        Row: {
+          candidates: number
+          error: string | null
+          failed: number
+          id: string
+          mode: string
+          ran_at: string
+          sent: number
+          skipped: number
+        }
+        Insert: {
+          candidates?: number
+          error?: string | null
+          failed?: number
+          id?: string
+          mode: string
+          ran_at?: string
+          sent?: number
+          skipped?: number
+        }
+        Update: {
+          candidates?: number
+          error?: string | null
+          failed?: number
+          id?: string
+          mode?: string
+          ran_at?: string
+          sent?: number
+          skipped?: number
+        }
+        Relationships: []
+      }
+      dues_notices: {
+        Row: {
+          created_at: string
+          cycle_date: string
+          email: string
+          error: string | null
+          id: string
+          kind: Database["public"]["Enums"]["dues_notice_kind"]
+          member_id: string
+          mode: string
+          resend_email_id: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          cycle_date: string
+          email: string
+          error?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["dues_notice_kind"]
+          member_id: string
+          mode: string
+          resend_email_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          cycle_date?: string
+          email?: string
+          error?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["dues_notice_kind"]
+          member_id?: string
+          mode?: string
+          resend_email_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dues_notices_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dues_periods: {
         Row: {
           amount_cents: number
@@ -234,6 +355,7 @@ export type Database = {
           country: string | null
           created_at: string
           dues_level: string
+          dues_notices_opt_out: boolean
           email_secondary_enc: string | null
           first_name: string
           id: string
@@ -265,6 +387,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           dues_level?: string
+          dues_notices_opt_out?: boolean
           email_secondary_enc?: string | null
           first_name: string
           id?: string
@@ -296,6 +419,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           dues_level?: string
+          dues_notices_opt_out?: boolean
           email_secondary_enc?: string | null
           first_name?: string
           id?: string
@@ -582,6 +706,81 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      dues_last_notices: {
+        Args: { p_member_ids: string[] }
+        Returns: {
+          kind: string
+          member_id: string
+          sent_at: string
+          tracking: string
+        }[]
+      }
+      dues_notice_events_for: {
+        Args: { p_notice_id: string }
+        Returns: {
+          occurred_at: string
+          type: string
+        }[]
+      }
+      dues_notices_claim: {
+        Args: { p_mode: string }
+        Returns: {
+          amount_cents: number
+          cycle_date: string
+          email: string
+          first_dues: boolean
+          first_name: string
+          kind: Database["public"]["Enums"]["dues_notice_kind"]
+          level_name: string
+          member_id: string
+          notice_id: string
+        }[]
+      }
+      // HAND-CORRECTED, do not regenerate away: error is null except on a
+      // run that failed before completing (e.g. live mode misconfigured).
+      dues_notices_last_run: {
+        Args: never
+        Returns: {
+          candidates: number
+          error: string | null
+          failed: number
+          mode: string
+          ran_at: string
+          sent: number
+          skipped: number
+        }[]
+      }
+      // HAND-CORRECTED, do not regenerate away: sent_at is null until the
+      // notice is actually sent (pending, failed and dry_run notices have no
+      // sent_at).
+      dues_notices_list: {
+        Args: { p_kind?: string; p_limit?: number; p_tracking?: string }
+        Returns: {
+          created_at: string
+          cycle_date: string
+          email: string
+          first_name: string
+          id: string
+          kind: string
+          last_name: string
+          member_id: string
+          membership_number: string
+          sent_at: string | null
+          status: string
+          tracking: string
+        }[]
+      }
+      dues_notices_unreachable: {
+        Args: never
+        Returns: {
+          detail: string
+          first_name: string
+          last_name: string
+          member_id: string
+          membership_number: string
+          reason: string
+        }[]
+      }
       dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
       finance_collection_progress: { Args: { p_year: number }; Returns: Json }
       finance_dashboard: { Args: { p_year: number }; Returns: Json }
@@ -782,6 +981,20 @@ export type Database = {
           voided_at: string | null
         }[]
       }
+      member_dues_notices: {
+        Args: { p_member_id: string }
+        Returns: {
+          cycle_date: string
+          id: string
+          kind: string
+          sent_at: string
+          tracking: string
+        }[]
+      }
+      member_dues_notices_opt_out: {
+        Args: { p_member_id: string }
+        Returns: boolean
+      }
       // HAND-CORRECTED, do not regenerate away: accepted_on is null until a
       // member is accepted; paid_through is null until the first dues period
       // is recorded.
@@ -914,6 +1127,10 @@ export type Database = {
         Args: { p_level: string; p_member_id: string }
         Returns: undefined
       }
+      set_member_dues_notices: {
+        Args: { p_member_id: string; p_opt_out: boolean }
+        Returns: undefined
+      }
       set_member_student: {
         Args: { p_is_student: boolean; p_member_id: string }
         Returns: undefined
@@ -925,6 +1142,7 @@ export type Database = {
     }
     Enums: {
       dues_method: "online" | "check" | "cash" | "waived" | "opening_balance"
+      dues_notice_kind: "before_30" | "due_date" | "after_30"
       payment_status:
         | "pending"
         | "processing"
@@ -1061,6 +1279,7 @@ export const Constants = {
   public: {
     Enums: {
       dues_method: ["online", "check", "cash", "waived", "opening_balance"],
+      dues_notice_kind: ["before_30", "due_date", "after_30"],
       payment_status: [
         "pending",
         "processing",
