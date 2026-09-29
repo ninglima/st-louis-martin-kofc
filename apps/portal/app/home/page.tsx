@@ -7,6 +7,8 @@ import { PageBody, PageHeader } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 
 import featuresFlagConfig from '@kit/brand/config/feature-flags';
+import { NoticesService } from '@kit/dues-notices/server/notices.service';
+import type { LastNotice } from '@kit/dues-notices/types';
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { chicagoToday } from '@kit/dues/schemas';
 import { DuesService } from '@kit/dues/server/dues.service';
@@ -102,7 +104,11 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
           />
         ) : null}
         {tab === 'lapses' ? (
-          <LapsesTabContent finance={finance} canOpenMembers={canOpenMembers} />
+          <LapsesTabContent
+            client={client}
+            finance={finance}
+            canOpenMembers={canOpenMembers}
+          />
         ) : null}
         {tab === 'retention' ? <RetentionTabContent finance={finance} /> : null}
       </div>
@@ -171,6 +177,13 @@ async function OverviewTab({
 
   const [dashboard, net, followUp, toCheck, providers] = read.value;
 
+  const lastNoticesRead = await readDuesIfDeployed(() =>
+    new NoticesService(client).lastNotices(followUp.map((r) => r.memberId)),
+  );
+  const lastNotices: Record<string, LastNotice> = lastNoticesRead.deployed
+    ? lastNoticesRead.value
+    : {};
+
   return (
     <>
       <HeadlineCards dashboard={dashboard} showHosting={showHosting} />
@@ -190,6 +203,7 @@ async function OverviewTab({
         rows={followUp}
         canOpenMembers={canOpenMembers}
         lapsedCount={dashboard.statusCounts.lapsed}
+        lastNotices={lastNotices}
       />
       <PaymentsToCheckTable rows={toCheck} />
     </>
@@ -267,9 +281,11 @@ async function CollectionTabContent({
 }
 
 async function LapsesTabContent({
+  client,
   finance,
   canOpenMembers,
 }: {
+  client: SupabaseServerClient;
   finance: FinanceService;
   canOpenMembers: boolean;
 }) {
@@ -287,11 +303,19 @@ async function LapsesTabContent({
 
   const [buckets, members] = read.value;
 
+  const lastNoticesRead = await readDuesIfDeployed(() =>
+    new NoticesService(client).lastNotices(members.map((m) => m.memberId)),
+  );
+  const lastNotices: Record<string, LastNotice> = lastNoticesRead.deployed
+    ? lastNoticesRead.value
+    : {};
+
   return (
     <LapsesTab
       buckets={buckets}
       members={members}
       canOpenMembers={canOpenMembers}
+      lastNotices={lastNotices}
     />
   );
 }

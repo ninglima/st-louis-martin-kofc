@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 
 import * as z from 'zod';
 
+import { MemberNoticesCard } from '@kit/dues-notices/components/member-notices-card';
+import { NoticesService } from '@kit/dues-notices/server/notices.service';
 import { MemberDuesCard } from '@kit/dues/components/member-dues-card';
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { DuesService } from '@kit/dues/server/dues.service';
@@ -58,9 +60,12 @@ async function MemberDetailPage(props: { params: Promise<{ id: string }> }) {
   }
 
   const canViewFinance = hasPermission(permissions, 'finance', 'view');
+  const canManageFinance = hasPermission(permissions, 'finance', 'manage');
 
-  const dues = canViewFinance
-    ? await loadDues(id, hasPermission(permissions, 'finance', 'manage'))
+  const dues = canViewFinance ? await loadDues(id, canManageFinance) : null;
+
+  const notices = canViewFinance
+    ? await loadNotices(id, canManageFinance)
     : null;
 
   return (
@@ -139,6 +144,17 @@ async function MemberDetailPage(props: { params: Promise<{ id: string }> }) {
               />
             )}
           </If>
+
+          <If condition={notices}>
+            {(loaded) => (
+              <MemberNoticesCard
+                memberId={id}
+                history={loaded.history}
+                optOut={loaded.optOut}
+                canManage={loaded.canManage}
+              />
+            )}
+          </If>
         </div>
       </PageBody>
     </>
@@ -182,6 +198,28 @@ async function loadDues(memberId: string, canManage: boolean) {
   }
 
   return { summary, ledger, levels, canManage };
+}
+
+async function loadNotices(memberId: string, canManage: boolean) {
+  // Same reasoning as `loadDues`: read as the officer (every RPC here is
+  // `security definer` and checks `finance.view` against `auth.uid()`), and
+  // treat a missing migration as "no notices card" rather than an error.
+  const noticesService = new NoticesService(getSupabaseServerClient());
+
+  const read = await readDuesIfDeployed(() =>
+    Promise.all([
+      noticesService.memberHistory(memberId),
+      noticesService.optOut(memberId),
+    ]),
+  );
+
+  if (!read.deployed) {
+    return null;
+  }
+
+  const [history, optOut] = read.value;
+
+  return { history, optOut, canManage };
 }
 
 export default MemberDetailPage;

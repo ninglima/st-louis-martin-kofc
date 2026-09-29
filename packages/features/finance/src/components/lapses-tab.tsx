@@ -1,6 +1,8 @@
 import Link from 'next/link';
 
 import { formatAmountCents } from '@kit/dues/lib/format-amount';
+import { LastNoticeCell } from '@kit/dues-notices/components/last-notice-cell';
+import type { LastNotice } from '@kit/dues-notices/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 import {
   Table,
@@ -19,10 +21,14 @@ export function LapsesTab({
   buckets,
   members,
   canOpenMembers,
+  lastNotices,
 }: {
   buckets: AgingBucket[];
   members: LapsedMember[];
   canOpenMembers: boolean;
+  /** Left out entirely -- no "Last notice" column -- when this prop is
+   * omitted, so existing callers and tests are unchanged. */
+  lastNotices?: Record<string, LastNotice>;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -67,6 +73,7 @@ export function LapsesTab({
                   <TableHead>Level</TableHead>
                   <TableHead>Owed</TableHead>
                   <TableHead>Last paid</TableHead>
+                  {lastNotices ? <TableHead>Last notice</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,6 +95,11 @@ export function LapsesTab({
                     <TableCell>{m.levelName}</TableCell>
                     <TableCell>{formatAmountCents(m.amountCents)}</TableCell>
                     <TableCell>{m.lastPaidOn ?? '—'}</TableCell>
+                    {lastNotices ? (
+                      <TableCell>
+                        <LastNoticeCell notice={lastNotices[m.memberId]} />
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>

@@ -7,6 +7,7 @@ describe('isPortalPath', () => {
     '/home',
     '/home/',
     '/home/members',
+    '/home/dues-notices',
     '/auth/sign-in',
     '/auth/callback',
     '/update-password',

@@ -70,7 +70,9 @@
     "users": "Users",
     "roles": "Roles",
     "hostingCosts": "Hosting costs",
-    "hosting costs": "Hosting costs"
+    "hosting costs": "Hosting costs",
+    "duesNotices": "Dues notices",
+    "dues notices": "Dues notices"
   },
   "roles": {
     "owner": {

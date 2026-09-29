@@ -1,6 +1,7 @@
 import {
   CreditCard,
   Home,
+  Mail,
   Receipt,
   Settings,
   Shield,
@@ -49,6 +50,13 @@ const routes = [
         path: pathsConfig.app.members,
         Icon: <Users className={iconClasses} />,
         section: 'members',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.duesNotices',
+        path: pathsConfig.app.duesNotices,
+        Icon: <Mail className={iconClasses} />,
+        section: 'finance',
         verb: 'view' as const,
       },
       ...(featuresFlagConfig.enableHostingCosts

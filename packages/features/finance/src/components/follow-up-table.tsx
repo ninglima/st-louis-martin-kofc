@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { DuesStatusBadge } from '@kit/dues/components/dues-status-badge';
 import { formatAmountCents } from '@kit/dues/lib/format-amount';
 
+import { LastNoticeCell } from '@kit/dues-notices/components/last-notice-cell';
+import type { LastNotice } from '@kit/dues-notices/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 import {
   Table,
@@ -19,6 +21,7 @@ export function FollowUpTable({
   rows,
   canOpenMembers,
   lapsedCount = 0,
+  lastNotices,
 }: {
   rows: FollowUpRow[];
   canOpenMembers: boolean;
@@ -26,6 +29,9 @@ export function FollowUpTable({
    * not here, so this points there instead of implying nobody owes anything
    * (I2). */
   lapsedCount?: number;
+  /** Left out entirely -- no "Last notice" column -- when this prop is
+   * omitted, so existing callers and tests are unchanged. */
+  lastNotices?: Record<string, LastNotice>;
 }) {
   return (
     <Card data-test="finance-follow-up">
@@ -48,6 +54,7 @@ export function FollowUpTable({
                   <TableHead>Paid through</TableHead>
                   <TableHead>Level</TableHead>
                   <TableHead>Owed</TableHead>
+                  {lastNotices ? <TableHead>Last notice</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -77,6 +84,11 @@ export function FollowUpTable({
                       <TableCell>
                         {formatAmountCents(row.amountCents)}
                       </TableCell>
+                      {lastNotices ? (
+                        <TableCell>
+                          <LastNoticeCell notice={lastNotices[row.memberId]} />
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   );
                 })}

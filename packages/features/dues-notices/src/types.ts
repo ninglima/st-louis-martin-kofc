@@ -46,6 +46,19 @@ export interface LastNotice {
   tracking: Tracking;
 }
 
+export interface NoticeEvent {
+  type: string;
+  occurredAt: string;
+}
+
+export interface MemberNoticeHistoryRow {
+  id: string;
+  kind: NoticeKind;
+  cycleDate: string;
+  sentAt: string;
+  tracking: Tracking;
+}
+
 export interface NoticeRun {
   ranAt: string;
   mode: NoticesMode;

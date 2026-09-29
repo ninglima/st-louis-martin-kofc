@@ -89,6 +89,39 @@ describe('LapsesTab', () => {
       container.querySelector('[data-test="lapsed-members"]')?.textContent,
     ).toContain('No lapsed members');
   });
+
+  it('shows the last notice when one is given for the row', () => {
+    const { container } = render(
+      <LapsesTab
+        buckets={buckets}
+        members={[
+          {
+            memberId: 'm1',
+            firstName: 'A',
+            lastName: 'B',
+            membershipNumber: '1',
+            daysUnpaid: 31,
+            bucket: '31-90',
+            levelName: 'Regular',
+            amountCents: 5000,
+            lastPaidOn: null,
+          },
+        ]}
+        canOpenMembers={false}
+        lastNotices={{
+          m1: {
+            memberId: 'm1',
+            kind: 'after_30',
+            sentAt: '2026-10-03T14:00:00Z',
+            tracking: 'opened',
+          },
+        }}
+      />,
+    );
+
+    const cell = container.querySelector('[data-test="last-notice"]');
+    expect(cell?.textContent).toContain('Opened');
+  });
 });
 
 describe('CollectionSummary', () => {

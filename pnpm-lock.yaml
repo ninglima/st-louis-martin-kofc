@@ -698,12 +698,18 @@ importers:
       '@kit/dues':
         specifier: workspace:*
         version: link:../dues
+      '@kit/next':
+        specifier: workspace:*
+        version: link:../../next
       '@kit/supabase':
         specifier: workspace:*
         version: link:../../supabase
       '@kit/tsconfig':
         specifier: workspace:*
         version: link:../../../tooling/typescript
+      '@kit/ui':
+        specifier: workspace:*
+        version: link:../../ui
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.111.0
@@ -728,6 +734,9 @@ importers:
       jsdom:
         specifier: ^30.1.1
         version: 30.1.1(@noble/hashes@1.8.0)
+      next:
+        specifier: 'catalog:'
+        version: 16.3.0(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.62.1)(@types/node@24.13.3)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -737,9 +746,15 @@ importers:
       server-only:
         specifier: 'catalog:'
         version: 0.0.1
+      sonner:
+        specifier: 'catalog:'
+        version: 2.0.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@types/node@24.13.3)(jsdom@30.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@24.13.3)(typescript@7.0.2))(vite@8.2.0(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
 
   packages/features/finance:
     devDependencies:
@@ -749,6 +764,9 @@ importers:
       '@kit/dues':
         specifier: workspace:*
         version: link:../dues
+      '@kit/dues-notices':
+        specifier: workspace:*
+        version: link:../dues-notices
       '@kit/next':
         specifier: workspace:*
         version: link:../../next

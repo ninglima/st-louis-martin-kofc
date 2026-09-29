@@ -73,4 +73,24 @@ describe('FollowUpTable', () => {
       container.querySelector('[data-test="follow-up-lapsed-link"]'),
     ).not.toBeNull();
   });
+
+  it('shows the last notice when one is given for the row', () => {
+    const { container } = render(
+      <FollowUpTable
+        rows={[row]}
+        canOpenMembers={false}
+        lastNotices={{
+          m1: {
+            memberId: 'm1',
+            kind: 'after_30',
+            sentAt: '2026-10-03T14:00:00Z',
+            tracking: 'opened',
+          },
+        }}
+      />,
+    );
+
+    const cell = container.querySelector('[data-test="last-notice"]');
+    expect(cell?.textContent).toContain('Opened');
+  });
 });
