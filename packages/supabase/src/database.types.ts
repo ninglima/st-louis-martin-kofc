@@ -345,6 +345,38 @@ export type Database = {
         }
         Relationships: []
       }
+      member_edits: {
+        Row: {
+          edited_at: string
+          edited_by: string | null
+          fields: string[]
+          id: string
+          member_id: string
+        }
+        Insert: {
+          edited_at?: string
+          edited_by?: string | null
+          fields: string[]
+          id?: string
+          member_id: string
+        }
+        Update: {
+          edited_at?: string
+          edited_by?: string | null
+          fields?: string[]
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_edits_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           accepted_on: string | null
@@ -1010,6 +1042,38 @@ export type Database = {
           member_id: string
           paid_through: string | null
         }[]
+      }
+      // HAND-CORRECTED, do not regenerate away: every column below except
+      // membership_number, first_name and last_name is nullable in SQL (the
+      // rest are optional contact/address fields); the generator types every
+      // column of a `returns table` function as non-nullable.
+      member_for_edit: {
+        Args: { p_member_id: string }
+        Returns: {
+          address_line1: string | null
+          address_line2: string | null
+          bad_address: boolean
+          city: string | null
+          country: string | null
+          email_secondary: string | null
+          first_name: string
+          last_name: string
+          membership_number: string
+          middle_name: string | null
+          phone_business: string | null
+          phone_cell: string | null
+          phone_residence: string | null
+          postal_code: string | null
+          prefix: string | null
+          primary_email: string | null
+          secondary_address: string | null
+          state: string | null
+          suffix: string | null
+        }[]
+      }
+      member_update: {
+        Args: { p_changes: Json; p_member_id: string }
+        Returns: undefined
       }
       member_upsert_from_roster: { Args: { p: Json }; Returns: string }
       members_can_manage: { Args: never; Returns: boolean }
