@@ -7,11 +7,13 @@ import { NoticesService } from '@kit/dues-notices/server/notices.service';
 import { MemberDuesCard } from '@kit/dues/components/member-dues-card';
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { DuesService } from '@kit/dues/server/dues.service';
+import { MemberEditDialog } from '@kit/members/components/member-edit-dialog';
 import { MembersService } from '@kit/members/server/members.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 import { Badge } from '@kit/ui/badge';
 import { badgeExtras } from '@kit/ui/badge-extras';
+import { Button } from '@kit/ui/button';
 import { If } from '@kit/ui/if';
 import { PageBody, PageHeader } from '@kit/ui/page';
 
@@ -61,6 +63,7 @@ async function MemberDetailPage(props: { params: Promise<{ id: string }> }) {
 
   const canViewFinance = hasPermission(permissions, 'finance', 'view');
   const canManageFinance = hasPermission(permissions, 'finance', 'manage');
+  const canEditMember = hasPermission(permissions, 'members', 'manage');
 
   const dues = canViewFinance ? await loadDues(id, canManageFinance) : null;
 
@@ -73,7 +76,14 @@ async function MemberDetailPage(props: { params: Promise<{ id: string }> }) {
       <PageHeader
         title={member.fullName}
         description={`Member #${member.membershipNumber}`}
-      />
+      >
+        <If condition={canEditMember}>
+          <MemberEditDialog
+            memberId={member.id}
+            trigger={<Button data-test="member-edit">Edit</Button>}
+          />
+        </If>
+      </PageHeader>
 
       <PageBody>
         <div className="flex w-full flex-col gap-y-6">

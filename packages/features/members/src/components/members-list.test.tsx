@@ -10,12 +10,14 @@ import type { AccountFilter } from './members-list';
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace }),
+  useRouter: () => ({ replace, refresh: vi.fn() }),
   usePathname: () => '/home/members',
 }));
 
 vi.mock('../server/members-actions', () => ({
   exportMembersAction: vi.fn(),
+  loadMemberForEditAction: vi.fn(),
+  updateMemberAction: vi.fn(),
 }));
 
 function member(overrides: Partial<MemberListRow> = {}): MemberListRow {
@@ -60,6 +62,7 @@ function render(
     account?: AccountFilter;
     cities?: string[];
     dues?: Map<string, MemberDuesSummary>;
+    canEdit?: boolean;
   } = {},
 ) {
   return renderToStaticMarkup(
@@ -73,6 +76,7 @@ function render(
       pageSize={50}
       hasMore={false}
       dues={options.dues}
+      canEdit={options.canEdit}
     />,
   );
 }
@@ -182,6 +186,21 @@ describe('MembersList', () => {
 
     expect(html).toContain('Paid through');
     expect(html).toContain('data-test="member-dues-status"');
+  });
+
+  it('offers an Edit button per row only to someone who can edit', () => {
+    expect(render({ canEdit: true })).toContain(
+      'data-test="member-edit-bd1d9c3a-1111-2222-3333-444455556666"',
+    );
+    expect(render()).not.toContain('data-test="member-edit-');
+  });
+
+  it('widens the empty row to cover the Edit column', () => {
+    // react-dom@19.2.8's renderToStaticMarkup serializes this prop as
+    // `colSpan`, not the lowercase `colspan` the brief assumed -- verified
+    // directly against this repo's react-dom before changing the assertion.
+    expect(render({ members: [], canEdit: true })).toContain('colSpan="9"');
+    expect(render({ members: [] })).toContain('colSpan="8"');
   });
 });
 

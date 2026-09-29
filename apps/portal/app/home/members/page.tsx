@@ -140,17 +140,19 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
   const city = firstValue(params.city);
   const account = parseAccount(firstValue(params.account));
 
+  const currentPermissions = await getCurrentPermissions();
+
   // The dues columns, the status filter, and the summaries they're built
   // from all sit behind this one grant -- nothing dues-shaped is fetched, let
   // alone sent to the client, for a caller who lacks it.
-  const canSeeDues = hasPermission(
-    await getCurrentPermissions(),
-    'finance',
-    'view',
-  );
+  const canSeeDues = hasPermission(currentPermissions, 'finance', 'view');
   const duesFilter = canSeeDues
     ? parseDuesFilter(firstValue(params.dues))
     : 'all';
+
+  // Gates the Edit button per row: same grant `member-edit-dialog.tsx` and
+  // its server actions re-check before returning or changing anything.
+  const canEdit = hasPermission(currentPermissions, 'members', 'manage');
 
   // Read as the OFFICER, not the service role: `members_list` is
   // `security definer` and gates on `kit.has_permission(...)`, which reads
@@ -204,6 +206,7 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
       hasMore={rows.length > PAGE_SIZE}
       dues={dues}
       duesFilter={dues ? duesFilter : 'all'}
+      canEdit={canEdit}
     />
   );
 }

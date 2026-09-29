@@ -38,6 +38,7 @@ import { cn } from '@kit/ui/utils';
 import type { DuesFilter } from '../lib/dues-filter';
 import { exportMembersAction } from '../server/members-actions';
 import type { MemberListRow } from '../server/members.service';
+import { MemberEditDialog } from './member-edit-dialog';
 
 /**
  * Long enough that typing "Smith" is one request rather than five, short
@@ -120,6 +121,7 @@ export function MembersList({
   hasMore,
   dues,
   duesFilter = 'all',
+  canEdit = false,
 }: {
   members: MemberListRow[];
   /** The committed term, straight off the URL — never the keystroke in flight. */
@@ -142,6 +144,8 @@ export function MembersList({
   dues?: Map<string, MemberDuesSummary>;
   /** The committed `?dues=` value, or `'all'` for no filter. */
   duesFilter?: DuesFilter;
+  /** members.manage: shows an Edit button per row. */
+  canEdit?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -412,6 +416,11 @@ export function MembersList({
                 <TableHead className={FIT}>Paid through</TableHead>
                 <TableHead className={FIT}>Status</TableHead>
               </If>
+              <If condition={canEdit}>
+                <TableHead className={FIT}>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </If>
             </TableRow>
           </TableHeader>
 
@@ -419,7 +428,7 @@ export function MembersList({
             <If condition={visibleMembers.length === 0}>
               <TableRow data-test="members-empty">
                 <TableCell
-                  colSpan={dues ? 11 : 8}
+                  colSpan={(dues ? 11 : 8) + (canEdit ? 1 : 0)}
                   className="text-muted-foreground"
                 >
                   {members.length > 0
@@ -547,6 +556,23 @@ export function MembersList({
                       </>
                     );
                   }}
+                </If>
+
+                <If condition={canEdit}>
+                  <TableCell>
+                    <MemberEditDialog
+                      memberId={member.id}
+                      trigger={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-test={`member-edit-${member.id}`}
+                        >
+                          Edit
+                        </Button>
+                      }
+                    />
+                  </TableCell>
                 </If>
               </TableRow>
             ))}
