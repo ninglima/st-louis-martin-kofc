@@ -350,8 +350,8 @@ this stack. Do this once everything above has been running against
 1. **Resend**
    - Register the webhook at `https://<site>/api/webhooks/resend` for the
      events `email.sent`, `email.delivered`, `email.delivery_delayed`,
-     `email.bounced`, `email.complained`, `email.opened` and
-     `email.clicked`.
+     `email.bounced`, `email.complained`, `email.suppressed`,
+     `email.failed`, `email.opened` and `email.clicked`.
    - Copy its signing secret (`whsec_…`).
    - Confirm that open and click tracking are on for the domain.
 2. **Secret Manager.** Create `resend-api-key`, `resend-webhook-secret` and
@@ -368,9 +368,18 @@ this stack. Do this once everything above has been running against
    Only do this after the secrets exist: a missing secret fails the `main`
    deploy.
 
-   Confirm `NEXT_PUBLIC_SITE_URL` is already set to the public site origin
-   for this environment — the notice emails' "Pay dues" link is built from
-   it.
+   The notice emails' "Pay dues" link is built from `NEXT_PUBLIC_SITE_URL`,
+   and that value is **baked into the image at build time**: it is the
+   `--build-arg NEXT_PUBLIC_SITE_URL=…` on the `docker build` step in
+   `.github/workflows/deploy.yml`, not a Cloud Run env var. Setting it with
+   `--set-env-vars` or in the Cloud Run console has no effect on the link
+   (at runtime the server would otherwise fall back to the committed
+   `apps/portal/.env`, which says `http://localhost:3000`). Confirm the build
+   arg is the public https origin for this environment, and rebuild the
+   image if you change it. Live mode refuses to send — the run shows
+   "Live mode needs NEXT_PUBLIC_SITE_URL to be the public https origin…" —
+   when the built-in value is missing, not https, or a localhost /
+   127.0.0.1 host.
 3. **Worker.** Run `wrangler secret put DUES_JOBS_SECRET`, using the same
    value as `dues-jobs-secret`. Then deploy the router. The cron
    `0 14 * * *` runs at 9 a.m. Central during daylight time and 8 a.m. in
