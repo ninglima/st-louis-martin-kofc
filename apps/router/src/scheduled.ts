@@ -10,16 +10,23 @@ export async function runDuesNoticesTrigger(
     return null;
   }
 
-  const response = await fetchImpl(
-    `${env.PORTAL_ORIGIN}/api/jobs/dues-notices`,
-    {
+  const url = new URL('/api/jobs/dues-notices', env.PORTAL_ORIGIN);
+
+  let response: Response;
+
+  try {
+    response = await fetchImpl(url, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${env.DUES_JOBS_SECRET}`,
         'x-origin-auth': env.ORIGIN_AUTH,
       },
-    },
-  );
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Dues notices job request failed:', message);
+    return null;
+  }
 
   if (!response.ok) {
     console.error(`Dues notices job answered ${response.status}`);

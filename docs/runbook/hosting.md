@@ -367,6 +367,10 @@ this stack. Do this once everything above has been running against
 
    Only do this after the secrets exist: a missing secret fails the `main`
    deploy.
+
+   Confirm `NEXT_PUBLIC_SITE_URL` is already set to the public site origin
+   for this environment — the notice emails' "Pay dues" link is built from
+   it.
 3. **Worker.** Run `wrangler secret put DUES_JOBS_SECRET`, using the same
    value as `dues-jobs-secret`. Then deploy the router. The cron
    `0 14 * * *` runs at 9 a.m. Central during daylight time and 8 a.m. in
