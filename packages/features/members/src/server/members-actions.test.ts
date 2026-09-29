@@ -30,7 +30,8 @@ vi.mock('@kit/supabase/server-client', () => ({
   getSupabaseServerClient: () => h.officer,
 }));
 
-const { exportMembersAction } = await import('./members-actions');
+const { exportMembersAction, loadMemberForEditAction, updateMemberAction } =
+  await import('./members-actions');
 
 interface RpcCall {
   name: string;
@@ -344,5 +345,138 @@ describe('exportMembersAction', () => {
     const result = await exportMembersAction({ search: null });
 
     expect(result).toEqual({ success: false, error: 'fetch failed' });
+  });
+});
+
+describe('member edit actions', () => {
+  const MEMBER_ID = 'bd1d9c3a-1111-2222-3333-444455556666';
+
+  function editClient(result: {
+    data?: unknown;
+    error?: { message: string } | null;
+  }) {
+    const calls: RpcCall[] = [];
+
+    return {
+      calls,
+      client: {
+        rpc: (name: string, args: Record<string, unknown>) => {
+          calls.push({ name, args });
+
+          return Promise.resolve({
+            data: result.data ?? null,
+            error: result.error ?? null,
+          });
+        },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    h.perms = { members: { canView: true, canManage: true } };
+  });
+
+  it('refuses both actions without members.manage, before any RPC', async () => {
+    h.perms = { members: { canView: true, canManage: false } };
+    const fake = editClient({});
+    h.officer = fake.client;
+
+    expect(await loadMemberForEditAction({ memberId: MEMBER_ID })).toEqual({
+      success: false,
+      error: 'You do not have permission to edit members.',
+    });
+    expect(
+      await updateMemberAction({ memberId: MEMBER_ID, changes: { city: 'X' } }),
+    ).toEqual({
+      success: false,
+      error: 'You do not have permission to edit members.',
+    });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('loads a member as form values', async () => {
+    const fake = editClient({
+      data: [
+        {
+          membership_number: '1000001',
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+          city: null,
+          bad_address: false,
+        },
+      ],
+    });
+    h.officer = fake.client;
+
+    const result = await loadMemberForEditAction({ memberId: MEMBER_ID });
+
+    expect(fake.calls).toEqual([
+      { name: 'member_for_edit', args: { p_member_id: MEMBER_ID } },
+    ]);
+    expect(result.success && result.member.membershipNumber).toBe('1000001');
+    expect(result.success && result.member.values.city).toBe('');
+  });
+
+  it('says a vanished member no longer exists', async () => {
+    h.officer = editClient({ error: { message: 'unknown member' } }).client;
+
+    expect(await loadMemberForEditAction({ memberId: MEMBER_ID })).toEqual({
+      success: false,
+      error: 'That member no longer exists.',
+    });
+  });
+
+  it('refuses a malformed id without calling the database', async () => {
+    const fake = editClient({});
+    h.officer = fake.client;
+
+    expect((await loadMemberForEditAction({ memberId: 'nope' })).success).toBe(
+      false,
+    );
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('sends the changes and returns a database refusal as a value', async () => {
+    const ok = editClient({});
+    h.officer = ok.client;
+
+    expect(
+      await updateMemberAction({
+        memberId: MEMBER_ID,
+        changes: { city: 'Florissant' },
+      }),
+    ).toEqual({
+      success: true,
+    });
+    expect(ok.calls).toEqual([
+      {
+        name: 'member_update',
+        args: { p_member_id: MEMBER_ID, p_changes: { city: 'Florissant' } },
+      },
+    ]);
+
+    h.officer = editClient({
+      error: { message: 'First name is required' },
+    }).client;
+
+    expect(
+      await updateMemberAction({
+        memberId: MEMBER_ID,
+        changes: { first_name: null },
+      }),
+    ).toEqual({
+      success: false,
+      error: 'First name is required',
+    });
+  });
+
+  it('makes no call for an empty change set', async () => {
+    const fake = editClient({});
+    h.officer = fake.client;
+
+    expect(
+      await updateMemberAction({ memberId: MEMBER_ID, changes: {} }),
+    ).toEqual({ success: true });
+    expect(fake.calls).toEqual([]);
   });
 });

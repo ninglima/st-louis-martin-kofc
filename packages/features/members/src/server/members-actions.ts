@@ -1,11 +1,14 @@
 'use server';
 
+import * as z from 'zod';
+
 import { enhanceAction } from '@kit/next/actions';
 import { loadPermissionsForUser } from '@kit/rbac/server/permissions.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import type { MemberEditChanges, MemberForEdit } from '../lib/member-edit';
 import { MembersService } from './members.service';
 import type { MemberListFilters, MemberListRow } from './members.service';
 
@@ -180,6 +183,105 @@ export const exportMembersAction = enhanceAction(
       csv,
       truncated,
     };
+  },
+  {},
+);
+
+const EDIT_UNAUTHORIZED = 'You do not have permission to edit members.';
+
+// `.guid()` rather than `.uuid()`: the latter enforces the RFC 4122
+// version/variant nibbles, which a hand-written test id need not satisfy,
+// and which a real `gen_random_uuid()` row id always does anyway.
+const MemberId = z.string().guid();
+
+export type LoadForEditResult =
+  | { success: true; member: MemberForEdit }
+  | { success: false; error: string };
+
+export type UpdateMemberResult =
+  | { success: true }
+  | { success: false; error: string };
+
+async function canEditMembers(userId: string): Promise<boolean> {
+  const permissions = await loadPermissionsForUser(
+    getSupabaseServerAdminClient(),
+    userId,
+  );
+
+  return hasPermission(permissions, 'members', 'manage');
+}
+
+function messageOf(cause: unknown, fallback: string): string {
+  return cause instanceof Error && cause.message !== ''
+    ? cause.message
+    : fallback;
+}
+
+/**
+ * The dialog's initial values. `members.manage` is re-checked here because a
+ * Server Action is a public endpoint, and this one returns decrypted
+ * addresses and phones. The RPC runs as the officer, whose `auth.uid()` is
+ * what `member_for_edit` checks.
+ */
+export const loadMemberForEditAction = enhanceAction(
+  async (input: { memberId: string }, user): Promise<LoadForEditResult> => {
+    if (!(await canEditMembers(user.id))) {
+      return { success: false, error: EDIT_UNAUTHORIZED };
+    }
+
+    if (!MemberId.safeParse(input.memberId).success) {
+      return { success: false, error: 'That member no longer exists.' };
+    }
+
+    try {
+      const member = await new MembersService(
+        getSupabaseServerClient(),
+      ).getForEdit(input.memberId);
+
+      return member
+        ? { success: true, member }
+        : { success: false, error: 'That member no longer exists.' };
+    } catch (cause) {
+      return {
+        success: false,
+        error: messageOf(cause, 'The member could not be loaded.'),
+      };
+    }
+  },
+  {},
+);
+
+/** Saves the changed fields. `member_update` is the authority on validation. */
+export const updateMemberAction = enhanceAction(
+  async (
+    input: { memberId: string; changes: MemberEditChanges },
+    user,
+  ): Promise<UpdateMemberResult> => {
+    if (!(await canEditMembers(user.id))) {
+      return { success: false, error: EDIT_UNAUTHORIZED };
+    }
+
+    if (!MemberId.safeParse(input.memberId).success) {
+      return { success: false, error: 'That member no longer exists.' };
+    }
+
+    if (Object.keys(input.changes).length === 0) {
+      return { success: true };
+    }
+
+    try {
+      await new MembersService(getSupabaseServerClient()).update(
+        input.memberId,
+        input.changes,
+      );
+
+      return { success: true };
+    } catch (cause) {
+      return {
+        success: false,
+        error: messageOf(cause, 'The member could not be saved.'),
+      };
+    }
   },
   {},
 );

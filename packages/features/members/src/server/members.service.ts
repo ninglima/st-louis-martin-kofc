@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '@kit/supabase/database';
 
+import { toFormValues } from '../lib/member-edit';
+import type { MemberEditChanges, MemberForEdit } from '../lib/member-edit';
 import { FILLABLE } from './roster-plan';
 import type { ExistingMember, FillableField } from './roster-plan';
 
@@ -262,5 +264,41 @@ export class MembersService {
         filledFields,
       };
     });
+  }
+
+  /**
+   * One member's editable fields, decrypted, via `member_for_edit`
+   * (members.manage). `null` for a member that no longer exists.
+   */
+  async getForEdit(id: string): Promise<MemberForEdit | null> {
+    const { data, error } = await this.client.rpc('member_for_edit', {
+      p_member_id: id,
+    });
+
+    if (error) {
+      if (error.message === 'unknown member') return null;
+      throw new Error(error.message);
+    }
+
+    const row = data?.[0];
+
+    if (!row) return null;
+
+    return {
+      membershipNumber: row.membership_number,
+      values: toFormValues(row),
+    };
+  }
+
+  /** Applies only the given fields; `member_update` validates and logs. */
+  async update(id: string, changes: MemberEditChanges): Promise<void> {
+    const { error } = await this.client.rpc('member_update', {
+      p_member_id: id,
+      p_changes: changes,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }
