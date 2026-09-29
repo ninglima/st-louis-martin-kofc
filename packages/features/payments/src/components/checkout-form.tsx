@@ -112,6 +112,7 @@ export function CheckoutForm({
   const [paymentIntent, setPaymentIntent] = useState<{
     clientSecret?: string;
     paymentId: string;
+    amountCents?: number;
   } | null>(null);
 
   // Single source of truth for both the trigger's formatted label and the
@@ -195,6 +196,7 @@ export function CheckoutForm({
         setPaymentIntent({
           clientSecret: result.clientSecret,
           paymentId: result.paymentId,
+          amountCents: 'amountCents' in result ? result.amountCents : undefined,
         });
       } catch {
         toast.error(t('paymentError'));
@@ -217,6 +219,7 @@ export function CheckoutForm({
         applicationId={config.publishableKey ?? ''}
         locationId={config.locationId ?? ''}
         paymentId={paymentIntent.paymentId}
+        amountCents={paymentIntent.amountCents ?? 0}
         environment={config.environment}
       />
     );

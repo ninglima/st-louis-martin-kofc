@@ -1,7 +1,12 @@
 import Stripe from 'stripe';
 
 import type { PaymentProviderInterface } from '../types/payment-provider';
-import type { CreatePaymentParams, PaymentResult, PaymentStatus, WebhookEvent } from '../types/payment.types';
+import type {
+  CreatePaymentParams,
+  PaymentResult,
+  PaymentStatus,
+  WebhookEvent,
+} from '../types/payment.types';
 
 export class StripeProvider implements PaymentProviderInterface {
   private stripe: Stripe;
@@ -12,10 +17,22 @@ export class StripeProvider implements PaymentProviderInterface {
     this.webhookSecret = webhookSecret;
   }
 
-  async createPayment(params: CreatePaymentParams & { userId: string }): Promise<PaymentResult> {
+  async createPayment(
+    params: CreatePaymentParams & { userId: string },
+  ): Promise<PaymentResult> {
     const paymentIntent = await this.stripe.paymentIntents.create({
       amount: params.amount,
       currency: params.currency ?? 'usd',
+      // Exactly these two, never Stripe's dashboard-driven "automatic" set:
+      // that is what surfaced Link (and could surface wallets or Cash App).
+      // Card settles at once; a US bank account (ACH) stays `processing` for
+      // up to ~4 business days and ends in `payment_intent.succeeded` or
+      // `payment_intent.payment_failed`. `automatic` verification tries
+      // instant bank login first and falls back to micro-deposits.
+      payment_method_types: ['card', 'us_bank_account'],
+      payment_method_options: {
+        us_bank_account: { verification_method: 'automatic' },
+      },
       // Caller metadata first, our own keys last, so nothing a client sends
       // can relabel whose payment this is or what type it is.
       metadata: {
@@ -34,13 +51,21 @@ export class StripeProvider implements PaymentProviderInterface {
   }
 
   async getPaymentStatus(providerPaymentId: string): Promise<PaymentStatus> {
-    const paymentIntent = await this.stripe.paymentIntents.retrieve(providerPaymentId);
+    const paymentIntent =
+      await this.stripe.paymentIntents.retrieve(providerPaymentId);
     return mapStripeStatus(paymentIntent.status);
   }
 
-  async verifyWebhookSignature(payload: string, signature: string): Promise<boolean> {
+  async verifyWebhookSignature(
+    payload: string,
+    signature: string,
+  ): Promise<boolean> {
     try {
-      this.stripe.webhooks.constructEvent(payload, signature, this.webhookSecret);
+      this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        this.webhookSecret,
+      );
       return true;
     } catch {
       return false;
@@ -79,7 +104,14 @@ export function mapStripeWebhookEvent(
     return {
       type: event.type,
       providerPaymentId: paymentIntent.id,
-      status: mapStripeStatus(paymentIntent.status),
+      // A failed attempt leaves the intent at `requires_payment_method`,
+      // which on its own reads as "not paid yet". Say `failed` so a bounced
+      // ACH debit shows up; `failed` is not terminal, so a member who retries
+      // the same intent with another card still moves it to `succeeded`.
+      status:
+        event.type === 'payment_intent.payment_failed'
+          ? 'failed'
+          : mapStripeStatus(paymentIntent.status),
     };
   }
 

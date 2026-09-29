@@ -25,6 +25,12 @@ function refundEvent(type: string, refund: Refund): SquareWebhookPayload {
 }
 
 describe('mapSquareWebhookEvent', () => {
+  it('keeps a PENDING payment (an ACH bank transfer clearing) as processing', () => {
+    expect(
+      mapSquareWebhookEvent(paymentEvent({ id: 'sq_1', status: 'PENDING' })),
+    ).toMatchObject({ providerPaymentId: 'sq_1', status: 'processing' });
+  });
+
   it('maps a payment update from its status (unchanged)', () => {
     expect(
       mapSquareWebhookEvent(

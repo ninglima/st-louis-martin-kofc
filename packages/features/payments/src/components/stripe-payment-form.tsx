@@ -2,16 +2,16 @@
 
 import { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@kit/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@kit/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 import { Trans } from '@kit/ui/trans';
 
 function StripeCheckoutForm() {
@@ -51,7 +51,17 @@ function StripeCheckoutForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-y-4">
-          <PaymentElement />
+          {/*
+            The intent allows only card and US bank account (see
+            `StripeProvider.createPayment`); wallets are turned off here so
+            the card tab is plain card entry.
+          */}
+          <PaymentElement
+            options={{
+              layout: 'tabs',
+              wallets: { applePay: 'never', googlePay: 'never' },
+            }}
+          />
 
           {errorMessage && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">

@@ -12,6 +12,32 @@ afterEach(() => {
 });
 
 describe('mapStripeWebhookEvent', () => {
+  it('records a failed payment (a bounced ACH debit, a declined card) as failed', () => {
+    expect(
+      mapStripeWebhookEvent(
+        event('payment_intent.payment_failed', {
+          id: 'pi_1',
+          status: 'requires_payment_method',
+        }),
+      ),
+    ).toEqual({
+      type: 'payment_intent.payment_failed',
+      providerPaymentId: 'pi_1',
+      status: 'failed',
+    });
+  });
+
+  it('keeps an ACH payment that is still clearing as processing', () => {
+    expect(
+      mapStripeWebhookEvent(
+        event('payment_intent.processing', {
+          id: 'pi_1',
+          status: 'processing',
+        }),
+      ),
+    ).toMatchObject({ status: 'processing' });
+  });
+
   it('maps payment_intent events from the intent status (unchanged)', () => {
     expect(
       mapStripeWebhookEvent(
@@ -153,6 +179,37 @@ describe('mapStripeWebhookEvent', () => {
 });
 
 describe('StripeProvider.createPayment', () => {
+  it('offers card and US bank account (ACH) only, so no Link or wallets', async () => {
+    const provider = new StripeProvider('sk_test_fake', 'whsec_fake');
+    const create = vi.fn(async (params: Record<string, unknown>) => ({
+      id: 'pi_1',
+      client_secret: 'secret',
+      status: 'requires_payment_method',
+      params,
+    }));
+
+    (
+      provider as unknown as {
+        stripe: { paymentIntents: { create: typeof create } };
+      }
+    ).stripe = { paymentIntents: { create } };
+
+    await provider.createPayment({
+      payment_type: 'dues',
+      amount: 5000,
+      currency: 'usd',
+      userId: 'u1',
+    });
+
+    const params = create.mock.calls[0]?.[0] as Record<string, unknown>;
+
+    expect(params.payment_method_types).toEqual(['card', 'us_bank_account']);
+    expect(params.payment_method_options).toEqual({
+      us_bank_account: { verification_method: 'automatic' },
+    });
+    expect(params).not.toHaveProperty('automatic_payment_methods');
+  });
+
   it('never lets client metadata override userId or paymentType', async () => {
     const provider = new StripeProvider('sk_test_fake', 'whsec_fake');
     const create = vi.fn(async (params: Record<string, unknown>) => ({

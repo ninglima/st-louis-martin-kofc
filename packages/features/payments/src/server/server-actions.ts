@@ -149,8 +149,11 @@ export const createPaymentAction = enhanceAction(
     // verify ownership once a card token exists. Stripe already returns a
     // real, provider-issued `paymentId` (the PaymentIntent id) that the
     // client uses together with `clientSecret`, so it is left untouched.
+    // The amount goes back too: Square's bank (ACH) flow shows it to the
+    // member in its authorization step. It is the server-priced amount on
+    // the row, not anything the client sent.
     if (activeProvider === 'square') {
-      return { ...result, paymentId: row.id };
+      return { ...result, paymentId: row.id, amountCents: payment.amount };
     }
 
     return result;
@@ -380,11 +383,14 @@ export const confirmSquarePaymentAction = enhanceAction(
       // this either. This log is the only remaining record that money was
       // taken; it has to be reconciled by hand against Square's dashboard.
       // No card data or tokens, only the ids needed to look the charge up.
-      console.error('Square charge succeeded but payment record update failed.', {
-        paymentId: payment.id,
-        squarePaymentId: result.paymentId,
-        error: updateError.message,
-      });
+      console.error(
+        'Square charge succeeded but payment record update failed.',
+        {
+          paymentId: payment.id,
+          squarePaymentId: result.paymentId,
+          error: updateError.message,
+        },
+      );
 
       return {
         success: false,

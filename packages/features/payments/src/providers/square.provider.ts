@@ -233,7 +233,11 @@ function mapSquareStatus(status: string | undefined): PaymentStatus {
     COMPLETED: 'succeeded',
     CANCELED: 'cancelled',
     FAILED: 'failed',
-    PENDING: 'pending',
+    // Square reports an ACH bank transfer as PENDING while it clears. The
+    // row has already been claimed out of `pending` before the charge (see
+    // `confirmSquarePaymentAction`), and must not return there: `pending`
+    // is what lets a row be charged again.
+    PENDING: 'processing',
   };
   return map[status ?? ''] ?? 'pending';
 }

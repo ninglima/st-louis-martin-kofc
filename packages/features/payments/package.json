@@ -16,7 +16,8 @@
     "./server/*": "./src/server/*.ts",
     "./providers/*": "./src/providers/*.ts",
     "./components/*": "./src/components/*.tsx",
-    "./hooks/*": "./src/hooks/*.ts"
+    "./hooks/*": "./src/hooks/*.ts",
+    "./lib/*": "./src/lib/*.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",
