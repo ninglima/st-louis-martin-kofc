@@ -8,6 +8,7 @@ import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import { MEMBER_EDIT_FIELDS } from '../lib/member-edit';
 import type { MemberEditChanges, MemberForEdit } from '../lib/member-edit';
 import { MembersService } from './members.service';
 import type { MemberListFilters, MemberListRow } from './members.service';
@@ -217,6 +218,47 @@ function messageOf(cause: unknown, fallback: string): string {
     : fallback;
 }
 
+const CHANGES_UNREADABLE = 'Those changes could not be read.';
+
+/**
+ * `input.changes` arrives as JSON off a public endpoint, so its shape is
+ * only what `MemberEditChanges` promises TypeScript, not what a hand-built
+ * request body actually contains. Checked before anything reaches
+ * `member_update`, which trusts every key and value it is given.
+ */
+function isValidChanges(value: unknown): value is MemberEditChanges {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.entries(value as Record<string, unknown>).every(
+    ([key, fieldValue]) => {
+      if (!(MEMBER_EDIT_FIELDS as readonly string[]).includes(key)) {
+        return false;
+      }
+
+      return key === 'bad_address'
+        ? typeof fieldValue === 'boolean'
+        : typeof fieldValue === 'string' || fieldValue === null;
+    },
+  );
+}
+
+/**
+ * `member_update` raises these two messages verbatim. `loadMemberForEditAction`
+ * already reads the same words for a vanished member, via `getForEdit`'s null
+ * return; this gives the save path the same wording, plus the permission
+ * message already used for the RBAC check above. Every other message -- a
+ * blank name, a bad email, an over-long value -- is already written for a
+ * human and passes through unchanged.
+ */
+function mapEditError(message: string): string {
+  if (message === 'unknown member') return 'That member no longer exists.';
+  if (message === 'forbidden') return EDIT_UNAUTHORIZED;
+
+  return message;
+}
+
 /**
  * The dialog's initial values. `members.manage` is re-checked here because a
  * Server Action is a public endpoint, and this one returns decrypted
@@ -265,6 +307,10 @@ export const updateMemberAction = enhanceAction(
       return { success: false, error: 'That member no longer exists.' };
     }
 
+    if (!isValidChanges(input.changes)) {
+      return { success: false, error: CHANGES_UNREADABLE };
+    }
+
     if (Object.keys(input.changes).length === 0) {
       return { success: true };
     }
@@ -279,7 +325,7 @@ export const updateMemberAction = enhanceAction(
     } catch (cause) {
       return {
         success: false,
-        error: messageOf(cause, 'The member could not be saved.'),
+        error: mapEditError(messageOf(cause, 'The member could not be saved.')),
       };
     }
   },

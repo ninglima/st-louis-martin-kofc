@@ -479,4 +479,106 @@ describe('member edit actions', () => {
     ).toEqual({ success: true });
     expect(fake.calls).toEqual([]);
   });
+
+  describe('malformed changes', () => {
+    // `input.changes` arrives as JSON off a public endpoint -- the
+    // `MemberEditChanges` type is only what TypeScript hopes for, not what a
+    // hand-crafted request body actually contains. Each of these must be
+    // refused before `member_update` ever sees it.
+    it.each([
+      ['null', null],
+      ['an array', ['city']],
+      ['a string', 'city'],
+      ['an unknown key', { not_a_real_field: 'x' }],
+      ['a number for a text field', { city: 5 }],
+      ['a boolean for a text field', { city: true }],
+      ['a string for bad_address', { bad_address: 'true' }],
+    ])(
+      'refuses changes that are %s, without calling the database',
+      async (_label, changes) => {
+        const fake = editClient({});
+        h.officer = fake.client;
+
+        expect(
+          await updateMemberAction({
+            memberId: MEMBER_ID,
+            // Deliberately not `MemberEditChanges` -- exercising exactly the
+            // shapes the type promises can't happen but a raw request can send.
+            changes: changes as never,
+          }),
+        ).toEqual({
+          success: false,
+          error: 'Those changes could not be read.',
+        });
+        expect(fake.calls).toEqual([]);
+      },
+    );
+
+    it('accepts a null value for a text field and a real boolean for bad_address', async () => {
+      const fake = editClient({});
+      h.officer = fake.client;
+
+      expect(
+        await updateMemberAction({
+          memberId: MEMBER_ID,
+          changes: { city: null, bad_address: true },
+        }),
+      ).toEqual({ success: true });
+      expect(fake.calls).toEqual([
+        {
+          name: 'member_update',
+          args: {
+            p_member_id: MEMBER_ID,
+            p_changes: { city: null, bad_address: true },
+          },
+        },
+      ]);
+    });
+  });
+
+  describe('database message mapping', () => {
+    it('maps "unknown member" to a readable message', async () => {
+      h.officer = editClient({ error: { message: 'unknown member' } }).client;
+
+      expect(
+        await updateMemberAction({
+          memberId: MEMBER_ID,
+          changes: { city: 'Florissant' },
+        }),
+      ).toEqual({
+        success: false,
+        error: 'That member no longer exists.',
+      });
+    });
+
+    it('maps "forbidden" to a readable message', async () => {
+      h.officer = editClient({ error: { message: 'forbidden' } }).client;
+
+      expect(
+        await updateMemberAction({
+          memberId: MEMBER_ID,
+          changes: { city: 'Florissant' },
+        }),
+      ).toEqual({
+        success: false,
+        error: 'You do not have permission to edit members.',
+      });
+    });
+
+    it('passes any other database message through unchanged', async () => {
+      h.officer = editClient({
+        error: { message: 'Last name is required' },
+      }).client;
+
+      expect(
+        await updateMemberAction({
+          memberId: MEMBER_ID,
+          changes: { last_name: null },
+        }),
+      ).toEqual({
+        success: false,
+        error: 'Last name is required',
+      });
+    });
+  });
 });

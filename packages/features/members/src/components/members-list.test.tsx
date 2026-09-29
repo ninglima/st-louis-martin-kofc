@@ -195,6 +195,12 @@ describe('MembersList', () => {
     expect(render()).not.toContain('data-test="member-edit-');
   });
 
+  it('labels the Edit button with the member it edits, for a screen reader', () => {
+    // The visible text stays the plain "Edit" every row shares; a screen
+    // reader on a 50-row page needs the name to tell them apart.
+    expect(render({ canEdit: true })).toContain('aria-label="Edit John Smith"');
+  });
+
   it('widens the empty row to cover the Edit column', () => {
     // react-dom@19.2.8's renderToStaticMarkup serializes this prop as
     // `colSpan`, not the lowercase `colspan` the brief assumed -- verified

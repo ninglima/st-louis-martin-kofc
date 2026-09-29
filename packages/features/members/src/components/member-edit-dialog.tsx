@@ -43,6 +43,19 @@ import {
 
 type TextField = Exclude<MemberEditField, 'bad_address'>;
 
+/** The one error line, rendered in exactly one of two places -- see below. */
+function ErrorMessage({ message }: { message: string }) {
+  return (
+    <p
+      role="alert"
+      className="text-destructive text-sm"
+      data-test="member-edit-error"
+    >
+      {message}
+    </p>
+  );
+}
+
 const SECTIONS: { title: string; note?: string; fields: TextField[] }[] = [
   {
     title: 'Name',
@@ -62,6 +75,10 @@ const SECTIONS: { title: string; note?: string; fields: TextField[] }[] = [
   {
     title: 'Address',
     note: 'Clearing a field here lets the next roster import fill it again.',
+    // No `secondary_address` field: the roster import stores it as a JSON
+    // string (roster-import.service.ts, toPayload), so a text box would show
+    // raw JSON rather than an editable address. It stays untouched in the
+    // form values, so `changedFields` never sends it.
     fields: [
       'address_line1',
       'address_line2',
@@ -69,7 +86,6 @@ const SECTIONS: { title: string; note?: string; fields: TextField[] }[] = [
       'state',
       'postal_code',
       'country',
-      'secondary_address',
     ],
   },
 ];
@@ -128,6 +144,10 @@ export function MemberEditDialog({
 
     const changes = changedFields(initial.current, values);
 
+    // A stale error from a previous failed save must not still be on screen
+    // for a retry that hasn't answered yet.
+    setError(null);
+
     startSaving(async () => {
       const result = await updateMemberAction({ memberId, changes });
 
@@ -163,16 +183,15 @@ export function MemberEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <If condition={error}>
-          {(message) => (
-            <p
-              role="alert"
-              className="text-destructive text-sm"
-              data-test="member-edit-error"
-            >
-              {message}
-            </p>
-          )}
+        {/*
+          No form is on screen yet (still loading, or the load itself
+          failed), so the error is shown here. Once the form is up, it moves
+          next to Save below -- never both at once.
+        */}
+        <If condition={!ready}>
+          <If condition={error}>
+            {(message) => <ErrorMessage message={message} />}
+          </If>
         </If>
 
         <If condition={loading}>
@@ -184,6 +203,10 @@ export function MemberEditDialog({
             <form
               className="flex flex-col gap-y-6"
               onSubmit={form.handleSubmit(onSubmit)}
+              // The browser's own validation (e.g. the email input type)
+              // would race zod's, and report differently. zod is the one
+              // source of truth on screen; the database stays the authority.
+              noValidate
             >
               {SECTIONS.map((section) => (
                 <fieldset key={section.title} className="flex flex-col gap-y-3">
@@ -244,6 +267,12 @@ export function MemberEditDialog({
                   </If>
                 </fieldset>
               ))}
+
+              {/* Next to Save, so a failed save is visible without scrolling
+                  back to the top of a long form. */}
+              <If condition={error}>
+                {(message) => <ErrorMessage message={message} />}
+              </If>
 
               <DialogFooter>
                 <Button

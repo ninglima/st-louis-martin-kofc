@@ -567,6 +567,7 @@ export function MembersList({
                           variant="outline"
                           size="sm"
                           data-test={`member-edit-${member.id}`}
+                          aria-label={`Edit ${member.fullName}`}
                         >
                           Edit
                         </Button>
