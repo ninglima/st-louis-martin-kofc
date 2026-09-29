@@ -3,12 +3,14 @@ import { CalendarToolbar } from '@kit/events/components/calendar-toolbar';
 import { EventsList } from '@kit/events/components/events-list';
 import { MonthCalendar } from '@kit/events/components/month-calendar';
 import {
+  addDays,
   gridRange,
   monthGrid,
   parseMonthParam,
+  parseTypeParam,
   parseViewParam,
 } from '@kit/events/lib/calendar';
-import { todayInChicago } from '@kit/events/lib/format';
+import { chicagoDate, todayInChicago } from '@kit/events/lib/format';
 import { EventsService } from '@kit/events/server/events.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
@@ -33,7 +35,7 @@ async function EventsPage(props: { searchParams: Promise<SearchParams> }) {
   const today = todayInChicago();
   const month = parseMonthParam(params.month, today);
   const view = parseViewParam(params.view);
-  const typeId = typeof params.type === 'string' ? params.type : '';
+  const typeId = parseTypeParam(params.type);
   const canManage = hasPermission(
     await getCurrentPermissions(),
     'events',
@@ -84,8 +86,8 @@ async function EventsPage(props: { searchParams: Promise<SearchParams> }) {
                 </div>
                 <div className="md:hidden">
                   <EventsList
-                    events={read.value[1].filter(
-                      (e) => e.startsAt.slice(0, 7) >= month,
+                    events={read.value[1].filter((e) =>
+                      chicagoDate(e.startsAt).startsWith(month),
                     )}
                   />
                 </div>
@@ -96,12 +98,6 @@ async function EventsPage(props: { searchParams: Promise<SearchParams> }) {
       </PageBody>
     </>
   );
-}
-
-function addDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 export default EventsPage;

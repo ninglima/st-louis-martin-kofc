@@ -7,6 +7,7 @@ export interface CalendarDay {
 }
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function first(raw: string | string[] | undefined): string | undefined {
   return Array.isArray(raw) ? raw[0] : raw;
@@ -27,13 +28,25 @@ export function parseViewParam(
   return first(raw) === 'list' ? 'list' : 'month';
 }
 
+/**
+ * `?type=` reaches `events_in_range` as `p_type_id`, a `uuid` column filter.
+ * A malformed value (a stale link, a typo, an empty string) must read as
+ * "All types" rather than crash the page with Postgres's 22P02 ("invalid
+ * input syntax for type uuid").
+ */
+export function parseTypeParam(raw: string | string[] | undefined): string {
+  const value = first(raw);
+
+  return value && UUID.test(value) ? value : '';
+}
+
 export function shiftMonth(month: string, delta: number): string {
   const [year, m] = month.split('-').map(Number);
 
   return new Date(Date.UTC(year!, m! - 1 + delta, 1)).toISOString().slice(0, 7);
 }
 
-function addDays(date: string, days: number): string {
+export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
 

@@ -109,7 +109,18 @@ export function AttendancePanel({ event }: { event: EventDetail }) {
               ) : null}
               <ul className="flex flex-col gap-2">
                 {shift.signups.map((s) => (
-                  <Row key={s.id} signup={s} started={started} />
+                  // Keying on status/hours too (not just id) forces a fresh
+                  // `Row` -- and so fresh `useState` initial values -- after
+                  // a save changes them server-side and `router.refresh()`
+                  // re-renders with the new props. Otherwise the mounted
+                  // instance keeps showing what the officer typed before
+                  // Save, even once the DB has a different value (e.g. hours
+                  // defaulted to the shift length after a blank save).
+                  <Row
+                    key={`${s.id}:${s.status}:${s.hours}`}
+                    signup={s}
+                    started={started}
+                  />
                 ))}
               </ul>
               <MemberPicker

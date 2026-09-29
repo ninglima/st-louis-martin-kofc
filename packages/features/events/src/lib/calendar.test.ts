@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  addDays,
   gridRange,
   monthGrid,
   parseMonthParam,
+  parseTypeParam,
   parseViewParam,
   shiftMonth,
 } from './calendar';
@@ -46,5 +48,21 @@ describe('calendar', () => {
 
   it('uses four weeks for a February that starts on Sunday', () => {
     expect(monthGrid('2026-02', '2026-09-29')).toHaveLength(4);
+  });
+
+  it('adds days across month and year ends', () => {
+    expect(addDays('2026-09-29', 1)).toBe('2026-09-30');
+    expect(addDays('2026-09-29', 60)).toBe('2026-11-28');
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+  });
+
+  it('parses ?type= and falls back to "All types" for anything that is not a uuid', () => {
+    const id = '11111111-2222-4333-8444-555555555555';
+
+    expect(parseTypeParam(id)).toBe(id);
+    expect(parseTypeParam([id, 'x'])).toBe(id);
+    expect(parseTypeParam('not-a-uuid')).toBe('');
+    expect(parseTypeParam('')).toBe('');
+    expect(parseTypeParam(undefined)).toBe('');
   });
 });

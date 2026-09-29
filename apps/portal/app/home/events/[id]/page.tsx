@@ -86,7 +86,9 @@ async function EventPage(props: { params: Promise<{ id: string }> }) {
             </p>
           ) : null}
           <ShiftList event={event} />
-          {event.canTakeAttendance ? <AttendancePanel event={event} /> : null}
+          {event.canTakeAttendance && event.status === 'scheduled' ? (
+            <AttendancePanel event={event} />
+          ) : null}
         </div>
       </PageBody>
     </>
