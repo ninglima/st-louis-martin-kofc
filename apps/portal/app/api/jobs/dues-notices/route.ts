@@ -15,13 +15,13 @@ function authorized(header: string | null, secret: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const config = readNoticesConfig();
-
-  if (!authorized(request.headers.get('authorization'), config.jobsSecret)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const config = readNoticesConfig();
+
+    if (!authorized(request.headers.get('authorization'), config.jobsSecret)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const result = await runDuesNoticesJob({
       client: getSupabaseServerAdminClient(),
       config,

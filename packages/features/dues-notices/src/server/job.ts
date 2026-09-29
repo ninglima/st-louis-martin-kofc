@@ -19,7 +19,7 @@ export interface JobResult {
 }
 
 async function recordRun(client: Client, result: JobResult) {
-  await client.from('dues_notice_runs').insert({
+  const { error } = await client.from('dues_notice_runs').insert({
     mode: result.mode,
     candidates: result.candidates,
     sent: result.sent,
@@ -27,6 +27,13 @@ async function recordRun(client: Client, result: JobResult) {
     failed: result.failed,
     error: result.error,
   });
+
+  // Nothing downstream reads this insert's result, so a failure here would
+  // otherwise be silent: the job would report success while the "last run"
+  // status goes stale.
+  if (error) {
+    console.error('Could not record the dues notices run:', error);
+  }
 }
 
 /** Runs once a day (and is safe to run again): claims today's notices once
@@ -74,7 +81,7 @@ export async function runDuesNoticesJob({
     noticeId: r.notice_id,
     memberId: r.member_id,
     firstName: r.first_name,
-    email: r.email as string,
+    email: r.email,
     kind: r.kind as NoticeKind,
     cycleDate: r.cycle_date,
     firstDues: r.first_dues,
@@ -90,42 +97,86 @@ export async function runDuesNoticesJob({
     return result;
   }
 
-  const emails = claimed.map((n) => {
-    const rendered = renderNotice(n, config.siteUrl);
-    return {
-      from: config.from,
-      to: n.email,
-      replyTo: config.replyTo || undefined,
-      ...rendered,
-      tags: [
-        { name: 'notice_id', value: n.noticeId },
-        { name: 'kind', value: n.kind },
-      ],
-    };
-  });
+  try {
+    const emails = claimed.map((n) => {
+      const rendered = renderNotice(n, config.siteUrl);
+      return {
+        from: config.from,
+        to: n.email,
+        replyTo: config.replyTo || undefined,
+        ...rendered,
+        tags: [
+          { name: 'notice_id', value: n.noticeId },
+          { name: 'kind', value: n.kind },
+        ],
+      };
+    });
 
-  const sent = await sendBatch(config.apiKey, emails, fetchImpl);
+    const sent = await sendBatch(config.apiKey, emails, fetchImpl);
 
-  for (const [i, outcome] of sent.entries()) {
-    const notice = claimed[i]!;
+    // Updated in parallel, after the whole batch: sequentially, one round
+    // trip per notice, the update for the k-th notice lands well after
+    // Resend's first webhook events for it can already have arrived, and
+    // those events would then find no matching row. The webhook also
+    // matches on the notice_id tag it can see from the moment the email is
+    // sent, which closes the remaining gap.
+    const outcomes = await Promise.all(
+      sent.map(async (outcome, i) => {
+        const notice = claimed[i]!;
 
-    if (outcome.ok) {
-      result.sent += 1;
-      await client
-        .from('dues_notices')
-        .update({
-          status: 'sent',
-          resend_email_id: outcome.id,
-          sent_at: new Date().toISOString(),
-        })
-        .eq('id', notice.noticeId);
-    } else {
-      result.failed += 1;
-      await client
-        .from('dues_notices')
-        .update({ status: 'failed', error: outcome.error })
-        .eq('id', notice.noticeId);
+        if (outcome.ok) {
+          const { error: updateError } = await client
+            .from('dues_notices')
+            .update({
+              status: 'sent',
+              resend_email_id: outcome.id,
+              sent_at: new Date().toISOString(),
+            })
+            .eq('id', notice.noticeId);
+
+          return { ok: true as const, notice, outcome, updateError };
+        }
+
+        const { error: updateError } = await client
+          .from('dues_notices')
+          .update({ status: 'failed', error: outcome.error })
+          .eq('id', notice.noticeId);
+
+        return { ok: false as const, notice, outcome, updateError };
+      }),
+    );
+
+    const writeErrors: string[] = [];
+
+    for (const o of outcomes) {
+      if (o.ok) {
+        result.sent += 1;
+      } else {
+        result.failed += 1;
+      }
+
+      if (o.updateError) {
+        // The Resend id (when there is one) is the only way to reconcile
+        // this notice by hand later, so it goes in the log even though it
+        // didn't make it into the database. Never the API key: it never
+        // appears here in the first place.
+        console.error(
+          o.ok
+            ? `Dues notice ${o.notice.noticeId} was sent (Resend id ${o.outcome.id}) but could not be recorded:`
+            : `Dues notice ${o.notice.noticeId} failed to send and could not be recorded:`,
+          o.updateError,
+        );
+        writeErrors.push(o.updateError.message);
+      }
     }
+
+    if (writeErrors.length > 0) {
+      result.error = `Could not record ${writeErrors.length} notice outcome(s): ${writeErrors[0]}`;
+    }
+  } catch (e) {
+    result.error = e instanceof Error ? e.message : String(e);
+    await recordRun(client, result);
+    throw e;
   }
 
   await recordRun(client, result);

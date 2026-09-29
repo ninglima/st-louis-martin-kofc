@@ -29,10 +29,20 @@ const claimed = [
   },
 ];
 
-function fakeClient(rows: unknown[] = claimed) {
+function fakeClient({
+  rows = claimed,
+  claimError = null as { message: string } | null,
+  updateErrorFor = {} as Record<string, string>,
+} = {}) {
   const updates: { id: string; values: Record<string, unknown> }[] = [];
   const runs: Record<string, unknown>[] = [];
-  const rpc = vi.fn().mockResolvedValue({ data: rows, error: null });
+  const rpc = vi
+    .fn()
+    .mockResolvedValue(
+      claimError
+        ? { data: null, error: claimError }
+        : { data: rows, error: null },
+    );
   const client = {
     rpc,
     from: (table: string) => ({
@@ -43,7 +53,8 @@ function fakeClient(rows: unknown[] = claimed) {
       update: (values: Record<string, unknown>) => ({
         eq: async (_col: string, id: string) => {
           updates.push({ id, values });
-          return { error: null };
+          const message = updateErrorFor[id];
+          return { error: message ? { message } : null };
         },
       }),
     }),
@@ -172,7 +183,7 @@ describe('runDuesNoticesJob', () => {
   });
 
   it('sends nothing when there is nothing new to claim', async () => {
-    const { client } = fakeClient([]);
+    const { client } = fakeClient({ rows: [] });
     const fetchImpl = vi.fn();
     expect(
       await runDuesNoticesJob({
@@ -182,5 +193,118 @@ describe('runDuesNoticesJob', () => {
       }),
     ).toMatchObject({ candidates: 0, sent: 0 });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('records a run with the error when the claim fails', async () => {
+    const { client, rpc, runs } = fakeClient({
+      claimError: { message: 'db down' },
+    });
+    const result = await runDuesNoticesJob({ client, config: live });
+    expect(rpc).toHaveBeenCalledWith('dues_notices_claim', { p_mode: 'live' });
+    expect(result).toMatchObject({ candidates: 0, sent: 0, error: 'db down' });
+    expect(runs[0]).toMatchObject({ error: 'db down' });
+  });
+
+  it('sends the right payload to Resend: to, from, reply-to and tags', async () => {
+    const { client } = fakeClient({ rows: [claimed[0]!] });
+    const fetchImpl = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify({ data: [{ id: 're_1' }] }), {
+          status: 200,
+        }),
+    );
+    await runDuesNoticesJob({
+      client,
+      config: live,
+      fetchImpl: fetchImpl as never,
+    });
+
+    const [, init] = fetchImpl.mock.calls[0]!;
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>[];
+
+    expect(body[0]).toMatchObject({
+      from: live.from,
+      to: ['a@x.org'],
+      reply_to: live.replyTo,
+      tags: [
+        { name: 'notice_id', value: 'n1' },
+        { name: 'kind', value: 'before_30' },
+      ],
+    });
+  });
+
+  it('handles a mixed batch: one email succeeds, one fails', async () => {
+    const { client, updates } = fakeClient();
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ data: [{ id: 're_1' }, {}] }), {
+          status: 200,
+        }),
+    );
+    const result = await runDuesNoticesJob({
+      client,
+      config: live,
+      fetchImpl: fetchImpl as never,
+    });
+    expect(result).toMatchObject({ sent: 1, failed: 1 });
+    expect(updates).toEqual([
+      {
+        id: 'n1',
+        values: expect.objectContaining({
+          status: 'sent',
+          resend_email_id: 're_1',
+        }),
+      },
+      {
+        id: 'n2',
+        values: expect.objectContaining({
+          status: 'failed',
+          error: 'Resend returned no id',
+        }),
+      },
+    ]);
+  });
+
+  it('says the notice was sent but not recorded when the update fails, and sets result.error', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const { client, updates, runs } = fakeClient({
+      updateErrorFor: { n1: 'connection reset' },
+    });
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ data: [{ id: 're_1' }, { id: 're_2' }] }),
+          { status: 200 },
+        ),
+    );
+
+    const result = await runDuesNoticesJob({
+      client,
+      config: live,
+      fetchImpl: fetchImpl as never,
+    });
+
+    expect(result.sent).toBe(2);
+    expect(result.error).toBe(
+      'Could not record 1 notice outcome(s): connection reset',
+    );
+    expect(updates[0]).toMatchObject({
+      id: 'n1',
+      values: expect.objectContaining({
+        status: 'sent',
+        resend_email_id: 're_1',
+      }),
+    });
+    expect(runs[0]).toMatchObject({
+      error: 'Could not record 1 notice outcome(s): connection reset',
+    });
+    expect(consoleError).toHaveBeenCalled();
+    for (const call of consoleError.mock.calls) {
+      expect(JSON.stringify(call)).not.toContain(live.apiKey);
+    }
+
+    consoleError.mockRestore();
   });
 });
