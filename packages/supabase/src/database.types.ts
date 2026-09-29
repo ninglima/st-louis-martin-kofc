@@ -274,6 +274,216 @@ export type Database = {
           },
         ]
       }
+      event_series: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          rule: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          rule: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          rule?: Json
+        }
+        Relationships: []
+      }
+      event_shifts: {
+        Row: {
+          capacity: number
+          ends_at: string
+          event_id: string
+          id: string
+          label: string | null
+          starts_at: string
+        }
+        Insert: {
+          capacity: number
+          ends_at: string
+          event_id: string
+          id?: string
+          label?: string | null
+          starts_at: string
+        }
+        Update: {
+          capacity?: number
+          ends_at?: string
+          event_id?: string
+          id?: string
+          label?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_shifts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_signups: {
+        Row: {
+          added_by: string | null
+          cancelled_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          hours: number | null
+          id: string
+          member_id: string
+          shift_id: string
+          status: Database["public"]["Enums"]["signup_status"]
+        }
+        Insert: {
+          added_by?: string | null
+          cancelled_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          hours?: number | null
+          id?: string
+          member_id: string
+          shift_id: string
+          status?: Database["public"]["Enums"]["signup_status"]
+        }
+        Update: {
+          added_by?: string | null
+          cancelled_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          hours?: number | null
+          id?: string
+          member_id?: string
+          shift_id?: string
+          status?: Database["public"]["Enums"]["signup_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_signups_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_signups_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "event_shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_types: {
+        Row: {
+          active: boolean
+          category: Database["public"]["Enums"]["program_category"]
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          category: Database["public"]["Enums"]["program_category"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          category?: Database["public"]["Enums"]["program_category"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          ends_at: string
+          id: string
+          is_public: boolean
+          lead_member_id: string | null
+          location: string | null
+          series_id: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["event_status"]
+          title: string
+          type_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at: string
+          id?: string
+          is_public?: boolean
+          lead_member_id?: string | null
+          location?: string | null
+          series_id?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["event_status"]
+          title: string
+          type_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string
+          id?: string
+          is_public?: boolean
+          lead_member_id?: string | null
+          location?: string | null
+          series_id?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["event_status"]
+          title?: string
+          type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_lead_member_id_fkey"
+            columns: ["lead_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "event_series"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hosting_costs: {
         Row: {
           amount_cents: number
@@ -814,6 +1024,56 @@ export type Database = {
         }[]
       }
       dues_opening_balances_apply: { Args: { p_rows: Json }; Returns: Json }
+      event_add_volunteer: {
+        Args: { p_member_id: string; p_shift_id: string }
+        Returns: string
+      }
+      event_cancel_signup: { Args: { p_signup_id: string }; Returns: undefined }
+      event_create: { Args: { p: Json }; Returns: Json }
+      event_detail: { Args: { p_event_id: string }; Returns: Json }
+      event_member_search: {
+        Args: { p_event_id: string; p_query: string }
+        Returns: {
+          full_name: string
+          id: string
+          membership_number: string
+        }[]
+      }
+      event_series_preview: { Args: { p_rule: Json }; Returns: Json }
+      event_set_attendance: {
+        Args: { p_hours?: number; p_signup_id: string; p_status: string }
+        Returns: undefined
+      }
+      event_shifts_save: {
+        Args: { p_event_id: string; p_shifts: Json }
+        Returns: undefined
+      }
+      event_signup: { Args: { p_shift_id: string }; Returns: string }
+      event_types_save: { Args: { p: Json }; Returns: string }
+      event_update: {
+        Args: { p_event_id: string; p_fields: Json; p_scope?: string }
+        Returns: undefined
+      }
+      // HAND-CORRECTED, do not regenerate away: `gen types` reports
+      // series_id as non-null; it is null for a one-off event.
+      events_in_range: {
+        Args: { p_from: string; p_to: string; p_type_id?: string }
+        Returns: {
+          capacity: number
+          category: Database["public"]["Enums"]["program_category"]
+          ends_at: string
+          filled: number
+          id: string
+          is_public: boolean
+          series_id: string | null
+          signed_up: boolean
+          starts_at: string
+          status: Database["public"]["Enums"]["event_status"]
+          title: string
+          type_id: string
+          type_name: string
+        }[]
+      }
       finance_collection_progress: { Args: { p_year: number }; Returns: Json }
       finance_dashboard: { Args: { p_year: number }; Returns: Json }
       // HAND-CORRECTED, do not regenerate away: paid_through is null until
@@ -1141,6 +1401,7 @@ export type Database = {
           paid_through: string | null
         }[]
       }
+      my_volunteering: { Args: never; Returns: Json }
       record_dues_payment: {
         Args: {
           p_check_number?: string
@@ -1203,10 +1464,12 @@ export type Database = {
         Args: { p_period_id: string; p_reason: string }
         Returns: undefined
       }
+      volunteer_report: { Args: { p_year: number }; Returns: Json }
     }
     Enums: {
       dues_method: "online" | "check" | "cash" | "waived" | "opening_balance"
       dues_notice_kind: "before_30" | "due_date" | "after_30"
+      event_status: "scheduled" | "cancelled"
       payment_status:
         | "pending"
         | "processing"
@@ -1215,6 +1478,8 @@ export type Database = {
         | "refunded"
         | "cancelled"
       payment_type: "dues" | "donation" | "event_fee"
+      program_category: "faith" | "family" | "community" | "life"
+      signup_status: "signed_up" | "cancelled" | "attended" | "no_show"
     }
     CompositeTypes: {
       [_ in never]: never
