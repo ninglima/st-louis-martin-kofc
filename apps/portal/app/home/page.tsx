@@ -12,6 +12,8 @@ import type { LastNotice } from '@kit/dues-notices/types';
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { chicagoToday } from '@kit/dues/schemas';
 import { DuesService } from '@kit/dues/server/dues.service';
+import { VolunteerHomeCard } from '@kit/events/components/volunteer-home-card';
+import { EventsService } from '@kit/events/server/events.service';
 import { CollectionTab } from '@kit/finance/components/collection-tab';
 import { DashboardTabsNav } from '@kit/finance/components/dashboard-tabs-nav';
 import {
@@ -118,12 +120,20 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
   const dues = await readDuesIfDeployed(() =>
     new DuesService(client).mySummary(),
   );
+  const volunteering = await readDuesIfDeployed(() =>
+    new EventsService(client).myVolunteering(),
+  );
 
   return (
-    <MemberHome
-      summary={dues.deployed ? dues.value : null}
-      duesDeployed={dues.deployed}
-    />
+    <>
+      <MemberHome
+        summary={dues.deployed ? dues.value : null}
+        duesDeployed={dues.deployed}
+      />
+      {volunteering.deployed ? (
+        <VolunteerHomeCard data={volunteering.value} />
+      ) : null}
+    </>
   );
 }
 
@@ -166,12 +176,20 @@ async function OverviewTab({
     const dues = await readDuesIfDeployed(() =>
       new DuesService(client).mySummary(),
     );
+    const volunteering = await readDuesIfDeployed(() =>
+      new EventsService(client).myVolunteering(),
+    );
 
     return (
-      <MemberHome
-        summary={dues.deployed ? dues.value : null}
-        duesDeployed={dues.deployed}
-      />
+      <>
+        <MemberHome
+          summary={dues.deployed ? dues.value : null}
+          duesDeployed={dues.deployed}
+        />
+        {volunteering.deployed ? (
+          <VolunteerHomeCard data={volunteering.value} />
+        ) : null}
+      </>
     );
   }
 
