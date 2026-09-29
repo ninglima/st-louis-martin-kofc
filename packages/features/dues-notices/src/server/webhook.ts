@@ -12,11 +12,15 @@ const TRACKED = new Set([
   'delivery_delayed',
   'bounced',
   'complained',
+  'suppressed',
+  'failed',
   'opened',
   'clicked',
 ]);
 
 type ResendTag = { name?: string; value?: string };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Resend echoes back the tags the job attached when it sent the email
@@ -109,7 +113,11 @@ export async function handleResendWebhook({
   if (!TRACKED.has(type)) return { status: 200, stored: false };
 
   const emailId = event.data?.email_id;
-  const tagNoticeId = noticeIdFromTags(event.data?.tags);
+  // Only a well-formed UUID can be one of our notice ids; anything else
+  // (another sender reusing the tag name) would make Postgres reject the
+  // lookup with 22P02, so it falls back to matching the email id instead.
+  const rawTag = noticeIdFromTags(event.data?.tags);
+  const tagNoticeId = rawTag && UUID.test(rawTag) ? rawTag : null;
 
   let noticeId: string | null = null;
 
