@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
+  /* Remove the users, roles and members the specs create (tests/utils/cleanup.ts). */
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
