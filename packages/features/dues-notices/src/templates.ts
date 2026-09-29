@@ -30,14 +30,38 @@ function lastCoveredDay(cycleDate: string): string {
   }).format(d);
 }
 
+/**
+ * A first-dues member has no prior cycle to reference, so each kind gets its
+ * own wording instead of the "paid through" framing renewals use.
+ * `before_30` cannot fire for a first-dues member in practice (their window
+ * falls before acceptance), but it is still handled rather than left to fall
+ * through.
+ */
+function firstDuesBody(n: ClaimedNotice, amount: string): string[] {
+  switch (n.kind) {
+    case 'before_30':
+      return [
+        `Welcome to the council. Your first dues of ${amount} (${n.levelName}) will be due soon.`,
+        'You can pay online in the member portal.',
+      ];
+    case 'due_date':
+      return [
+        `Welcome to the council. Your first dues of ${amount} (${n.levelName}) are now due.`,
+        'You can pay online in the member portal.',
+      ];
+    case 'after_30':
+      return [
+        `Your first dues of ${amount} (${n.levelName}) are now past due.`,
+        'You can pay online in the member portal.',
+      ];
+  }
+}
+
 function body(n: ClaimedNotice): string[] {
   const amount = formatAmountCents(n.amountCents);
 
   if (n.firstDues) {
-    return [
-      `Welcome to the council. Your first dues of ${amount} (${n.levelName}) are now due.`,
-      'You can pay online in the member portal.',
-    ];
+    return firstDuesBody(n, amount);
   }
 
   const through = lastCoveredDay(n.cycleDate);

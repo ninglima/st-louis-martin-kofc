@@ -1,3 +1,5 @@
+import 'server-only';
+
 import type { NoticesMode } from './types';
 
 export interface NoticesConfig {

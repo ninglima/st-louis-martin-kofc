@@ -1,6 +1,9 @@
+import 'server-only';
+
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const TOLERANCE_SECONDS = 300;
+const MIN_KEY_BYTES = 16;
 
 /** Svix (Resend webhooks): v1 = base64(HMAC-SHA256(key, `${id}.${timestamp}.${body}`)),
  * key = base64-decoded part of `whsec_...`; the header may carry several
@@ -20,6 +23,8 @@ export function verifySvixSignature(input: {
   if (Math.abs(input.nowSeconds - ts) > TOLERANCE_SECONDS) return false;
 
   const key = Buffer.from(input.secret.slice('whsec_'.length), 'base64');
+  if (key.length < MIN_KEY_BYTES) return false;
+
   const expected = createHmac('sha256', key)
     .update(`${input.id}.${input.timestamp}.${input.body}`)
     .digest();
