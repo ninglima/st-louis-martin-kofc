@@ -89,11 +89,13 @@ export function EventForm({
     const rule = toRepeatRule({ ...(values as EventFormValues) });
     if (!rule) return;
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       const result = await previewSeriesAction({
         ...rule,
         start_date: values.date,
       });
+      if (cancelled) return;
       if (!result.success) return setPreview(result.error);
       const p = result.data!;
       setPreview(
@@ -103,12 +105,15 @@ export function EventForm({
       );
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [
     eventId,
     repeat?.freq,
     repeat?.interval,
-    repeat?.weekdays,
+    repeat?.weekdays?.join(','),
     repeat?.weekday,
     repeat?.nth,
     repeat?.until,
@@ -118,22 +123,30 @@ export function EventForm({
 
   const onSubmit = (v: EventFormValues) =>
     start(async () => {
-      if (eventId) {
-        const result = await updateEventAction({ eventId, scope, values: v });
+      try {
+        if (eventId) {
+          const result = await updateEventAction({
+            eventId,
+            scope,
+            values: v,
+          });
+          if (!result.success) return void toast.error(result.error);
+          toast.success('Event saved.');
+          router.push(`/home/events/${eventId}`);
+          return;
+        }
+        const result = await createEventAction(v);
         if (!result.success) return void toast.error(result.error);
-        toast.success('Event saved.');
-        router.push(`/home/events/${eventId}`);
-        return;
+        const created = result.data!;
+        toast.success(
+          created.eventIds.length > 1
+            ? `${created.eventIds.length} events created.`
+            : 'Event created.',
+        );
+        router.push(`/home/events/${created.eventIds[0]}`);
+      } catch {
+        toast.error('Something went wrong. Please try again.');
       }
-      const result = await createEventAction(v);
-      if (!result.success) return void toast.error(result.error);
-      const created = result.data!;
-      toast.success(
-        created.eventIds.length > 1
-          ? `${created.eventIds.length} events created.`
-          : 'Event created.',
-      );
-      router.push(`/home/events/${created.eventIds[0]}`);
     });
 
   const errors = formState.errors;
@@ -186,6 +199,7 @@ export function EventForm({
             data-test="event-location"
             {...register('location')}
           />
+          <FieldError message={errors.location?.message} />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="event-date">Date</Label>
@@ -207,6 +221,7 @@ export function EventForm({
             disabled={Boolean(eventId) && scope === 'following'}
             {...register('start_time')}
           />
+          <FieldError message={errors.start_time?.message} />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="event-end">Ends</Label>
@@ -217,6 +232,7 @@ export function EventForm({
             disabled={Boolean(eventId) && scope === 'following'}
             {...register('end_time')}
           />
+          <FieldError message={errors.end_time?.message} />
         </div>
         <div className="flex flex-col gap-2">
           <Label>Lead</Label>
@@ -311,8 +327,10 @@ export function EventForm({
             ) : null}
             <FieldError
               message={
+                errors.shifts?.[i]?.start_time?.message ??
+                errors.shifts?.[i]?.end_time?.message ??
                 errors.shifts?.[i]?.capacity?.message ??
-                errors.shifts?.[i]?.start_time?.message
+                errors.shifts?.[i]?.label?.message
               }
             />
           </div>

@@ -31,6 +31,9 @@ const types = [
 
 describe('EventForm', () => {
   beforeEach(() => {
+    push.mockClear();
+    h.create.mockReset();
+    h.preview.mockReset();
     h.create.mockResolvedValue({
       success: true,
       data: { seriesId: null, eventIds: ['e1'] },
@@ -54,6 +57,22 @@ describe('EventForm', () => {
       repeat: { freq: 'none' },
     });
     await waitFor(() => expect(push).toHaveBeenCalledWith('/home/events/e1'));
+  });
+
+  it('shows an error and does not submit when the end time is cleared', async () => {
+    render(<EventForm types={types} today="2040-10-01" />);
+    fireEvent.change(screen.getByTestId('event-title'), {
+      target: { value: 'Pantry' },
+    });
+    fireEvent.change(screen.getByTestId('event-end'), {
+      target: { value: '' },
+    });
+    fireEvent.click(screen.getByTestId('event-save'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Enter an end time')).toBeInTheDocument(),
+    );
+    expect(h.create).not.toHaveBeenCalled();
   });
 
   it('previews a weekly repeat', async () => {

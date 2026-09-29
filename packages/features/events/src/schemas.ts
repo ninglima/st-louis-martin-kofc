@@ -18,7 +18,7 @@ const ShiftRowSchema = z.object({
   start_time: z.string().regex(TIME, 'Enter a start time'),
   end_time: z.string().regex(TIME, 'Enter an end time'),
   capacity: z
-    .number()
+    .number({ error: 'Enter the number of volunteers needed' })
     .int('Whole volunteers only')
     .min(1, 'At least 1 volunteer')
     .max(200, 'At most 200 volunteers'),

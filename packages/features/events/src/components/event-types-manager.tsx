@@ -32,13 +32,17 @@ export function EventTypesManager({ types }: { types: EventType[] }) {
 
   const save = (values: typeof EMPTY) =>
     start(async () => {
-      const result = await saveEventTypeAction(values);
-      if (result.success) {
-        toast.success('Event type saved.');
-        setDraft(EMPTY);
-        router.refresh();
-      } else {
-        toast.error(result.error);
+      try {
+        const result = await saveEventTypeAction(values);
+        if (result.success) {
+          toast.success('Event type saved.');
+          setDraft(EMPTY);
+          router.refresh();
+        } else {
+          toast.error(result.error);
+        }
+      } catch {
+        toast.error('Something went wrong. Please try again.');
       }
     });
 
