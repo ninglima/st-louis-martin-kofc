@@ -245,6 +245,9 @@ importers:
       '@kit/dues':
         specifier: workspace:*
         version: link:../../packages/features/dues
+      '@kit/dues-notices':
+        specifier: workspace:*
+        version: link:../../packages/features/dues-notices
       '@kit/finance':
         specifier: workspace:*
         version: link:../../packages/features/finance
@@ -680,6 +683,78 @@ importers:
       react-hook-form:
         specifier: 'catalog:'
         version: 7.84.0(react@19.2.8)
+      sonner:
+        specifier: 'catalog:'
+        version: 2.0.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.13.3)(jsdom@30.1.1(@noble/hashes@1.8.0))(msw@2.15.0(@types/node@24.13.3)(typescript@7.0.2))(vite@8.2.0(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+
+  packages/features/dues-notices:
+    devDependencies:
+      '@hookform/resolvers':
+        specifier: 'catalog:'
+        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.84.0(react@19.2.8))(zod@4.4.3)
+      '@kit/dues':
+        specifier: workspace:*
+        version: link:../dues
+      '@kit/next':
+        specifier: workspace:*
+        version: link:../../next
+      '@kit/rbac':
+        specifier: workspace:*
+        version: link:../rbac
+      '@kit/supabase':
+        specifier: workspace:*
+        version: link:../../supabase
+      '@kit/tsconfig':
+        specifier: workspace:*
+        version: link:../../../tooling/typescript
+      '@kit/ui':
+        specifier: workspace:*
+        version: link:../../ui
+      '@supabase/supabase-js':
+        specifier: 'catalog:'
+        version: 2.111.0
+      '@testing-library/dom':
+        specifier: ^10.4.2
+        version: 10.4.2
+      '@testing-library/react':
+        specifier: ^16.1.0
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@types/jsdom':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.4(@types/react@19.2.18)
+      jsdom:
+        specifier: ^30.1.1
+        version: 30.1.1(@noble/hashes@1.8.0)
+      next:
+        specifier: 'catalog:'
+        version: 16.3.0(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.62.1)(@types/node@24.13.3)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.8
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.8(react@19.2.8)
+      react-hook-form:
+        specifier: 'catalog:'
+        version: 7.84.0(react@19.2.8)
+      recharts:
+        specifier: 'catalog:'
+        version: 3.10.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react-is@18.3.1)(react@19.2.8)(redux@5.0.1)
       sonner:
         specifier: 'catalog:'
         version: 2.0.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

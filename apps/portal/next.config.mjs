@@ -17,6 +17,7 @@ const INTERNAL_PACKAGES = [
   '@kit/next',
   '@kit/brand',
   '@kit/dues',
+  '@kit/dues-notices',
   '@kit/finance',
 ];
 

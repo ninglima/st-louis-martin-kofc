@@ -37,6 +37,7 @@
     "@kit/auth": "workspace:*",
     "@kit/brand": "workspace:*",
     "@kit/dues": "workspace:*",
+    "@kit/dues-notices": "workspace:*",
     "@kit/finance": "workspace:*",
     "@kit/i18n": "workspace:*",
     "@kit/members": "workspace:*",
