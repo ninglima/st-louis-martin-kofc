@@ -6,7 +6,8 @@ import type { Unreachable } from '../types';
 
 const REASON_LABELS: Record<Unreachable['reason'], string> = {
   no_email: 'No email address',
-  bounced: 'Last notice bounced',
+  bounced: 'A notice bounced',
+  suppressed: 'Address suppressed by Resend',
   complained: 'Marked as spam',
 };
 

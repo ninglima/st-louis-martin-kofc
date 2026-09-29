@@ -9,6 +9,7 @@ export type Tracking =
   | 'opened'
   | 'clicked'
   | 'bounced'
+  | 'suppressed'
   | 'complained';
 
 export interface ClaimedNotice {
@@ -74,7 +75,7 @@ export interface Unreachable {
   firstName: string;
   lastName: string;
   membershipNumber: string;
-  reason: 'no_email' | 'bounced' | 'complained';
+  reason: 'no_email' | 'bounced' | 'suppressed' | 'complained';
   detail: string | null;
 }
 

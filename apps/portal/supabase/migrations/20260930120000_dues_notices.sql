@@ -27,7 +27,7 @@ create unique index dues_notices_dry_run_once_idx on public.dues_notices (member
 create table public.dues_notice_events (
   id          uuid primary key default gen_random_uuid(),
   notice_id   uuid not null references public.dues_notices (id) on delete cascade,
-  type        text not null check (type in ('sent', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'opened', 'clicked')),
+  type        text not null check (type in ('sent', 'delivered', 'delivery_delayed', 'bounced', 'complained', 'suppressed', 'failed', 'opened', 'clicked')),
   occurred_at timestamptz not null,
   svix_id     text not null unique,
   payload     jsonb not null default '{}'::jsonb,
@@ -153,15 +153,19 @@ begin
   end if;
 end $$;
 
+-- Real delivery events outrank the notice's own status: a send whose call
+-- timed out (status failed) or whose outcome could not be recorded (status
+-- pending) still shows what Resend reports about the email.
 create or replace function kit.dues_notice_tracking(p_notice_id uuid)
 returns text language sql stable security definer set search_path = '' as $$
   select case
-           when n.status in ('failed', 'dry_run', 'pending') then n.status
            when exists (select 1 from public.dues_notice_events e where e.notice_id = n.id and e.type = 'complained') then 'complained'
            when exists (select 1 from public.dues_notice_events e where e.notice_id = n.id and e.type = 'bounced') then 'bounced'
+           when exists (select 1 from public.dues_notice_events e where e.notice_id = n.id and e.type = 'suppressed') then 'suppressed'
            when exists (select 1 from public.dues_notice_events e where e.notice_id = n.id and e.type = 'clicked') then 'clicked'
            when exists (select 1 from public.dues_notice_events e where e.notice_id = n.id and e.type = 'opened') then 'opened'
            when exists (select 1 from public.dues_notice_events e where e.notice_id = n.id and e.type = 'delivered') then 'delivered'
+           when n.status in ('failed', 'dry_run', 'pending') then n.status
            else 'sent'
          end
     from public.dues_notices n
@@ -231,17 +235,26 @@ language sql stable security definer set search_path = '' as $$
     from kit.dues_notice_due_at(p_today) d
    where d.email is null
   union all
-  -- Only while the member is still eligible and the bounce/complaint is
-  -- against the address we would actually send to today: a corrected email,
-  -- an opt-out or a move to honorary should drop them from this list even
-  -- though the old notice's status doesn't change.
-  select m.id, m.first_name, m.last_name, m.membership_number, t.tracking, t.email
-    from (select distinct on (n.member_id) n.member_id, n.email, kit.dues_notice_tracking(n.id) as tracking
+  -- Any live notice to the member's current address that bounced, drew a
+  -- complaint or was suppressed -- not just the latest notice: a newer notice
+  -- to the same dead address (or a dry-run row) must not hide it. Only while
+  -- the member is still eligible and the problem is against the address we
+  -- would actually send to today: a corrected email, an opt-out or a move to
+  -- honorary drops them from this list. The reason is the most severe one.
+  select m.id, m.first_name, m.last_name, m.membership_number, t.reason, t.email
+    from (select n.member_id, n.email,
+                 case
+                   when bool_or(e.type = 'complained') then 'complained'
+                   when bool_or(e.type = 'bounced') then 'bounced'
+                   else 'suppressed'
+                 end as reason
             from public.dues_notices n
-           order by n.member_id, n.created_at desc) t
+            join public.dues_notice_events e on e.notice_id = n.id
+           where n.mode = 'live'
+             and e.type in ('bounced', 'complained', 'suppressed')
+           group by n.member_id, n.email) t
     join public.members m on m.id = t.member_id
-   where t.tracking in ('bounced', 'complained')
-     and m.dues_level <> 'honorary'
+   where m.dues_level <> 'honorary'
      and not m.dues_notices_opt_out
      and t.email = nullif(btrim(m.primary_email, E' \t\r\n'), '');
 $$;

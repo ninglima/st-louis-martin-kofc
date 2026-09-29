@@ -9,6 +9,7 @@ export const TRACKING_LABELS: Record<Tracking, string> = {
   opened: 'Opened',
   clicked: 'Clicked',
   bounced: 'Bounced',
+  suppressed: 'Suppressed',
   complained: 'Complained',
 };
 
@@ -20,6 +21,9 @@ export const KIND_LABELS: Record<NoticeKind, string> = {
 
 export function isProblem(tracking: Tracking): boolean {
   return (
-    tracking === 'bounced' || tracking === 'complained' || tracking === 'failed'
+    tracking === 'bounced' ||
+    tracking === 'suppressed' ||
+    tracking === 'complained' ||
+    tracking === 'failed'
   );
 }
