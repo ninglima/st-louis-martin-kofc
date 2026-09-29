@@ -59,6 +59,13 @@ export const SECTIONS = [
       'View: members’ dues status, paid-through dates and ledgers. Manage: record and void dues payments, set acceptance dates and levels, load paid-through dates',
     verbs: ['view', 'manage'],
   },
+  {
+    key: 'events',
+    label: 'Volunteer Events',
+    description:
+      'View: the event calendar; sign up for shifts. Manage: create, edit and cancel events; manage event types; confirm any attendance; the hours report',
+    verbs: ['view', 'manage'],
+  },
 ] as const satisfies readonly SectionDef[];
 
 export type SectionKey = (typeof SECTIONS)[number]['key'];

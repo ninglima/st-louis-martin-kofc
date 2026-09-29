@@ -1,5 +1,7 @@
 import {
+  CalendarDays,
   CreditCard,
+  HandHeart,
   Home,
   Mail,
   Receipt,
@@ -50,6 +52,20 @@ const routes = [
         path: pathsConfig.app.members,
         Icon: <Users className={iconClasses} />,
         section: 'members',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.events',
+        path: pathsConfig.app.events,
+        Icon: <CalendarDays className={iconClasses} />,
+        section: 'events',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.volunteering',
+        path: pathsConfig.app.volunteering,
+        Icon: <HandHeart className={iconClasses} />,
+        section: 'events',
         verb: 'view' as const,
       },
       {
