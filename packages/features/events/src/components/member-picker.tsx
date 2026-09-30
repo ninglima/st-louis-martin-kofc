@@ -63,9 +63,11 @@ export function MemberPicker({
                 }}
               >
                 {m.fullName}{' '}
-                <span className="text-muted-foreground">
-                  #{m.membershipNumber}
-                </span>
+                {m.membershipNumber ? (
+                  <span className="text-muted-foreground">
+                    #{m.membershipNumber}
+                  </span>
+                ) : null}
               </button>
             </li>
           ))}

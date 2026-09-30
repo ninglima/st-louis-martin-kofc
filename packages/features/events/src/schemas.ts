@@ -83,6 +83,22 @@ export const EventFormSchema = z
         message: 'Choose when the repeat ends',
       });
     }
+    if (v.start_time && v.end_time && v.start_time === v.end_time) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['end_time'],
+        message: 'The end time must differ from the start time',
+      });
+    }
+    v.shifts.forEach((s, i) => {
+      if (s.start_time && s.end_time && s.start_time === s.end_time) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['shifts', i, 'end_time'],
+          message: 'The end time must differ from the start time',
+        });
+      }
+    });
   });
 
 export type EventFormValues = z.infer<typeof EventFormSchema>;

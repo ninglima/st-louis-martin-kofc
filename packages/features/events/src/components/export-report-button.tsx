@@ -26,7 +26,9 @@ export function ExportReportButton({
         link.href = url;
         link.download = `volunteer-hours-${year}-${year + 1}.csv`;
         link.click();
-        URL.revokeObjectURL(url);
+        // Deferred so the click's download navigation has already picked up
+        // the blob URL before it is revoked.
+        setTimeout(() => URL.revokeObjectURL(url), 0);
       }}
     >
       Export CSV

@@ -1,6 +1,9 @@
 import type { ReportMemberRow } from '../types';
 
-const FORMULA_STARTERS = /^[=@]/;
+// The report has no phone numbers, so a leading `+` never needs protecting
+// as one; it and the other spreadsheet-formula starters are defused the
+// same way a leading `=` or `@` is.
+const FORMULA_STARTERS = /^[=@+\-\t\r]/;
 
 function escapeCsv(value: string): string {
   const defused = FORMULA_STARTERS.test(value) ? `'${value}` : value;

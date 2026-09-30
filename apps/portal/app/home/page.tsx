@@ -125,7 +125,7 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
   );
 
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <MemberHome
         summary={dues.deployed ? dues.value : null}
         duesDeployed={dues.deployed}
@@ -133,7 +133,7 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
       {volunteering.deployed ? (
         <VolunteerHomeCard data={volunteering.value} />
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -181,7 +181,7 @@ async function OverviewTab({
     );
 
     return (
-      <>
+      <div className="flex flex-col gap-4">
         <MemberHome
           summary={dues.deployed ? dues.value : null}
           duesDeployed={dues.deployed}
@@ -189,7 +189,7 @@ async function OverviewTab({
         {volunteering.deployed ? (
           <VolunteerHomeCard data={volunteering.value} />
         ) : null}
-      </>
+      </div>
     );
   }
 

@@ -1031,12 +1031,14 @@ export type Database = {
       event_cancel_signup: { Args: { p_signup_id: string }; Returns: undefined }
       event_create: { Args: { p: Json }; Returns: Json }
       event_detail: { Args: { p_event_id: string }; Returns: Json }
+      // HAND-CORRECTED, do not regenerate away: membership_number is null
+      // unless the caller holds events.manage or members.view.
       event_member_search: {
         Args: { p_event_id: string; p_query: string }
         Returns: {
           full_name: string
           id: string
-          membership_number: string
+          membership_number: string | null
         }[]
       }
       event_series_preview: { Args: { p_rule: Json }; Returns: Json }

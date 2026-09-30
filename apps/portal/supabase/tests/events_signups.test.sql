@@ -2,6 +2,15 @@ begin;
 \ir helpers/dues_fixtures.inc
 select no_plan();
 
+-- Baseline: the local DB holds real roster data, and by the time this runs
+-- there may already be real attended events in the current fraternal year.
+-- The report assertions near the end compare deltas against this snapshot
+-- (captured before any fixture below exists) instead of absolute totals, so
+-- they hold regardless of what real events have happened this year.
+select tests.act_as_service();
+select kit.fraternal_year_of(kit.council_today()) as fy \gset
+select (kit.volunteer_report_at(:'fy', now()))::text as base_report \gset
+
 select tests.make_user('ev3-admin@example.com', 'administrator') as admin \gset
 select tests.make_user('ev3-a@example.com', 'member') as ua \gset
 select tests.make_user('ev3-b@example.com', 'member') as ub \gset
@@ -140,14 +149,26 @@ select throws_ok($$ select public.volunteer_report(1999) $$, 'P0001', null, 'yea
 select tests.act_as_service();
 select tests.ev_shift(:'pantry', now() - interval '6 hours', 1, 2, :'ma') as pending_shift \gset
 insert into public.event_signups (shift_id, member_id) values (:'pending_shift', :'mc');
-select kit.fraternal_year_of(kit.council_today()) as fy \gset
-select is((kit.volunteer_report_at(:'fy', now())->'totals'->>'hours')::numeric, 4.25, 'total confirmed hours');
-select is((kit.volunteer_report_at(:'fy', now())->'totals'->>'volunteers')::int, 2, 'two volunteers');
-select is((kit.volunteer_report_at(:'fy', now())->'totals'->>'events')::int, 1, 'one event held');
+
+-- These fixtures are freshly created (fresh event, shift and member ids), so
+-- they add disjointly to whatever the baseline already counted: the deltas
+-- below are exact regardless of real attended events elsewhere this year.
+select is((kit.volunteer_report_at(:'fy', now())->'totals'->>'hours')::numeric,
+  (:'base_report'::jsonb->'totals'->>'hours')::numeric + 4.25, 'total confirmed hours (delta)');
+select is((kit.volunteer_report_at(:'fy', now())->'totals'->>'volunteers')::int,
+  (:'base_report'::jsonb->'totals'->>'volunteers')::int + 2, 'two more volunteers (delta)');
+select is((kit.volunteer_report_at(:'fy', now())->'totals'->>'events')::int,
+  (:'base_report'::jsonb->'totals'->>'events')::int + 1, 'one more event held (delta)');
 select is((select (c->>'hours')::numeric from jsonb_array_elements(kit.volunteer_report_at(:'fy', now())->'byCategory') c
-           where c->>'category' = 'community'), 4.25, 'community hours');
+           where c->>'category' = 'community'),
+  coalesce((select (c->>'hours')::numeric from jsonb_array_elements(:'base_report'::jsonb->'byCategory') c
+             where c->>'category' = 'community'), 0) + 4.25,
+  'community hours (delta)');
 select is((select (c->>'hours')::numeric from jsonb_array_elements(kit.volunteer_report_at(:'fy', now())->'byCategory') c
-           where c->>'category' = 'life'), 0::numeric, 'the cancelled Life event counts nothing');
+           where c->>'category' = 'life'),
+  coalesce((select (c->>'hours')::numeric from jsonb_array_elements(:'base_report'::jsonb->'byCategory') c
+             where c->>'category' = 'life'), 0),
+  'the cancelled Life event counts nothing (unchanged from baseline)');
 select is((select (m->>'hours')::numeric from jsonb_array_elements(kit.volunteer_report_at(:'fy', now())->'byMember') m
            where m->>'membershipNumber' = 'EV3-B'), 2.50, 'B by member');
 select is((select (p->>'waiting')::int from jsonb_array_elements(kit.volunteer_report_at(:'fy', now())->'pending') p

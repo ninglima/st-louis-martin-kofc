@@ -76,7 +76,7 @@ export interface EventDetail {
 export interface MemberOption {
   id: string;
   fullName: string;
-  membershipNumber: string;
+  membershipNumber: string | null;
 }
 
 export interface SeriesPreview {
