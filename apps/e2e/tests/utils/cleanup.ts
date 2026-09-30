@@ -76,6 +76,18 @@ export async function cleanUpE2EData(startedAt?: string) {
         delete from public.roster_imports
         where uploaded_by in (select id from e2e_users)`;
 
+      await tx`
+        delete from public.event_signups
+        where member_id in (select id from e2e_members)`;
+
+      await tx`
+        delete from public.events
+        where created_by in (select id from e2e_users)`;
+
+      await tx`
+        delete from public.event_series
+        where created_by in (select id from e2e_users)`;
+
       await tx`delete from public.members where id in (select id from e2e_members)`;
       await tx`delete from public.accounts where email ~ ${TEST_EMAIL}`;
       await tx`delete from auth.users where id in (select id from e2e_users)`;

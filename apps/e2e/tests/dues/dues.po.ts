@@ -8,7 +8,7 @@ import { Page, expect } from '@playwright/test';
  * listening on 127.0.0.1:54321.
  */
 const SUPABASE_URL = 'http://127.0.0.1:54321';
-const SUPABASE_SERVICE_ROLE_KEY =
+export const SUPABASE_SERVICE_ROLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
 function serviceRoleHeaders() {
@@ -22,7 +22,7 @@ function serviceRoleHeaders() {
 /** The Officers Online export's header row, verbatim -- copied from
  * `members.po.ts` since `parseRoster` rejects a file missing any of
  * `REQUIRED_HEADERS` regardless of what the data rows contain. */
-const HEADER = [
+export const HEADER = [
   'Membership Number',
   'Prefix',
   'First Name',
@@ -52,7 +52,7 @@ const HEADER = [
   'Tertiary Email',
 ];
 
-function escapeCsv(value: string): string {
+export function escapeCsv(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
