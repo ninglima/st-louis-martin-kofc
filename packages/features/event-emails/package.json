@@ -1,0 +1,33 @@
+{
+  "name": "@kit/event-emails",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./types": "./src/types.ts",
+    "./config": "./src/config.ts",
+    "./ics": "./src/ics.ts",
+    "./templates": "./src/templates.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@kit/email": "workspace:*",
+    "@kit/events": "workspace:*"
+  },
+  "devDependencies": {
+    "@kit/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "server-only": "catalog:",
+    "vitest": "catalog:"
+  }
+}
