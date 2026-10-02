@@ -10,7 +10,9 @@ type Client = SupabaseClient<Database>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function duesSink(client: Client): WebhookSink {
+/** Claims events for dues notices (by notice_id tag, else resend_email_id).
+ * Returns null for anything else, e.g. event emails. */
+export function duesNoticesSink(client: Client): WebhookSink {
   return {
     async match({ tags, emailId }) {
       // Only a well-formed UUID can be one of our notice ids; anything else
@@ -85,6 +87,6 @@ export async function handleResendWebhook({
     headers,
     body,
     nowSeconds,
-    sinks: [duesSink(client)],
+    sinks: [duesNoticesSink(client)],
   });
 }

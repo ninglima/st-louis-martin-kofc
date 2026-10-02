@@ -3,13 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 
 import { readNoticesConfig } from '@kit/dues-notices/config';
-import { handleResendWebhook } from '@kit/dues-notices/server/webhook';
+import { duesNoticesSink } from '@kit/dues-notices/server/webhook';
+import { handleResendWebhookWithSinks } from '@kit/email/webhook';
+import { eventEmailsSink } from '@kit/event-emails/server/webhook-sink';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
-    const { status } = await handleResendWebhook({
-      client: getSupabaseServerAdminClient(),
+    const admin = getSupabaseServerAdminClient();
+    const { status } = await handleResendWebhookWithSinks({
+      sinks: [duesNoticesSink(admin), eventEmailsSink(admin)],
       secret: readNoticesConfig().webhookSecret,
       headers: request.headers,
       body,

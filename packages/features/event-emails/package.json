@@ -26,6 +26,7 @@
     "@kit/events": "workspace:*"
   },
   "devDependencies": {
+    "@kit/dues-notices": "workspace:*",
     "@kit/supabase": "workspace:*",
     "@kit/tsconfig": "workspace:*",
     "@supabase/supabase-js": "catalog:",

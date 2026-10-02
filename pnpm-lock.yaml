@@ -254,6 +254,9 @@ importers:
       '@kit/dues-notices':
         specifier: workspace:*
         version: link:../../packages/features/dues-notices
+      '@kit/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@kit/event-emails':
         specifier: workspace:*
         version: link:../../packages/features/event-emails
@@ -796,6 +799,9 @@ importers:
         specifier: workspace:*
         version: link:../events
     devDependencies:
+      '@kit/dues-notices':
+        specifier: workspace:*
+        version: link:../dues-notices
       '@kit/supabase':
         specifier: workspace:*
         version: link:../../supabase
