@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import Link from 'next/link';
 
 import { DuesStatusBadge } from '@kit/dues/components/dues-status-badge';
@@ -26,15 +28,19 @@ const EDGE_BY_TONE: Record<MyDuesTone, string> = {
  * components -- that's fine, they still mount inside this server tree.
  *
  * `today` is the council's date; tests pin it, the page leaves the default.
+ * `paymentsCard` renders directly under the dues card; it is a slot so this
+ * package does not depend on `@kit/payments`.
  */
 export function MemberHome({
   summary,
   duesDeployed,
   today = chicagoToday(),
+  paymentsCard = null,
 }: {
   summary: MyDuesSummary | null;
   duesDeployed: boolean;
   today?: string;
+  paymentsCard?: ReactNode;
 }) {
   const dues = summary ? describeMyDues(summary, today) : null;
 
@@ -104,6 +110,8 @@ export function MemberHome({
           </CardContent>
         </Card>
       ) : null}
+
+      {paymentsCard}
 
       {duesDeployed && !summary ? (
         <p className="text-muted-foreground" data-test="member-home-no-member">

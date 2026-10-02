@@ -15,17 +15,9 @@ import {
 } from '@kit/ui/table';
 import { Trans } from '@kit/ui/trans';
 
-import type { Payment, PaymentStatus } from '../types/payment.types';
+import type { Payment } from '../types/payment.types';
 import type { Payer } from '../lib/payers';
-
-const statusVariants: Record<PaymentStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'outline',
-  processing: 'secondary',
-  succeeded: 'default',
-  failed: 'destructive',
-  refunded: 'secondary',
-  cancelled: 'destructive',
-};
+import { PAYMENT_STATUS_VARIANTS } from '../lib/payment-status';
 
 function formatAmount(amount: number, currency: string) {
   return new Intl.NumberFormat('en-US', {
@@ -109,7 +101,7 @@ export function PaymentHistoryTable({
               {formatAmount(payment.amount, payment.currency)}
             </TableCell>
             <TableCell>
-              <Badge variant={statusVariants[payment.status]}>
+              <Badge variant={PAYMENT_STATUS_VARIANTS[payment.status]}>
                 {t(`statuses.${payment.status}`)}
               </Badge>
             </TableCell>
