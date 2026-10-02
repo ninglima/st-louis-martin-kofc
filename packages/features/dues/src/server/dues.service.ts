@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@kit/supabase/database';
 
 import type {
+  AdminDuesLevel,
   DuesLedgerRow,
   DuesLevel,
   DuesMethodFs,
@@ -85,6 +86,73 @@ export class DuesService {
       amountCents: level.amount_cents,
       selfService: level.self_service,
     }));
+  }
+
+  async adminLevels(): Promise<AdminDuesLevel[]> {
+    const { data, error } = await this.client.rpc('dues_levels_admin');
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((row) => ({
+      slug: row.slug,
+      name: row.name,
+      amountCents: row.amount_cents,
+      selfService: row.self_service,
+      sortOrder: row.sort_order,
+      active: row.active,
+      memberCount: row.member_count,
+      changedAt: row.changed_at,
+      changedByEmail: row.changed_by_email,
+    }));
+  }
+
+  /** Creates (`slug: null`) or edits a level; returns its slug. */
+  async saveLevel(input: {
+    slug: string | null;
+    name: string;
+    amountCents: number;
+    selfService: boolean;
+    sortOrder: number;
+  }): Promise<string> {
+    const { data, error } = await this.client.rpc('save_dues_level', {
+      p_name: input.name,
+      p_amount_cents: input.amountCents,
+      p_self_service: input.selfService,
+      p_sort_order: input.sortOrder,
+      p_slug: input.slug ?? undefined,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  /** Retires a level, moving its members to `moveTo`; returns how many moved. */
+  async retireLevel(slug: string, moveTo: string | null): Promise<number> {
+    const { data, error } = await this.client.rpc('retire_dues_level', {
+      p_slug: slug,
+      p_move_to: moveTo ?? undefined,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  async restoreLevel(slug: string): Promise<void> {
+    const { error } = await this.client.rpc('restore_dues_level', {
+      p_slug: slug,
+    });
+
+    if (error) {
+      throw error;
+    }
   }
 
   async summaries(

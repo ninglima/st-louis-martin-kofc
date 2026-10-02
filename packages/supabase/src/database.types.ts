@@ -77,6 +77,57 @@ export type Database = {
         }
         Relationships: []
       }
+      dues_level_changes: {
+        Row: {
+          action: string
+          after: Json
+          before: Json | null
+          changed_at: string
+          changed_by: string | null
+          id: number
+          level: string
+          moved_member_ids: string[]
+          moved_to: string | null
+        }
+        Insert: {
+          action: string
+          after: Json
+          before?: Json | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          level: string
+          moved_member_ids?: string[]
+          moved_to?: string | null
+        }
+        Update: {
+          action?: string
+          after?: Json
+          before?: Json | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          level?: string
+          moved_member_ids?: string[]
+          moved_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dues_level_changes_level_fkey"
+            columns: ["level"]
+            isOneToOne: false
+            referencedRelation: "dues_levels"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "dues_level_changes_moved_to_fkey"
+            columns: ["moved_to"]
+            isOneToOne: false
+            referencedRelation: "dues_levels"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       dues_notice_events: {
         Row: {
           created_at: string
@@ -1103,6 +1154,22 @@ export type Database = {
           tracking: string
         }[]
       }
+      // HAND-CORRECTED, do not regenerate away: changed_at and
+      // changed_by_email are null for a level that has never been changed.
+      dues_levels_admin: {
+        Args: never
+        Returns: {
+          active: boolean
+          amount_cents: number
+          changed_at: string | null
+          changed_by_email: string | null
+          member_count: number
+          name: string
+          self_service: boolean
+          slug: string
+          sort_order: number
+        }[]
+      }
       dues_notice_events_for: {
         Args: { p_notice_id: string }
         Returns: {
@@ -1613,6 +1680,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      restore_dues_level: { Args: { p_slug: string }; Returns: undefined }
+      retire_dues_level: {
+        Args: { p_move_to?: string; p_slug: string }
+        Returns: number
+      }
       roster_import_load_plan: { Args: { p_import: string }; Returns: Json }
       roster_import_load_results: { Args: { p_import: string }; Returns: Json }
       roster_import_save_plan: {
@@ -1622,6 +1694,16 @@ export type Database = {
       roster_import_save_results: {
         Args: { p_import: string; p_results: Json }
         Returns: undefined
+      }
+      save_dues_level: {
+        Args: {
+          p_amount_cents: number
+          p_name: string
+          p_self_service: boolean
+          p_slug?: string
+          p_sort_order: number
+        }
+        Returns: string
       }
       set_member_accepted_on: {
         Args: { p_accepted_on: string; p_member_id: string }

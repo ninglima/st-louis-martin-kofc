@@ -121,3 +121,58 @@ export const PaidThroughRowsSchema = z
   .array(PaidThroughRowSchema)
   .min(1)
   .max(5000, 'That load has more than 5,000 rows.');
+
+/** Plain dollars, at most two decimals: `58`, `58.5`, `58.50`. No `$`, no
+ * commas -- anything else is refused rather than guessed at. */
+const DOLLARS = /^\d{1,4}(\.\d{1,2})?$/;
+
+export const SaveDuesLevelSchema = z.object({
+  slug: z.string().min(1).nullable(),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'A name is required')
+    .max(80, 'At most 80 characters'),
+  amount: z
+    .string()
+    .regex(DOLLARS, 'Enter dollars like 58 or 58.50')
+    .refine((value) => Number(value) <= 1000, 'At most $1,000'),
+  selfService: z.boolean(),
+  sortOrder: z.string().regex(/^\d{1,3}$/, 'A whole number, 0 to 999'),
+});
+
+export type SaveDuesLevelValues = z.infer<typeof SaveDuesLevelSchema>;
+
+export const RetireDuesLevelSchema = z
+  .object({
+    slug: z.string().min(1),
+    memberCount: z.number().int().min(0),
+    moveTo: z.string(),
+  })
+  .refine((value) => value.memberCount === 0 || value.moveTo !== '', {
+    message: 'Choose a level to move these members to',
+    path: ['moveTo'],
+  });
+
+export type RetireDuesLevelValues = z.infer<typeof RetireDuesLevelSchema>;
+
+/** `'19.99'` -> `1999`, split on the point so no float ever rounds a cent. */
+export function dollarsToCents(amount: string): number {
+  const [whole, fraction = ''] = amount.split('.');
+
+  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+}
+
+/** The dialog's note when an edit changes a saved price, else `null`. */
+export function priceChangeNotice(
+  savedCents: number | null,
+  entered: string,
+): string | null {
+  if (savedCents === null || !DOLLARS.test(entered)) {
+    return null;
+  }
+
+  return dollarsToCents(entered) === savedCents
+    ? null
+    : 'Applies to payments made from now on. Recorded dues keep the amount paid.';
+}
