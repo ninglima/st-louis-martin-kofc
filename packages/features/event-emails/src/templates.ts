@@ -1,5 +1,5 @@
 import { escapeHtml } from '@kit/email/html';
-import { formatDay, formatTimeRange } from '@kit/events/lib/format';
+import { formatDay, formatTimeRange } from './format';
 
 import { buildIcs, eventUrl, icsMethod } from './ics';
 import type { ClaimedEventEmail } from './types';

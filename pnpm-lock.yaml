@@ -795,9 +795,6 @@ importers:
       '@kit/email':
         specifier: workspace:*
         version: link:../../email
-      '@kit/events':
-        specifier: workspace:*
-        version: link:../events
     devDependencies:
       '@kit/dues-notices':
         specifier: workspace:*

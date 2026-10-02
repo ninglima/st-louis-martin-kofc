@@ -22,8 +22,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@kit/email": "workspace:*",
-    "@kit/events": "workspace:*"
+    "@kit/email": "workspace:*"
   },
   "devDependencies": {
     "@kit/dues-notices": "workspace:*",
