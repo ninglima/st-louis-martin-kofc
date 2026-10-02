@@ -379,6 +379,144 @@ select is(tests.em_count(:'sr5', $$kind = 'reminder'$$), 0, '23:30 Chicago on d 
 select throws_ok($$ select kit.event_reminders_enqueue_at('off', '2040-11-03') $$, 'P0001', 'unknown mode', 'an unknown mode is refused');
 
 -- ---------------------------------------------------------------------------
+-- Hardening: stale changes, stuck sends, late reminders
+-- ---------------------------------------------------------------------------
+create or replace function tests.em_set_event_status(p_event uuid, p_status text)
+returns void language sql security definer set search_path = '' as $$
+  update public.events set status = p_status::public.event_status where id = p_event
+$$;
+grant execute on function tests.em_set_event_status(uuid, text) to authenticated;
+
+-- 1a. a failed cancel is superseded when the event is restored (enqueue path)
+select tests.act_as_service();
+select tests.em_shift(now() + interval '6 days', :'mlead') as sh_a \gset
+select event_id as ev_a from public.event_shifts where id = :'sh_a' \gset
+select tests.act_as(:'ua'); select public.event_signup(:'sh_a');
+select tests.act_as_service();
+select tests.em_signup(:'sh_a', :'ma') as sg_a \gset
+update public.event_emails set status = 'sent', sent_at = now(), created_at = now() - interval '1 hour' where signup_id = :'sg_a';
+select tests.act_as(:'admin'); select public.event_update(:'ev_a', '{"status":"cancelled"}');
+select tests.act_as_service();
+update public.event_emails set status = 'failed', mode = 'live', attempts = 1, next_attempt_at = now() - interval '1 minute'
+ where signup_id = :'sg_a' and kind = 'cancel';
+select tests.act_as(:'admin'); select public.event_update(:'ev_a', '{"status":"scheduled"}');
+select tests.act_as_service();
+select is(tests.em_val(:'sg_a', 'status', $$kind = 'cancel'$$), 'superseded', 'restoring the event supersedes the failed cancel');
+create temp table claim_a as select * from kit.event_emails_claim_at('live', 1000, now());
+select is((select count(*)::int from claim_a where signup_id = :'sg_a'), 1, 'cancel then restore: one email is claimed');
+select is((select kind from claim_a where signup_id = :'sg_a'), 'update', 'and it is the update');
+
+-- 1b. the claim itself drops a cancel whose event is scheduled again (no enqueue)
+select tests.em_shift(now() + interval '6 days', :'mlead') as sh_b \gset
+select event_id as ev_b from public.event_shifts where id = :'sh_b' \gset
+select tests.act_as(:'ub'); select public.event_signup(:'sh_b');
+select tests.act_as_service();
+select tests.em_signup(:'sh_b', :'mb') as sg_b \gset
+update public.event_emails set status = 'sent', sent_at = now(), created_at = now() - interval '1 hour' where signup_id = :'sg_b';
+select tests.act_as(:'admin'); select public.event_update(:'ev_b', '{"status":"cancelled"}');
+select tests.act_as_service();
+update public.event_emails set status = 'failed', mode = 'live', attempts = 1, next_attempt_at = now() - interval '1 minute'
+ where signup_id = :'sg_b' and kind = 'cancel';
+select set_config('kit.suppress_event_emails', 'on', true);
+select tests.em_set_event_status(:'ev_b', 'scheduled');
+select set_config('kit.suppress_event_emails', '', true);
+create temp table claim_b as select * from kit.event_emails_claim_at('live', 1000, now());
+select is((select count(*)::int from claim_b where signup_id = :'sg_b'), 0, 'a cancel for a scheduled event is not sent');
+select is(tests.em_val(:'sg_b', 'status', $$kind = 'cancel'$$), 'superseded', 'and is superseded');
+
+-- 1c. mirror: a failed update, then the event is cancelled: only the cancel goes out
+select tests.em_shift(now() + interval '6 days', :'mlead') as sh_c \gset
+select event_id as ev_c from public.event_shifts where id = :'sh_c' \gset
+select tests.act_as(:'uc'); select public.event_signup(:'sh_c');
+select tests.act_as_service();
+select tests.em_signup(:'sh_c', :'mc') as sg_c \gset
+update public.event_emails set status = 'sent', sent_at = now(), created_at = now() - interval '1 hour' where signup_id = :'sg_c';
+select tests.act_as(:'admin'); select public.event_update(:'ev_c', '{"location":"Elsewhere"}');
+select tests.act_as_service();
+update public.event_emails set status = 'failed', mode = 'live', attempts = 1, next_attempt_at = now() - interval '1 minute'
+ where signup_id = :'sg_c' and kind = 'update';
+select tests.act_as(:'admin'); select public.event_update(:'ev_c', '{"status":"cancelled"}');
+select tests.act_as_service();
+select is(tests.em_val(:'sg_c', 'status', $$kind = 'update'$$), 'superseded', 'cancelling supersedes the failed update');
+create temp table claim_c as select * from kit.event_emails_claim_at('live', 1000, now());
+select is((select count(*)::int from claim_c where signup_id = :'sg_c'), 1, 'update then cancel: one email is claimed');
+select is((select kind from claim_c where signup_id = :'sg_c'), 'cancel', 'and it is the cancel');
+
+-- 1d. the claim supersedes any change that has a newer one (rows planted directly)
+select tests.em_shift(now() + interval '6 days', :'mlead') as sh_d \gset
+select tests.act_as(:'ua'); select public.event_signup(:'sh_d');
+select tests.act_as_service();
+select tests.em_signup(:'sh_d', :'ma') as sg_d \gset
+update public.event_emails set status = 'sent', sent_at = now(), created_at = now() - interval '1 hour' where signup_id = :'sg_d';
+insert into public.event_emails (kind, signup_id, member_id, sequence, status, mode, attempts, next_attempt_at, created_at)
+values ('update', :'sg_d', :'ma', 1, 'failed', 'live', 1, now() - interval '1 minute', now() - interval '30 minutes'),
+       ('update', :'sg_d', :'ma', 2, 'pending', null, 0, null, now() - interval '10 minutes');
+create temp table claim_d as select * from kit.event_emails_claim_at('live', 1000, now());
+select is((select count(*)::int from claim_d where signup_id = :'sg_d'), 1, 'only the newest change is claimed');
+select is(tests.em_val(:'sg_d', 'status', $$kind = 'update' and sequence = 1$$), 'superseded', 'the older failed change is superseded');
+
+-- 2. a stuck sending row expires under the same rules
+select tests.em_shift(now() + interval '1 day', :'mlead') as sh_e \gset
+select tests.act_as(:'ua'); select public.event_signup(:'sh_e');
+select tests.act_as(:'ub'); select public.event_signup(:'sh_e');
+select tests.act_as_service();
+select tests.em_signup(:'sh_e', :'ma') as sg_e1 \gset
+select tests.em_signup(:'sh_e', :'mb') as sg_e2 \gset
+update public.event_emails set status = 'sending', mode = 'live', claimed_at = now() - interval '11 minutes', attempts = 1
+ where signup_id in (:'sg_e1', :'sg_e2');
+-- e2 was claimed only just now, so it is left alone
+update public.event_emails set claimed_at = now() + interval '2 days' - interval '5 minutes' where signup_id = :'sg_e2';
+create temp table claim_e as select * from kit.event_emails_claim_at('live', 1000, now() + interval '2 days');
+select is(tests.em_val(:'sg_e1', 'status'), 'expired', 'a stuck sending confirmation for a started shift is expired');
+select is((select count(*)::int from claim_e where signup_id = :'sg_e1'), 0, 'and is not reclaimed');
+select is(tests.em_val(:'sg_e2', 'status'), 'sending', 'a recent sending row is untouched');
+
+-- 2b. the 72-hour rule
+select tests.em_shift(now() + interval '1 day', :'mlead') as sh_f \gset
+select event_id as ev_f from public.event_shifts where id = :'sh_f' \gset
+select tests.em_shift(now() + interval '10 days', :'mlead') as sh_g \gset
+select event_id as ev_g from public.event_shifts where id = :'sh_g' \gset
+select tests.act_as(:'ua'); select public.event_signup(:'sh_f'); select public.event_signup(:'sh_g');
+select tests.act_as_service();
+select tests.em_signup(:'sh_f', :'ma') as sg_f \gset
+select tests.em_signup(:'sh_g', :'ma') as sg_g \gset
+update public.event_emails set status = 'sent', sent_at = now(), created_at = now() - interval '1 hour' where signup_id in (:'sg_f', :'sg_g');
+select tests.act_as(:'admin');
+select public.event_update(:'ev_f', '{"status":"cancelled"}');
+select tests.act_as_service();
+-- 2 days on: sh_f has started but its cancel is under 72h old, so it is still sent
+create temp table claim_f as select * from kit.event_emails_claim_at('dry_run', 1000, now() + interval '2 days');
+select is((select count(*)::int from claim_f where signup_id = :'sg_f' and kind = 'cancel'), 1, 'a cancel for a started shift is still sent under 72 hours');
+select is(tests.em_val(:'sg_f', 'status', $$kind = 'cancel'$$), 'dry_run', 'it is not expired');
+-- 4 days on: a pending cancel older than 72 hours expires
+select tests.act_as(:'admin'); select public.event_update(:'ev_g', '{"status":"cancelled"}');
+select tests.act_as_service();
+select count(*) from kit.event_emails_claim_at('live', 1000, now() + interval '4 days');
+select is(tests.em_val(:'sg_g', 'status', $$kind = 'cancel'$$), 'expired', 'a pending cancel older than 72 hours expires');
+
+-- 3. reminders: never on the day itself or later; an opt-out after queuing wins
+select tests.em_shift('2041-03-05 10:00 America/Chicago') as sh_r1 \gset
+select tests.em_shift('2041-03-06 10:00 America/Chicago') as sh_r2 \gset
+select tests.act_as(:'ua'); select public.event_signup(:'sh_r1');
+select tests.act_as(:'ub'); select public.event_signup(:'sh_r2');
+select tests.act_as(:'uc'); select public.event_signup(:'sh_r2');
+select tests.act_as_service();
+select tests.em_signup(:'sh_r1', :'ma') as sg_r1 \gset
+select tests.em_signup(:'sh_r2', :'mb') as sg_r2 \gset
+select tests.em_signup(:'sh_r2', :'mc') as sg_r3 \gset
+select kit.event_reminders_enqueue_at('live', '2041-03-04');
+select kit.event_reminders_enqueue_at('live', '2041-03-05');
+select tests.act_as(:'uc'); select public.set_my_event_reminders(true);
+select tests.act_as_service();
+update public.event_emails set created_at = '2041-03-05 06:00 America/Chicago' where kind = 'reminder' and signup_id in (:'sg_r1', :'sg_r2', :'sg_r3');
+create temp table claim_r as select * from kit.event_emails_claim_at('live', 1000, '2041-03-05 07:00 America/Chicago');
+select is(tests.em_val(:'sg_r1', 'status', $$kind = 'reminder'$$), 'expired', 'a reminder claimed on the day of the shift expires');
+select is((select count(*)::int from claim_r where signup_id = :'sg_r1'), 0, 'and is not returned');
+select is((select count(*)::int from claim_r where signup_id = :'sg_r2' and kind = 'reminder'), 1, 'a reminder for the next day is claimed');
+select is(tests.em_val(:'sg_r3', 'status', $$kind = 'reminder'$$), 'superseded', 'a reminder is superseded after the member opts out');
+select is((select count(*)::int from claim_r where signup_id = :'sg_r3'), 0, 'and is not returned');
+
+-- ---------------------------------------------------------------------------
 -- Locked down
 -- ---------------------------------------------------------------------------
 select tests.act_as(:'ua');

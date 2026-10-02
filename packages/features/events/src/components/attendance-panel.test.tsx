@@ -71,4 +71,23 @@ describe('AttendancePanel email status', () => {
     );
     expect(screen.queryByTestId('email-status-c')).toBeNull();
   });
+
+  it('labels a cancel row "Cancellation" and styles a bounce as a problem', () => {
+    render(
+      <AttendancePanel
+        event={event}
+        emailStatus={{
+          a: { kind: 'cancel', tracking: 'delivered', at: past },
+          b: { kind: 'update', tracking: 'bounced', at: past },
+        }}
+      />,
+    );
+
+    const cancel = screen.getByTestId('email-status-a');
+    const bounced = screen.getByTestId('email-status-b');
+
+    expect(cancel).toHaveTextContent('Cancellation · Delivered');
+    expect(cancel.className).not.toContain('bg-destructive');
+    expect(bounced.className).toContain('bg-destructive');
+  });
 });

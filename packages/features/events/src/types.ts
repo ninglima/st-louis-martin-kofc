@@ -9,12 +9,12 @@ export const CATEGORY_LABELS: Record<ProgramCategory, string> = {
   life: 'Life',
 };
 
-export type EmailKind = 'confirmation' | 'update' | 'cancellation' | 'reminder';
+export type EmailKind = 'confirmation' | 'update' | 'cancel' | 'reminder';
 
 export const EMAIL_KIND_LABELS: Record<EmailKind, string> = {
   confirmation: 'Confirmation',
   update: 'Update',
-  cancellation: 'Cancellation',
+  cancel: 'Cancellation',
   reminder: 'Reminder',
 };
 

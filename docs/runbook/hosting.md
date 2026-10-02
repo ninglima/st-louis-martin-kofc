@@ -454,6 +454,7 @@ section 7: the same Resend account, webhook, API key and jobs secret.
    minutes is reclaimed.
 8. **Resend rate limit.** Resend allows about two requests a second. Emails
    with a calendar file are sent one at a time, about 0.6 seconds apart, and
-   a run stops after about 45 seconds; anything left is picked up by the next
-   run. A very large sign-up burst therefore drains over several runs.
+   the immediate dispatch after an action stops after about 45 seconds and the
+   daily job after about 4 minutes (240 seconds); anything left is picked up
+   by the next run. A very large sign-up burst therefore drains over several runs.
 9. **Deploy order.** Deploy the migration before or with the app.
