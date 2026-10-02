@@ -132,12 +132,18 @@ select is(tests.em_count(:'sga', $$status = 'pending'$$), 1, 'a second location 
 select is(tests.em_count(:'sgb', $$status = 'pending'$$), 1, 'a second location change leaves one pending row for B');
 select is(tests.em_count(:'sga', $$kind = 'update'$$), 1, 'and the same row is reused');
 
--- date move: shifts move, still one pending row each
+-- date move: shifts move. Mark the pending updates sent first, so only the
+-- shift trigger can queue a NEW update (sequence 2) for each sign-up.
+select tests.act_as_service();
+update public.event_emails set status = 'sent', sent_at = now(), created_at = now() - interval '30 minutes'
+ where signup_id in (:'sga', :'sgb') and kind = 'update';
 select tests.act_as(:'admin');
 select lives_ok(format($$ select public.event_update(%L, '{"date":"2040-10-13"}', 'this') $$, :'e1'), 'date move');
 select tests.act_as_service();
 select is(tests.em_count(:'sga', $$status = 'pending'$$), 1, 'date move: one pending row for A');
 select is(tests.em_count(:'sgb', $$status = 'pending'$$), 1, 'date move: one pending row for B');
+select is(tests.em_val(:'sga', 'sequence', $$status = 'pending' and kind = 'update'$$), '2', 'date move: a new update, sequence 2, for A');
+select is(tests.em_val(:'sgb', 'sequence', $$status = 'pending' and kind = 'update'$$), '2', 'date move: a new update, sequence 2, for B');
 select is(tests.em_count(:'sgc', $$kind <> 'confirmation'$$), 0, 'date move: nothing for the cancelled sign-up');
 
 -- email status (read-side for leads), before any claim touches these rows
@@ -162,15 +168,16 @@ select lives_ok(format($$ select public.event_update(%L, '{"status":"cancelled"}
 select tests.act_as_service();
 select is(tests.em_val(:'sga', 'kind', $$status = 'pending'$$), 'cancel', 'the pending row for A becomes a cancel');
 select is(tests.em_val(:'sgb', 'kind', $$status = 'pending'$$), 'cancel', 'the pending row for B becomes a cancel');
-select is(tests.em_count(:'sga') + tests.em_count(:'sgb'), 4, 'two rows each, confirmation and cancel');
+select is(tests.em_count(:'sga') + tests.em_count(:'sgb'), 6, 'three rows each: confirmation, sent update, cancel');
 select tests.act_as(:'admin');
 select lives_ok(format($$ select public.event_shifts_save(%L, %L::jsonb) $$, :'e1',
   json_build_array(json_build_object('id', :'s1', 'start_time','10:00','end_time','12:00','capacity',10))), 'shift save on a cancelled event');
 select tests.act_as_service();
 select is((select start_time from (select (starts_at at time zone 'America/Chicago')::time as start_time from public.event_shifts where id = :'s1') t),
   '10:00:00'::time, 'the shift really moved');
-select is(tests.em_count(:'sga') + tests.em_count(:'sgb'), 4, 'a shift save on a cancelled event adds no update');
-select is(tests.em_count(:'sga', $$kind = 'update'$$) + tests.em_count(:'sgb', $$kind = 'update'$$), 0, 'and no update row exists');
+select is(tests.em_count(:'sga') + tests.em_count(:'sgb'), 6, 'a shift save on a cancelled event adds no row');
+select is(tests.em_count(:'sga', $$kind = 'update' and status = 'pending'$$) + tests.em_count(:'sgb', $$kind = 'update' and status = 'pending'$$), 0,
+  'and no pending update exists');
 
 -- series: cancel "following" from the second date notifies only later sign-ups
 select tests.act_as(:'admin');
@@ -212,6 +219,37 @@ select tests.act_as(:'admin');
 select public.event_update(:'e4', '{"location":"Somewhere else"}');
 select tests.act_as_service();
 select is(tests.em_count(:'sg4'), 1, 'a change before the confirmation is sent queues nothing');
+
+-- a confirmation that is already sending has read its data: the change is queued
+update public.event_emails set status = 'sending', claimed_at = now() where signup_id = :'sg4';
+select tests.act_as(:'admin');
+select public.event_update(:'e4', '{"location":"Third place"}');
+select tests.act_as_service();
+select is(tests.em_count(:'sg4', $$kind = 'update' and status = 'pending'$$), 1, 'a change during a send queues one pending update');
+
+-- event_shifts_save moving one shift notifies only that shift's sign-ups
+select tests.act_as(:'admin');
+select (public.event_create(json_build_object('type_id', :'pantry', 'title', 'Two shifts',
+    'date', '2040-12-04', 'start_time', '09:00', 'end_time', '13:00',
+    'shifts', json_build_array(json_build_object('start_time','09:00','end_time','11:00','capacity',3),
+                               json_build_object('start_time','11:00','end_time','13:00','capacity',3)))::jsonb)
+  ->'eventIds'->>0) as e5 \gset
+select tests.act_as_service();
+select id as s5a from public.event_shifts where event_id = :'e5' order by starts_at limit 1 \gset
+select id as s5b from public.event_shifts where event_id = :'e5' order by starts_at offset 1 limit 1 \gset
+select tests.act_as(:'ua'); select public.event_signup(:'s5a');
+select tests.act_as(:'ub'); select public.event_signup(:'s5b');
+select tests.act_as_service();
+select tests.em_signup(:'s5a', :'ma') as sg5a \gset
+select tests.em_signup(:'s5b', :'mb') as sg5b \gset
+update public.event_emails set status = 'sent', sent_at = now() where signup_id in (:'sg5a', :'sg5b');
+select tests.act_as(:'admin');
+select public.event_shifts_save(:'e5', json_build_array(
+  json_build_object('id', :'s5a', 'start_time','09:30','end_time','11:00','capacity',3),
+  json_build_object('id', :'s5b', 'start_time','11:00','end_time','13:00','capacity',3))::jsonb);
+select tests.act_as_service();
+select is(tests.em_count(:'sg5a', $$kind = 'update' and status = 'pending'$$), 1, 'moving a shift queues one update for its sign-up');
+select is(tests.em_count(:'sg5b', $$kind = 'update'$$), 0, 'and none for another shift''s sign-up');
 
 -- ---------------------------------------------------------------------------
 -- Claim
