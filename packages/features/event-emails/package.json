@@ -27,8 +27,8 @@
   },
   "devDependencies": {
     "@kit/supabase": "workspace:*",
-    "@supabase/supabase-js": "catalog:",
     "@kit/tsconfig": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
     "@types/node": "catalog:",
     "server-only": "catalog:",
     "vitest": "catalog:"
