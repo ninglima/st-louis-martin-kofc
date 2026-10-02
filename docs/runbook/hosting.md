@@ -76,6 +76,14 @@ email-confirmation sign-in.
 
 ## 2. One-time setup
 
+To see what is already in place, run the read-only check (it changes
+nothing, prints OK or MISSING per item with the fix, and never prints secret
+values):
+
+```bash
+./infra/preflight.sh
+```
+
 Do these once, before the first deploy. Order matters: GitHub's `PORTAL_ORIGIN`
 variable can only be set after the portal's first deploy, so the first merge
 to `main` deploys the portal with the router's `PORTAL_ORIGIN` still unset,
@@ -91,9 +99,9 @@ GITHUB_REPOSITORY_ID=$(gh api repos/ninglima/st-louis-martin-kofc --jq .id) \
 This is idempotent — safe to re-run. It enables the required APIs, creates the
 Artifact Registry repo, the `portal-runtime` and `portal-deploy` service
 accounts, the Workload Identity Federation pool/provider scoped to
-`ninglima/st-louis-martin-kofc` on `refs/heads/main`, and the three empty
+`ninglima/st-louis-martin-kofc` on `refs/heads/main`, and the six empty
 Secret Manager secrets. It prints the values you need for the GitHub
-variables below.
+variables below, and the command for each secret that still has no value.
 
 The provider's condition pins the repository's numeric ID
 (`GITHUB_REPOSITORY_ID`) as well as its name, so a repository that later
@@ -110,12 +118,19 @@ version yet. Add each value:
 printf '%s' "<supabase-service-role-key-value>" | gcloud secrets versions add supabase-service-role-key --data-file=-
 printf '%s' "<origin-auth-value>" | gcloud secrets versions add origin-auth --data-file=-
 printf '%s' "<captcha-secret-token-value>" | gcloud secrets versions add captcha-secret-token --data-file=-
+printf '%s' "<dues-jobs-secret-value>" | gcloud secrets versions add dues-jobs-secret --data-file=-
+printf '%s' "<resend-api-key-value>" | gcloud secrets versions add resend-api-key --data-file=-
+printf '%s' "<resend-webhook-secret-value>" | gcloud secrets versions add resend-webhook-secret --data-file=-
 ```
 
-`origin-auth` is a value you generate yourself (e.g. `openssl rand -hex 32`)
-— it is a shared secret between the router and the portal, not something
-issued by a third party. Remember the value: you'll set the same value as the
-router's `ORIGIN_AUTH` Worker secret in step 2.3.
+`origin-auth` and `dues-jobs-secret` are values you generate yourself (e.g.
+`openssl rand -hex 32`) — shared secrets between the router and the portal,
+not something issued by a third party. Remember both: you'll set the same
+values as the router's `ORIGIN_AUTH` and `DUES_JOBS_SECRET` Worker secrets in
+step 2.3. Until email goes live (sections 7 and 8) the two Resend secrets may
+hold a placeholder such as `unset`; the email modes default to `off`, so
+nothing reads them. `captcha-secret-token` may be a placeholder too while
+`NEXT_PUBLIC_CAPTCHA_SITE_KEY` is empty.
 
 Stripe and Square keys are **not** environment secrets — the portal reads
 them from the `payment_config` table, not `process.env`. There is nothing to
@@ -138,8 +153,21 @@ Repository **variables**:
 - `PORTAL_ORIGIN` — **cannot be set yet.** This is the Cloud Run service URL,
   which does not exist until the portal has been deployed once. Skip it for
   now; step 2.4 below comes back to it. Until it is set, the `router` job in
-  `deploy.yml` will deploy the router with an empty `PORTAL_ORIGIN`, so portal
-  paths will return 500 until you set it and redeploy the router.
+  `deploy.yml` fails on purpose instead of deploying a router whose portal
+  paths would all return 500.
+
+Optional repository **variables** (leave unset for the default):
+
+- `SITE_URL` — the public origin baked into both builds (auth and email
+  links). Default `https://kofc-15256.org`.
+- `ROUTER_ENV` — leave unset until cutover; `production` deploys the Worker
+  that owns the custom domain (section 6).
+- `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM`, `DUES_NOTICES_REPLY_TO`,
+  `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO` — sections
+  7 and 8. Both modes default to `off`.
+
+Changing a variable does not deploy anything by itself: run the Deploy
+workflow afterwards (section 2.5).
 
 Repository **secrets**:
 
@@ -164,17 +192,22 @@ Local `wrangler secret put` commands (here and in sections 5 and 6) need local
 Cloudflare auth: run `pnpm --filter router exec wrangler login` once, or export
 `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in your shell.
 
-Set the router's `ORIGIN_AUTH` secret to the same value you put in the
-`origin-auth` GCP secret in step 2.1:
+Set the router's `ORIGIN_AUTH` and `DUES_JOBS_SECRET` secrets to the same
+values you put in the `origin-auth` and `dues-jobs-secret` GCP secrets in step
+2.1. Worker secrets are per-environment, so set each for the default
+(`*.workers.dev`) Worker and for the production Worker that cutover uses
+(section 6):
 
 ```bash
 pnpm --filter router exec wrangler secret put ORIGIN_AUTH
+pnpm --filter router exec wrangler secret put DUES_JOBS_SECRET
+pnpm --filter router exec wrangler secret put ORIGIN_AUTH --env production
+pnpm --filter router exec wrangler secret put DUES_JOBS_SECRET --env production
 ```
 
-(paste the same value when prompted). This sets the secret for the default
-(`*.workers.dev`) environment. After cutover (section 6), Worker secrets are
-per-environment, so this has to be set again with `--env production` — see
-section 6.
+(paste the matching value when prompted). `secret put --env production`
+creates the production Worker if it does not exist yet; it has no domain
+until cutover.
 
 ### 2.4. First deploy and closing the loop on `PORTAL_ORIGIN`
 
@@ -192,9 +225,8 @@ The first deploy is the merge of the branch that renamed `apps/web` to
 
 Merge to `main` once with the variables above in place (`PORTAL_ORIGIN` still
 unset). The `portal` job in `deploy.yml` builds and deploys the portal to
-Cloud Run; the `router` job runs too, but deploys the router with an empty
-`PORTAL_ORIGIN` (portal-proxied paths return 500 until the next step — the
-static site itself is unaffected).
+Cloud Run; the `router` job then fails with "PORTAL_ORIGIN is not set". That
+failure is expected.
 
 Once the portal has deployed at least once, get its URL:
 
@@ -202,9 +234,35 @@ Once the portal has deployed at least once, get its URL:
 gcloud run services describe portal --region us-east4 --format 'value(status.url)'
 ```
 
-Set that URL as the `PORTAL_ORIGIN` repository variable in GitHub. The next
-push to `main` (or a re-run of the `Deploy` workflow) will redeploy the router
-with the real portal origin, and portal-proxied paths will work.
+Set that URL as the `PORTAL_ORIGIN` repository variable in GitHub, then run
+the Deploy workflow (section 2.5). The router deploys to
+`kofc-router.<account-subdomain>.workers.dev` with the real portal origin.
+
+### 2.5. How deploys run
+
+Every push to `main` runs the checks (`Workflow`); when they pass, `Deploy`
+runs. Its `changes` job compares the commit with the last successfully
+deployed one (`turbo ls --affected`, which follows workspace dependencies) and
+deploys only what changed:
+
+- the **portal** when `apps/portal` or any package it depends on changed
+  (migrations under `apps/portal/supabase` count);
+- the **router** when `apps/router` or `apps/site` (or a package either
+  depends on) changed;
+- **both** when there is no earlier successful deploy, when the lockfile or
+  root config changed, or when `.github/workflows/deploy.yml` or `infra/`
+  changed.
+
+A docs-only merge deploys nothing. When both deploy, the router waits for the
+portal and never deploys after a failed portal deploy.
+
+To redeploy by hand — after changing a repository variable, for example — go
+to Actions → Deploy → **Run workflow** on `main` (`force_all` deploys both),
+or:
+
+```bash
+gh workflow run deploy.yml --ref main -f force_all=true
+```
 
 ## 3. Migrations
 
@@ -254,52 +312,63 @@ don't carry it). To rotate it:
 
 ```bash
 printf '%s' "<new-value>" | gcloud secrets versions add origin-auth --data-file=-
+pnpm --filter router exec wrangler secret put ORIGIN_AUTH --env production
 pnpm --filter router exec wrangler secret put ORIGIN_AUTH
 ```
 
-(paste the same new value when prompted), then redeploy the portal so it picks
-up the new secret version (Cloud Run does not hot-reload mounted secrets):
+(paste the same new value when prompted; the second command matters only
+until the default Worker is deleted at cutover), then make the portal pick up
+the new secret version (Cloud Run does not hot-reload mounted secrets):
 
 ```bash
-gcloud run services update portal --region us-east4 --update-secrets SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ORIGIN_AUTH=origin-auth:latest,CAPTCHA_SECRET_TOKEN=captcha-secret-token:latest
+gcloud run services update portal --region us-east4 --update-secrets ORIGIN_AUTH=origin-auth:latest
 ```
 
 Expect a brief window of 404s between the two steps: the router starts
 sending the new `ORIGIN_AUTH` value as soon as `wrangler secret put` completes,
 but the portal is still running with the old value until it redeploys, so the
 portal's origin lock rejects the router's requests until the Cloud Run update
-finishes rolling out.
-
-After cutover, run the `wrangler secret put ORIGIN_AUTH` step again with
-`--env production` too (see section 6) — Worker secrets are per-environment,
-so the default-environment secret and the production secret are two separate
-values that both need to stay in sync with `origin-auth`.
+finishes rolling out. `DUES_JOBS_SECRET` rotates the same way
+(`dues-jobs-secret`, `wrangler secret put DUES_JOBS_SECRET --env production`,
+`--update-secrets DUES_JOBS_SECRET=dues-jobs-secret:latest`).
 
 ## 6. Cutover checklist
 
 Cutover is switching the custom domain (`kofc-15256.org`) from WordPress to
-this stack. Do this once everything above has been running against
-`*.workers.dev` and has been verified.
+this stack. Do this once the stack is running on `*.workers.dev` (2.4) and
+the smoke test below passes.
 
 **Prerequisites:**
 
-- [ ] GCP billing upgraded from the free trial (Cloud Run with a custom
-      domain and sustained traffic needs a billing account past the trial).
+- [ ] GCP billing upgraded from the free trial, with a budget alert (Billing
+      → Budgets & alerts; e.g. $10/month).
 - [ ] Supabase project upgraded to the Pro plan (the free tier pauses
       inactive projects and has lower rate limits than production traffic
       needs).
+- [ ] The `members_pii_key` Vault secret is backed up somewhere safe
+      (`select decrypted_secret from vault.decrypted_secrets where name =
+      'members_pii_key'` in the SQL editor). Without it, member personal
+      data in a restored or moved database cannot be decrypted.
+- [ ] `./infra/preflight.sh` reports nothing missing, including both
+      production Worker secrets (2.3).
 
 **Before switching the domain:**
 
 - [ ] Confirm the Supabase GitHub integration's working directory is
       `apps/portal` (changed at the first deploy — see 2.4).
-- [ ] Deploy to `*.workers.dev` and smoke-test it:
+- [ ] Smoke-test `*.workers.dev`:
   - [ ] A public (site) page loads.
   - [ ] `/version` returns the deployed commit hash.
+  - [ ] A first portal visit after the portal has been idle shows the
+        "please wait" page, then the portal.
   - [ ] Sign-in completes a full round trip (sign in, land on a gated page).
   - [ ] A Stripe test webhook delivered to the deployed URL returns a 2xx.
-- [ ] Add `https://kofc-15256.org` and the `*.workers.dev` URL to the
-      Supabase project's auth redirect URLs (Supabase dashboard →
+  - [ ] `curl -X POST -H "Authorization: Bearer <dues-jobs-secret>"
+        https://<workers.dev host>/api/jobs/dues-notices` returns 2xx (with
+        the modes `off`, the run records mode `off`).
+- [ ] Add `https://kofc-15256.org`, `https://kofc-15256.org/auth/callback`,
+      `https://kofc-15256.org/update-password` and the `*.workers.dev` URL
+      to the Supabase project's auth redirect URLs (Supabase dashboard →
       Authentication → URL Configuration).
 - [ ] Set the hosted Supabase project's **Site URL** to
       `https://kofc-15256.org` (same page: Authentication → URL
@@ -310,40 +379,41 @@ this stack. Do this once everything above has been running against
       Templates) match the repo's `apps/portal/supabase/templates/*.html`.
       The files in the repo only configure the local Supabase; the hosted
       project keeps whatever was last pasted into the dashboard.
+
+**Switch the domain** (Cloudflare dashboard → the `kofc-15256.org` zone):
+
+- [ ] In DNS → Records, write down, then **delete**, the `A`/`AAAA`/`CNAME`
+      records for `kofc-15256.org` and `www` that point at WordPress. Leave
+      `MX` and `TXT` records alone (they carry mail). A Worker custom domain
+      cannot attach while another record exists for the same name.
+- [ ] Set the repository variable `ROUTER_ENV` to `production` and run the
+      Deploy workflow (2.5). The router deploys as the production Worker,
+      and Cloudflare creates the apex DNS record and certificate. Do not run
+      `wrangler deploy --env production` from your machine: it would publish
+      whatever `apps/site/out` you last built locally instead of the site CI
+      builds from `main`.
+- [ ] Redirect `www` to the apex. Static pages are answered before the
+      Worker runs, so the Worker cannot do this:
+  - DNS → Records: add `AAAA` `www` → `100::`, **Proxied**.
+  - Rules → Redirect Rules → create from the "Redirect from WWW to root"
+    template (301, preserve path and query string).
+- [ ] Check: `curl -I https://kofc-15256.org/` is 200,
+      `curl -I https://www.kofc-15256.org/who-we-are` is 301 to the apex
+      path, `https://kofc-15256.org/version` shows the deployed commit.
 - [ ] Register the production webhook endpoints with Stripe and Square:
   - `https://kofc-15256.org/api/webhooks/stripe`
   - `https://kofc-15256.org/api/webhooks/square`
-
-**Switch the domain:**
-
-- [ ] **First**, set the Worker secret for the production environment
-      (Worker secrets are per-environment; same value as the `origin-auth`
-      GCP secret, pasted when prompted):
+- [ ] Delete the default (`*.workers.dev`) Worker. It carries the same daily
+      cron, so leaving it up runs every job twice:
 
   ```bash
-  pnpm --filter router exec wrangler secret put ORIGIN_AUTH --env production
+  pnpm --filter router exec wrangler delete --name kofc-router
   ```
 
-  This must come before the production deploy: `secret put` creates the
-  production Worker if it does not exist yet, so by the time the custom
-  domain is attached the router already sends the real origin secret, never an
-  empty one (which the portal would reject).
-
-- [ ] **Then** switch CI to the production environment, which attaches the
-      custom domain: in `.github/workflows/deploy.yml`, change the router
-      job's deploy step to
-
-  ```bash
-  pnpm --filter router exec wrangler deploy --env production --var PORTAL_ORIGIN:${{ vars.PORTAL_ORIGIN }}
-  ```
-
-  and commit that to `main`. Do not run `wrangler deploy --env production`
-  from your machine: it would publish whatever `apps/site/out` you last built
-  locally instead of the site CI builds from `main`.
-
-- [ ] Keep WordPress running, unrouted (not receiving traffic — e.g. DNS
-      pointed away from it, but the server left up), for two weeks after
-      cutover, in case a rollback of the domain itself is needed.
+- [ ] Keep WordPress running, unrouted (not receiving traffic — the DNS
+      records above removed, but the server left up), for two weeks after
+      cutover, in case a rollback of the domain itself is needed: restore
+      the records you wrote down and run Deploy with `ROUTER_ENV` unset.
 
 ## 7. Dues notices
 
@@ -354,41 +424,41 @@ this stack. Do this once everything above has been running against
      `email.failed`, `email.opened` and `email.clicked`.
    - Copy its signing secret (`whsec_…`).
    - Confirm that open and click tracking are on for the domain.
-2. **Secret Manager.** Create `resend-api-key`, `resend-webhook-secret` and
-   `dues-jobs-secret`. Then add them to the `--set-secrets` line in
-   `.github/workflows/deploy.yml`:
+2. **Secret Manager.** Put the real values in `resend-api-key` and
+   `resend-webhook-secret` (created by `setup.sh`, 2.1):
 
+   ```bash
+   printf '%s' "<re_…>" | gcloud secrets versions add resend-api-key --data-file=-
+   printf '%s' "<whsec_…>" | gcloud secrets versions add resend-webhook-secret --data-file=-
    ```
-   RESEND_API_KEY=resend-api-key:latest,RESEND_WEBHOOK_SECRET=resend-webhook-secret:latest,DUES_JOBS_SECRET=dues-jobs-secret:latest
-   ```
 
-   Also add `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM` and
-   `DUES_NOTICES_REPLY_TO` to `--set-env-vars`.
-
-   Only do this after the secrets exist: a missing secret fails the `main`
-   deploy.
+   Set the repository variables `DUES_NOTICES_FROM` and (optionally)
+   `DUES_NOTICES_REPLY_TO`, then run the Deploy workflow (2.5) so the portal
+   picks them and the new secret versions up.
 
    The notice emails' "Pay dues" link is built from `NEXT_PUBLIC_SITE_URL`,
    and that value is **baked into the image at build time**: it is the
    `--build-arg NEXT_PUBLIC_SITE_URL=…` on the `docker build` step in
-   `.github/workflows/deploy.yml`, not a Cloud Run env var. Setting it with
+   `.github/workflows/deploy.yml` (the `SITE_URL` repository variable,
+   default `https://kofc-15256.org`), not a Cloud Run env var. Setting it with
    `--set-env-vars` or in the Cloud Run console has no effect on the link
    (at runtime the server would otherwise fall back to the committed
    `apps/portal/.env`, which says `http://localhost:3000`). Confirm the build
-   arg is the public https origin for this environment, and rebuild the
-   image if you change it. Live mode refuses to send — the run shows
+   arg is the public https origin for this environment, and run Deploy
+   (which rebuilds the image) if you change it. Live mode refuses to send — the run shows
    "Live mode needs NEXT_PUBLIC_SITE_URL to be the public https origin…" —
    when the built-in value is missing, not https, or a localhost /
    127.0.0.1 host.
-3. **Worker.** Run `wrangler secret put DUES_JOBS_SECRET`, using the same
-   value as `dues-jobs-secret`. Then deploy the router. The cron
+3. **Worker.** `DUES_JOBS_SECRET` is already set on the Worker (2.3), with
+   the same value as `dues-jobs-secret`. The cron
    `0 14 * * *` runs at 9 a.m. Central during daylight time and 8 a.m. in
    standard time.
 4. **Going live**
-   1. Start with `DUES_NOTICES_MODE=dry-run` for a week.
+   1. Set the repository variable `DUES_NOTICES_MODE` to `dry-run` and run
+      Deploy (2.5). Leave it for a week.
    2. Check `/home/dues-notices`.
-   3. Switch to `live`.
-   4. `off` stops everything.
+   3. Switch the variable to `live` and run Deploy again.
+   4. `off` (or unsetting it) stops everything.
 5. **Deploy order.** Deploy the migration before or with the app. The pages
    show "Not available yet" until it has run.
 
@@ -420,8 +490,8 @@ section 7: the same Resend account, webhook, API key and jobs secret.
      `DUES_JOBS_SECRET`, and the build-time `NEXT_PUBLIC_SITE_URL`. Live mode
      refuses to send, and the run records why, when the API key or sender is
      missing or the site URL is not a public https origin.
-   - Put the new variables in `--set-env-vars` in
-     `.github/workflows/deploy.yml`. No new secret is needed.
+   - Set these as repository variables and run Deploy (2.5);
+     `deploy.yml` passes them to Cloud Run. No new secret is needed.
 3. **Rollout**
    1. Deploy with `EVENT_EMAILS_MODE=off`. Nothing is sent or claimed.
    2. Switch to `dry-run` for a week. Rows are claimed and marked

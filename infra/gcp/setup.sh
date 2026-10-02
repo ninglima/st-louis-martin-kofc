@@ -77,10 +77,25 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" \
 #   SUPABASE_SERVICE_ROLE_KEY -> supabase-service-role-key
 #   ORIGIN_AUTH               -> origin-auth (same value as the router's secret)
 #   CAPTCHA_SECRET_TOKEN      -> captcha-secret-token
-for SECRET in supabase-service-role-key origin-auth captcha-secret-token; do
+#   RESEND_API_KEY            -> resend-api-key
+#   RESEND_WEBHOOK_SECRET     -> resend-webhook-secret
+#   DUES_JOBS_SECRET          -> dues-jobs-secret (same value as the router's secret)
+# Until email goes live (DUES_NOTICES_MODE / EVENT_EMAILS_MODE stay off), the
+# two Resend secrets may hold a placeholder.
+SECRETS="supabase-service-role-key origin-auth captcha-secret-token resend-api-key resend-webhook-secret dues-jobs-secret"
+for SECRET in $SECRETS; do
   gcloud secrets describe "$SECRET" >/dev/null 2>&1 || gcloud secrets create "$SECRET" --replication-policy automatic
   gcloud secrets add-iam-policy-binding "$SECRET" --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
 done
+
+EMPTY=""
+for SECRET in $SECRETS; do
+  [ -n "$(gcloud secrets versions list "$SECRET" --filter state=ENABLED --limit 1 --format 'value(name)')" ] || EMPTY="$EMPTY $SECRET"
+done
+if [ -n "$EMPTY" ]; then
+  echo "These secrets have no enabled version yet; the deploy fails until each has one:"
+  for SECRET in $EMPTY; do echo "  printf '%s' \"<value>\" | gcloud secrets versions add $SECRET --data-file=-"; done
+fi
 
 echo "GitHub variables:"
 echo "  GCP_PROJECT_ID=$PROJECT_ID"
