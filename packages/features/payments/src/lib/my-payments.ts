@@ -29,18 +29,14 @@ const TYPE_LABELS: Record<PaymentType, string> = {
   event_fee: 'event fee',
 };
 
-/** `owed` when a payment failed, `attention` when one is in flight. */
-export type MyPaymentsTone = 'ok' | 'attention' | 'owed';
-
 export interface PaymentAttention {
-  id: string;
-  status: PaymentStatus;
+  payment: Payment;
+  /** One calm line about the payment, for under the card's headline. */
   text: string;
   retry: boolean;
 }
 
 export interface MyPaymentsSummary {
-  tone: MyPaymentsTone;
   attention: PaymentAttention[];
   yearCount: number;
   yearTotalCents: number;
@@ -49,12 +45,17 @@ export interface MyPaymentsSummary {
 }
 
 /** `'2026-10-02T02:00:00Z'` -> `'Oct 1'`: the council's (Chicago) date. */
-function shortDate(timestamp: string): string {
+export function shortDate(timestamp: string): string {
   return new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Chicago',
     month: 'short',
     day: 'numeric',
   }).format(new Date(timestamp));
+}
+
+/** `'$58.00 dues'`, `'$15.00 event fee'`. */
+export function amountAndType(payment: Payment): string {
+  return `${formatAmountCents(payment.amount)} ${TYPE_LABELS[payment.payment_type]}`;
 }
 
 /** The council's (Chicago) calendar date of a timestamp, as `YYYY-MM-DD`. */
@@ -75,21 +76,21 @@ function fraternalYearStart(today: string): string {
 }
 
 function describe(payment: Payment): string {
-  const what = `${formatAmountCents(payment.amount)} ${TYPE_LABELS[payment.payment_type]}`;
+  const what = amountAndType(payment);
 
   switch (payment.status) {
     case 'processing':
-      return `Payment processing — ${what}, started ${shortDate(payment.created_at)}`;
+      return `${what} payment processing (started ${shortDate(payment.created_at)})`;
     case 'pending':
-      return `Payment in progress — ${what}, started ${shortDate(payment.created_at)}`;
+      return `${what} payment in progress (started ${shortDate(payment.created_at)})`;
     case 'failed':
-      return `Your ${what} payment on ${shortDate(payment.created_at)} failed`;
+      return `Your ${what} payment on ${shortDate(payment.created_at)} didn't go through`;
     case 'cancelled':
-      return `Your ${what} payment on ${shortDate(payment.created_at)} was cancelled`;
+      return `${what} payment on ${shortDate(payment.created_at)} was cancelled`;
     case 'refunded':
       return `${what} payment refunded on ${shortDate(payment.updated_at)}`;
     case 'succeeded':
-      return what;
+      return `${what} payment`;
   }
 }
 
@@ -157,8 +158,7 @@ export function summarizeMyPayments(
         sortKey(b) - sortKey(a),
     )
     .map((payment) => ({
-      id: payment.id,
-      status: payment.status,
+      payment,
       text: describe(payment),
       retry: payment.status === 'failed',
     }));
@@ -169,14 +169,7 @@ export function summarizeMyPayments(
       chicagoDate(payment.created_at) >= yearStart,
   );
 
-  const tone: MyPaymentsTone = attention.some((a) => a.status === 'failed')
-    ? 'owed'
-    : attention.some((a) => a.status === 'processing' || a.status === 'pending')
-      ? 'attention'
-      : 'ok';
-
   return {
-    tone,
     attention,
     yearCount: thisYear.length,
     yearTotalCents: thisYear.reduce((sum, payment) => sum + payment.amount, 0),

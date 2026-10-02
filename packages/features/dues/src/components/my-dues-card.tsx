@@ -13,7 +13,7 @@ import {
 } from '@kit/ui/table';
 import { cn } from '@kit/ui/utils';
 
-import { isPayable } from '../lib/describe-my-dues';
+import { isPayable } from '../lib/dues-display';
 import { formatAmountCents } from '../lib/format-amount';
 import type { MyDuesSummary, MyLedgerRow } from '../types';
 import { DuesStatusBadge } from './dues-status-badge';
