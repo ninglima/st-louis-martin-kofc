@@ -295,6 +295,149 @@ export type Database = {
         }
         Relationships: []
       }
+      event_email_events: {
+        Row: {
+          email_id: string
+          id: string
+          occurred_at: string
+          payload: Json
+          svix_id: string
+          type: string
+        }
+        Insert: {
+          email_id: string
+          id?: string
+          occurred_at: string
+          payload: Json
+          svix_id: string
+          type: string
+        }
+        Update: {
+          email_id?: string
+          id?: string
+          occurred_at?: string
+          payload?: Json
+          svix_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_email_events_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "event_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_email_runs: {
+        Row: {
+          candidates: number
+          error: string | null
+          failed: number
+          id: string
+          mode: string
+          ran_at: string
+          sent: number
+          skipped: number
+        }
+        Insert: {
+          candidates?: number
+          error?: string | null
+          failed?: number
+          id?: string
+          mode: string
+          ran_at?: string
+          sent?: number
+          skipped?: number
+        }
+        Update: {
+          candidates?: number
+          error?: string | null
+          failed?: number
+          id?: string
+          mode?: string
+          ran_at?: string
+          sent?: number
+          skipped?: number
+        }
+        Relationships: []
+      }
+      event_emails: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          created_at: string
+          email: string | null
+          error: string | null
+          id: string
+          kind: string
+          member_id: string
+          mode: string | null
+          next_attempt_at: string | null
+          reminder_for: string | null
+          resend_email_id: string | null
+          sent_at: string | null
+          sequence: number
+          signup_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          email?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          member_id: string
+          mode?: string | null
+          next_attempt_at?: string | null
+          reminder_for?: string | null
+          resend_email_id?: string | null
+          sent_at?: string | null
+          sequence?: number
+          signup_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          created_at?: string
+          email?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          member_id?: string
+          mode?: string | null
+          next_attempt_at?: string | null
+          reminder_for?: string | null
+          resend_email_id?: string | null
+          sent_at?: string | null
+          sequence?: number
+          signup_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_emails_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_emails_signup_id_fkey"
+            columns: ["signup_id"]
+            isOneToOne: false
+            referencedRelation: "event_signups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_shifts: {
         Row: {
           capacity: number
@@ -598,6 +741,7 @@ export type Database = {
           created_at: string
           dues_level: string
           dues_notices_opt_out: boolean
+          event_reminders_opt_out: boolean
           email_secondary_enc: string | null
           first_name: string
           id: string
@@ -630,6 +774,7 @@ export type Database = {
           created_at?: string
           dues_level?: string
           dues_notices_opt_out?: boolean
+          event_reminders_opt_out?: boolean
           email_secondary_enc?: string | null
           first_name: string
           id?: string
@@ -662,6 +807,7 @@ export type Database = {
           created_at?: string
           dues_level?: string
           dues_notices_opt_out?: boolean
+          event_reminders_opt_out?: boolean
           email_secondary_enc?: string | null
           first_name?: string
           id?: string
@@ -1031,6 +1177,35 @@ export type Database = {
       event_cancel_signup: { Args: { p_signup_id: string }; Returns: undefined }
       event_create: { Args: { p: Json }; Returns: Json }
       event_detail: { Args: { p_event_id: string }; Returns: Json }
+      event_email_status: {
+        Args: { p_event_id: string }
+        Returns: {
+          at: string
+          kind: string
+          signup_id: string
+          tracking: string
+        }[]
+      }
+      event_emails_claim: {
+        Args: { p_limit?: number; p_mode: string }
+        Returns: {
+          description: string
+          email: string
+          email_id: string
+          event_id: string
+          event_status: string
+          first_name: string
+          kind: string
+          location: string
+          mode: string
+          sequence: number
+          shift_ends_at: string
+          shift_label: string
+          shift_starts_at: string
+          signup_id: string
+          title: string
+        }[]
+      }
       // HAND-CORRECTED, do not regenerate away: membership_number is null
       // unless the caller holds events.manage or members.view.
       event_member_search: {
@@ -1041,6 +1216,7 @@ export type Database = {
           membership_number: string | null
         }[]
       }
+      event_reminders_enqueue: { Args: { p_mode: string }; Returns: number }
       event_series_preview: { Args: { p_rule: Json }; Returns: Json }
       event_set_attendance: {
         Args: { p_hours?: number; p_signup_id: string; p_status: string }
@@ -1403,6 +1579,7 @@ export type Database = {
           paid_through: string | null
         }[]
       }
+      my_event_reminders: { Args: never; Returns: boolean }
       my_volunteering: { Args: never; Returns: Json }
       record_dues_payment: {
         Args: {
@@ -1460,6 +1637,10 @@ export type Database = {
       }
       set_member_student: {
         Args: { p_is_student: boolean; p_member_id: string }
+        Returns: undefined
+      }
+      set_my_event_reminders: {
+        Args: { p_opt_out: boolean }
         Returns: undefined
       }
       void_dues_period: {
