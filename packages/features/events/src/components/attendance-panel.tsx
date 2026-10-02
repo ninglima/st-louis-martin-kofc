@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react';
 
 import { useRouter } from 'next/navigation';
 
+import { TRACKING_LABELS, isProblem } from '@kit/email/tracking';
+import { Badge } from '@kit/ui/badge';
 import { Button } from '@kit/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
 import { Input } from '@kit/ui/input';
@@ -15,10 +17,24 @@ import {
   addVolunteerAction,
   setAttendanceAction,
 } from '../server/events-actions';
-import type { EventDetail, ShiftSignup } from '../types';
+import {
+  EMAIL_KIND_LABELS,
+  type EmailStatus,
+  type EmailStatusMap,
+  type EventDetail,
+  type ShiftSignup,
+} from '../types';
 import { MemberPicker } from './member-picker';
 
-function Row({ signup, started }: { signup: ShiftSignup; started: boolean }) {
+function Row({
+  signup,
+  started,
+  email,
+}: {
+  signup: ShiftSignup;
+  started: boolean;
+  email?: EmailStatus;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [status, setStatus] = useState<'attended' | 'no_show'>(
@@ -77,6 +93,14 @@ function Row({ signup, started }: { signup: ShiftSignup; started: boolean }) {
       >
         Save
       </Button>
+      {email ? (
+        <Badge
+          variant={isProblem(email.tracking) ? 'destructive' : 'outline'}
+          data-test={`email-status-${signup.id}`}
+        >
+          {EMAIL_KIND_LABELS[email.kind]} · {TRACKING_LABELS[email.tracking]}
+        </Badge>
+      ) : null}
       {signup.status === 'attended' ? (
         <span className="text-muted-foreground text-sm">Confirmed</span>
       ) : null}
@@ -84,7 +108,13 @@ function Row({ signup, started }: { signup: ShiftSignup; started: boolean }) {
   );
 }
 
-export function AttendancePanel({ event }: { event: EventDetail }) {
+export function AttendancePanel({
+  event,
+  emailStatus = {},
+}: {
+  event: EventDetail;
+  emailStatus?: EmailStatusMap;
+}) {
   const router = useRouter();
   const now = Date.now();
 
@@ -120,6 +150,7 @@ export function AttendancePanel({ event }: { event: EventDetail }) {
                     key={`${s.id}:${s.status}:${s.hours}`}
                     signup={s}
                     started={started}
+                    email={emailStatus[s.id]}
                   />
                 ))}
               </ul>

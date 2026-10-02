@@ -829,6 +829,12 @@ importers:
       '@kit/dues':
         specifier: workspace:*
         version: link:../dues
+      '@kit/email':
+        specifier: workspace:*
+        version: link:../../email
+      '@kit/event-emails':
+        specifier: workspace:*
+        version: link:../event-emails
       '@kit/finance':
         specifier: workspace:*
         version: link:../finance

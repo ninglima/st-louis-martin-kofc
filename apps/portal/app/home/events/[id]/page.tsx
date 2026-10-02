@@ -23,9 +23,8 @@ async function EventPage(props: { params: Promise<{ id: string }> }) {
   await requirePermission('events', 'view');
 
   const { id } = await props.params;
-  const read = await readDuesIfDeployed(() =>
-    new EventsService(getSupabaseServerClient()).detail(id),
-  );
+  const events = new EventsService(getSupabaseServerClient());
+  const read = await readDuesIfDeployed(() => events.detail(id));
 
   if (!read.deployed) {
     return (
@@ -37,6 +36,10 @@ async function EventPage(props: { params: Promise<{ id: string }> }) {
 
   const event = read.value;
   if (!event) notFound();
+
+  const emailStatus = event.canTakeAttendance
+    ? await events.emailStatus(id)
+    : {};
 
   return (
     <>
@@ -87,7 +90,7 @@ async function EventPage(props: { params: Promise<{ id: string }> }) {
           ) : null}
           <ShiftList event={event} />
           {event.canTakeAttendance && event.status === 'scheduled' ? (
-            <AttendancePanel event={event} />
+            <AttendancePanel event={event} emailStatus={emailStatus} />
           ) : null}
         </div>
       </PageBody>

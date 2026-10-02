@@ -12,16 +12,21 @@ export const generateMetadata = async () => ({ title: 'My volunteering' });
 
 async function VolunteeringPage() {
   await requirePermission('events', 'view');
-  const read = await readDuesIfDeployed(() =>
-    new EventsService(getSupabaseServerClient()).myVolunteering(),
-  );
+  const events = new EventsService(getSupabaseServerClient());
+  const read = await readDuesIfDeployed(async () => ({
+    data: await events.myVolunteering(),
+    reminders: await events.myEventReminders(),
+  }));
 
   return (
     <>
       <PageHeader description={<AppBreadcrumbs />} />
       <PageBody>
         {read.deployed ? (
-          <MyVolunteeringView data={read.value} />
+          <MyVolunteeringView
+            data={read.value.data}
+            remindersEnabled={read.value.reminders}
+          />
         ) : (
           <p className="text-muted-foreground">Not available yet.</p>
         )}

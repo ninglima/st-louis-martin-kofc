@@ -1,8 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { isMissingDuesSchemaError } from '@kit/dues/lib/dues-schema';
 import type { Database, Json } from '@kit/supabase/database';
 
 import type {
+  EmailStatus,
+  EmailStatusMap,
   CalendarEvent,
   EventDetail,
   EventType,
@@ -84,6 +87,48 @@ export class EventsService {
     if (error) throw error;
 
     return data as unknown as MyVolunteering;
+  }
+
+  /** TRUE = reminders on, FALSE = opted out, null = sign-in not linked. */
+  async myEventReminders(): Promise<boolean | null> {
+    const { data, error } = await this.client.rpc('my_event_reminders');
+    if (error) throw error;
+
+    return data as boolean | null;
+  }
+
+  async setMyEventReminders(optOut: boolean): Promise<void> {
+    const { error } = await this.client.rpc('set_my_event_reminders', {
+      p_opt_out: optOut,
+    });
+    if (error) throw error;
+  }
+
+  /** Latest email per sign-up. `{}` for non-officers or before the schema. */
+  async emailStatus(eventId: string): Promise<EmailStatusMap> {
+    const { data, error } = await this.client.rpc('event_email_status', {
+      p_event_id: eventId,
+    });
+    if (error) {
+      if (
+        (error as { code?: string }).code === '42501' ||
+        isMissingDuesSchemaError(error)
+      ) {
+        return {};
+      }
+      throw error;
+    }
+
+    const map: EmailStatusMap = {};
+    for (const r of data ?? []) {
+      map[r.signup_id] = {
+        kind: r.kind as EmailStatus['kind'],
+        tracking: r.tracking as EmailStatus['tracking'],
+        at: r.at,
+      };
+    }
+
+    return map;
   }
 
   async report(year: number): Promise<VolunteerReport> {

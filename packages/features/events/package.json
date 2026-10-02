@@ -24,6 +24,8 @@
   "devDependencies": {
     "@hookform/resolvers": "catalog:",
     "@kit/dues": "workspace:*",
+    "@kit/email": "workspace:*",
+    "@kit/event-emails": "workspace:*",
     "@kit/finance": "workspace:*",
     "@kit/next": "workspace:*",
     "@kit/supabase": "workspace:*",

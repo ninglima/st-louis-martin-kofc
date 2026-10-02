@@ -1,3 +1,5 @@
+import type { Tracking } from '@kit/email/tracking';
+
 export type ProgramCategory = 'faith' | 'family' | 'community' | 'life';
 
 export const CATEGORY_LABELS: Record<ProgramCategory, string> = {
@@ -6,6 +8,24 @@ export const CATEGORY_LABELS: Record<ProgramCategory, string> = {
   community: 'Community',
   life: 'Life',
 };
+
+export type EmailKind = 'confirmation' | 'update' | 'cancellation' | 'reminder';
+
+export const EMAIL_KIND_LABELS: Record<EmailKind, string> = {
+  confirmation: 'Confirmation',
+  update: 'Update',
+  cancellation: 'Cancellation',
+  reminder: 'Reminder',
+};
+
+export interface EmailStatus {
+  kind: EmailKind;
+  tracking: Tracking;
+  at: string;
+}
+
+/** Latest event email per sign-up id. */
+export type EmailStatusMap = Record<string, EmailStatus>;
 
 export type SignupStatus = 'signed_up' | 'cancelled' | 'attended' | 'no_show';
 export type EventStatus = 'scheduled' | 'cancelled';

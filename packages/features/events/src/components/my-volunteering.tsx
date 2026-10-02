@@ -7,10 +7,15 @@ import { useRouter } from 'next/navigation';
 
 import { Button } from '@kit/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@kit/ui/card';
+import { Label } from '@kit/ui/label';
+import { Switch } from '@kit/ui/switch';
 import { toast } from '@kit/ui/sonner';
 
 import { formatDay, formatTimeRange } from '../lib/format';
-import { cancelSignupAction } from '../server/events-actions';
+import {
+  cancelSignupAction,
+  setEventRemindersAction,
+} from '../server/events-actions';
 import {
   CATEGORY_LABELS,
   type MyVolunteering,
@@ -24,7 +29,13 @@ const STATUS_LABELS: Record<SignupStatus, string> = {
   no_show: 'No-show',
 };
 
-export function MyVolunteeringView({ data }: { data: MyVolunteering }) {
+export function MyVolunteeringView({
+  data,
+  remindersEnabled = null,
+}: {
+  data: MyVolunteering;
+  remindersEnabled?: boolean | null;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -74,6 +85,33 @@ export function MyVolunteeringView({ data }: { data: MyVolunteering }) {
           </CardContent>
         </Card>
       </div>
+
+      {remindersEnabled !== null ? (
+        <div className="flex items-center gap-2">
+          <Switch
+            id="volunteering-reminders"
+            data-test="volunteering-reminders"
+            checked={remindersEnabled}
+            disabled={pending}
+            onCheckedChange={(checked) =>
+              start(async () => {
+                const result = await setEventRemindersAction({
+                  enabled: checked,
+                });
+                if (result.success) {
+                  toast.success('Reminder setting saved.');
+                  router.refresh();
+                } else {
+                  toast.error(result.error);
+                }
+              })
+            }
+          />
+          <Label htmlFor="volunteering-reminders">
+            Email me a reminder the day before
+          </Label>
+        </div>
+      ) : null}
 
       <section
         data-test="volunteering-upcoming"

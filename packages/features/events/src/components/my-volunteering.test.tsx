@@ -1,10 +1,17 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MyVolunteeringView } from './my-volunteering';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock('../server/events-actions', () => ({ cancelSignupAction: vi.fn() }));
+const setReminders = vi.hoisted(() => vi.fn());
+vi.mock('../server/events-actions', () => ({
+  cancelSignupAction: vi.fn(),
+  setEventRemindersAction: setReminders,
+}));
+vi.mock('@kit/ui/sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 describe('MyVolunteeringView', () => {
   it('explains an unlinked sign-in', () => {
@@ -65,5 +72,36 @@ describe('MyVolunteeringView', () => {
     expect(screen.getByTestId('volunteering-history')).toHaveTextContent(
       'Attended',
     );
+  });
+
+  const linked = {
+    linked: true as const,
+    year: 2026,
+    yearHours: 0,
+    allTimeHours: 0,
+    byCategory: [],
+    upcoming: [],
+    history: [],
+  };
+
+  it('shows the reminder switch from the saved value and flips it', async () => {
+    setReminders.mockResolvedValue({ success: true });
+    render(<MyVolunteeringView data={linked} remindersEnabled={true} />);
+
+    const sw = screen.getByTestId('volunteering-reminders');
+    expect(sw).toBeChecked();
+    expect(
+      screen.getByText('Email me a reminder the day before'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(sw);
+    await waitFor(() =>
+      expect(setReminders).toHaveBeenCalledWith({ enabled: false }),
+    );
+  });
+
+  it('hides the reminder switch when the value is null', () => {
+    render(<MyVolunteeringView data={linked} remindersEnabled={null} />);
+    expect(screen.queryByTestId('volunteering-reminders')).toBeNull();
   });
 });
