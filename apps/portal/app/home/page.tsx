@@ -38,8 +38,8 @@ import {
 } from '@kit/finance/lib/fraternal-year';
 import { FinanceService } from '@kit/finance/server/finance.service';
 import type { HostingProvider } from '@kit/finance/types';
-import { MyPaymentsCard } from '@kit/payments/components/my-payments-card';
-import { summarizeMyPayments } from '@kit/payments/lib/my-payments';
+import { DuesAndPaymentsCard } from '@kit/payments/components/dues-and-payments-card';
+import { describeDuesAndPayments } from '@kit/payments/lib/dues-and-payments';
 import { PaymentService } from '@kit/payments/server/payment.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getCurrentPermissions } from '~/lib/server/require-permission';
@@ -125,7 +125,7 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
 }
 
 /**
- * The plain member home: dues, payments that need a word, volunteering.
+ * The plain member home: one dues-and-payments card beside volunteering.
  * Payments are read with the member's own session, so the `payments` select
  * policy limits them to the member's rows (the `eq` filter keeps an officer
  * with `payments.manage` to their own as well).
@@ -137,22 +137,28 @@ async function MemberHomeContent({ client }: { client: SupabaseServerClient }) {
     readDuesIfDeployed(() => new EventsService(client).myVolunteering()),
     new PaymentService(client).getPayments(user.id, false),
   ]);
+  const summary = dues.deployed ? dues.value : null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <MemberHome
-        summary={dues.deployed ? dues.value : null}
-        duesDeployed={dues.deployed}
-        paymentsCard={
-          <MyPaymentsCard
-            summary={summarizeMyPayments(payments, new Date(), chicagoToday())}
-          />
-        }
-      />
-      {volunteering.deployed ? (
-        <VolunteerHomeCard data={volunteering.value} />
-      ) : null}
-    </div>
+    <MemberHome
+      duesDeployed={dues.deployed}
+      linked={summary !== null}
+      duesCard={
+        <DuesAndPaymentsCard
+          view={describeDuesAndPayments(
+            summary,
+            payments,
+            new Date(),
+            chicagoToday(),
+          )}
+        />
+      }
+      volunteerCard={
+        volunteering.deployed && volunteering.value.linked ? (
+          <VolunteerHomeCard data={volunteering.value} />
+        ) : null
+      }
+    />
   );
 }
 

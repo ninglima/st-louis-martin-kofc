@@ -32,7 +32,6 @@ function payment(overrides: Partial<Payment>): Payment {
 describe('summarizeMyPayments', () => {
   it('is quiet with no payments', () => {
     expect(summarizeMyPayments([], NOW, TODAY)).toEqual({
-      tone: 'ok',
       attention: [],
       yearCount: 0,
       yearTotalCents: 0,
@@ -71,12 +70,10 @@ describe('summarizeMyPayments', () => {
       TODAY,
     );
 
-    expect(summary.tone).toBe('attention');
     expect(summary.attention).toEqual([
       {
-        id: expect.any(String),
-        status: 'processing',
-        text: 'Payment processing — $58.00 dues, started Aug 1',
+        payment: expect.objectContaining({ status: 'processing' }),
+        text: '$58.00 dues payment processing (started Aug 1)',
         retry: false,
       },
     ]);
@@ -97,11 +94,11 @@ describe('summarizeMyPayments', () => {
     const summary = summarizeMyPayments([fresh, abandoned], NOW, TODAY);
 
     expect(summary.attention.map((a) => a.text)).toEqual([
-      'Payment in progress — $25.00 donation, started Oct 2',
+      '$25.00 donation payment in progress (started Oct 2)',
     ]);
   });
 
-  it('offers a retry for a recent failed payment and turns the card red', () => {
+  it('offers a retry for a recent failed payment', () => {
     const summary = summarizeMyPayments(
       [
         payment({
@@ -115,13 +112,11 @@ describe('summarizeMyPayments', () => {
       TODAY,
     );
 
-    expect(summary.tone).toBe('owed');
     expect(summary.attention).toEqual([
       {
-        id: expect.any(String),
-        status: 'failed',
+        payment: expect.objectContaining({ status: 'failed' }),
         // 02:00 UTC on Oct 2 is 9 pm on Oct 1 in Chicago.
-        text: 'Your $15.00 event fee payment on Oct 1 failed',
+        text: "Your $15.00 event fee payment on Oct 1 didn't go through",
         retry: true,
       },
     ]);
@@ -158,7 +153,7 @@ describe('summarizeMyPayments', () => {
     );
 
     expect(summary.attention.map((a) => a.text)).toEqual([
-      'Your $58.00 donation payment on Sep 23 failed',
+      "Your $58.00 donation payment on Sep 23 didn't go through",
     ]);
   });
 
@@ -182,12 +177,10 @@ describe('summarizeMyPayments', () => {
       TODAY,
     );
 
-    expect(summary.tone).toBe('ok');
     expect(summary.attention).toEqual([
       {
-        id: expect.any(String),
-        status: 'cancelled',
-        text: 'Your $58.00 dues payment on Sep 30 was cancelled',
+        payment: expect.objectContaining({ status: 'cancelled' }),
+        text: '$58.00 dues payment on Sep 30 was cancelled',
         retry: false,
       },
     ]);
@@ -242,8 +235,7 @@ describe('summarizeMyPayments', () => {
       TODAY,
     );
 
-    expect(summary.tone).toBe('owed');
-    expect(summary.attention.map((a) => a.status)).toEqual([
+    expect(summary.attention.map((a) => a.payment.status)).toEqual([
       'processing',
       'pending',
       'failed',
