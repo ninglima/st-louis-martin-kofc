@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type UseFormReturn, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -108,6 +110,7 @@ export function RetireDuesLevelDialog({
   level: AdminDuesLevel;
   levels: AdminDuesLevel[];
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const targets = levels.filter((l) => l.active && l.slug !== level.slug);
@@ -140,7 +143,10 @@ export function RetireDuesLevelDialog({
         toast.success(`${level.name} retired.`);
         setOpen(false);
       } else {
+        form.setError('root', { message: result.error });
         toast.error(result.error);
+        // The member count may have changed under us; reload current counts.
+        router.refresh();
       }
     });
   };
@@ -178,6 +184,16 @@ export function RetireDuesLevelDialog({
             onSubmit={form.handleSubmit(onSubmit)}
           >
             <RetireLevelFields form={form} level={level} targets={targets} />
+
+            {form.formState.errors.root?.message ? (
+              <p
+                role="alert"
+                className="text-destructive text-sm"
+                data-test="retire-error"
+              >
+                {form.formState.errors.root.message}
+              </p>
+            ) : null}
 
             <DialogFooter>
               <Button

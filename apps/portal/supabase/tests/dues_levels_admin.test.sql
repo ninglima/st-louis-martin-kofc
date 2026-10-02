@@ -2,7 +2,7 @@
 -- through save/retire/restore, each logged to dues_level_changes.
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(32);
+select plan(36);
 
 select tests.make_user('levels-fs@example.com', 'administrator') as fs \gset
 select tests.make_user('levels-knight@example.com', 'member') as knight \gset
@@ -68,10 +68,19 @@ select throws_ok($$ select public.retire_dues_level('public_service_2027', 'publ
 select is(public.retire_dues_level('public_service_2027', 'regular'), 2, 'retiring returns the number moved');
 select is((select count(*)::int from public.members where id in (:'m1', :'m2') and dues_level = 'regular'), 2,
   'both members moved to the target');
-select is((select moved_member_ids @> array[:'m1'::uuid, :'m2'::uuid] and moved_to = 'regular'
+select is((select (select array_agg(x order by x) from unnest(moved_member_ids) x)
+                    = (select array_agg(x order by x) from unnest(array[:'m1'::uuid, :'m2'::uuid]) x)
+                  and moved_to = 'regular'
              from public.dues_level_changes where level = 'public_service_2027' and action = 'retire'),
-  true, 'the retirement logs who moved and where');
+  true, 'the retirement logs exactly who moved and where');
 select is(public.retire_dues_level('public_service_2027_2'), 0, 'a level with no members retires without a target');
+select is((select row(moved_member_ids, moved_to)::text
+             from public.dues_level_changes where level = 'public_service_2027_2' and action = 'retire'),
+  row('{}'::uuid[], null::text)::text, 'a zero-member retire logs no members and no target');
+select throws_ok($$ select public.save_dues_level('public service 2027', 100, false, 1) $$, 'P0001',
+  'Another level is already named public service 2027', 'a retired level''s name is still taken');
+select throws_ok($$ select public.retire_dues_level('regular_contrib', 'regular') $$, 'P0001',
+  'This is the level new members start on, so it cannot be retired', 'the level new members start on cannot be retired');
 
 -- 26-27: retired targets and re-retiring
 select throws_ok($$ select public.retire_dues_level('regular', 'public_service_2027') $$, 'P0001',
@@ -95,6 +104,9 @@ select tests.act_as(:'fs');
 select lives_ok($$ select public.restore_dues_level('public_service_2027') $$, 'a retired level can be restored');
 select throws_ok($$ select public.restore_dues_level('public_service_2027') $$, 'P0001',
   'That level is not retired', 'an active level cannot be restored');
+select is((select count(*)::int from public.dues_level_changes
+            where level = 'public_service_2027' and action = 'restore' and (before ->> 'active')::boolean = false
+              and (after ->> 'active')::boolean), 1, 'a restore is logged');
 
 -- 32: the admin list includes retired levels, member counts and the last change
 select is((select row(active, member_count, changed_by_email)::text from public.dues_levels_admin()

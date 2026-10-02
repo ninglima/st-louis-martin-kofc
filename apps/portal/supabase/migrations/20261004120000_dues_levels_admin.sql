@@ -62,6 +62,10 @@ declare
 begin
   perform kit.assert_finance_manage();
 
+  -- Serialize with other level changes: the "a self-service level remains"
+  -- check below must see the committed result of any concurrent retire/edit.
+  perform 1 from public.dues_levels where active and self_service for update;
+
   if v_name = '' or length(v_name) > 80 then
     raise exception 'A level name is required (at most 80 characters)';
   end if;
@@ -111,20 +115,39 @@ end $$;
 create or replace function public.retire_dues_level(p_slug text, p_move_to text default null)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
-  v_before public.dues_levels;
-  v_after  public.dues_levels;
-  v_moved  uuid[];
+  v_before  public.dues_levels;
+  v_after   public.dues_levels;
+  v_moved   uuid[];
+  v_default text;
+  v_target  text;
 begin
   perform kit.assert_finance_manage();
+
+  -- Lock the active self-service rows first (same order as save_dues_level),
+  -- so two concurrent retires cannot both pass the "one remains" check.
+  perform 1 from public.dues_levels where active and self_service for update;
 
   select * into v_before from public.dues_levels where slug = p_slug for update;
   if not found or not v_before.active then
     raise exception 'That level is not active';
   end if;
 
-  if p_move_to is not null and p_move_to <> p_slug
-     and not exists (select 1 from public.dues_levels where slug = p_move_to and active) then
-    raise exception 'Members can only be moved to an active level';
+  -- The level new members start on is the column default of members.dues_level.
+  select substring(pg_get_expr(d.adbin, d.adrelid) from '^''(.*)''::text$') into v_default
+    from pg_catalog.pg_attrdef d
+    join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+   where d.adrelid = 'public.members'::regclass and a.attname = 'dues_level';
+  if v_default = p_slug then
+    raise exception 'This is the level new members start on, so it cannot be retired';
+  end if;
+
+  if p_move_to is not null and p_move_to <> p_slug then
+    -- Hold the target so it cannot be retired while members move onto it.
+    select slug into v_target from public.dues_levels
+     where slug = p_move_to and active for share;
+    if v_target is null then
+      raise exception 'Members can only be moved to an active level';
+    end if;
   end if;
 
   if exists (select 1 from public.members where dues_level = p_slug)

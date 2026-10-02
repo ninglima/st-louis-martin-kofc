@@ -115,7 +115,31 @@ export class DuesLevelsPageObject {
       Authorization: `Bearer ${access_token}`,
       'Content-Type': 'application/json',
     };
-    const number = String(9_960_000 + (Date.now() % 39_000));
+    // The local DB can hold the real roster: never reuse a number that
+    // belongs to an existing member (an upsert would overwrite that member).
+    let number = '';
+
+    for (let attempt = 0; attempt < 20 && !number; attempt++) {
+      const candidate = String(
+        9_960_000 + Math.floor(Math.random() * 39_000),
+      );
+      const taken = await fetch(
+        `${SUPABASE_URL}/rest/v1/members?select=id&membership_number=eq.${candidate}`,
+        { headers },
+      );
+
+      if (!taken.ok) {
+        throw new Error(`seedMemberOnLevel: lookup ${taken.status}`);
+      }
+
+      if (((await taken.json()) as unknown[]).length === 0) {
+        number = candidate;
+      }
+    }
+
+    if (!number) {
+      throw new Error('seedMemberOnLevel: no unused membership number found');
+    }
 
     const upsert = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/member_upsert_from_roster`,

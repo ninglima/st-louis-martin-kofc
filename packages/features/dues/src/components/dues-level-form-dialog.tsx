@@ -82,6 +82,7 @@ export function DuesLevelFormDialog({
         toast.success(level ? 'Dues level saved.' : 'Dues level added.');
         setOpen(false);
       } else {
+        form.setError('root', { message: result.error });
         toast.error(result.error);
       }
     });
@@ -201,6 +202,16 @@ export function DuesLevelFormDialog({
                 </FormItem>
               )}
             />
+
+            {form.formState.errors.root?.message ? (
+              <p
+                role="alert"
+                className="text-destructive text-sm"
+                data-test="dues-level-error"
+              >
+                {form.formState.errors.root.message}
+              </p>
+            ) : null}
 
             <DialogFooter>
               <Button

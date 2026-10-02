@@ -5,6 +5,11 @@
 
 -- The level's row as of p_at: the `before` of its earliest change after p_at,
 -- else the current row. Fields are all null when the level is unknown.
+-- Only changes made through the logged functions (save/retire/restore) are
+-- recorded; direct SQL and migrations are not, so for those the function falls
+-- back to the current row. The seconds-wide window between priceDues reading
+-- the price and the payments row insert is accepted: a change committed inside
+-- it strands the payment as it did before this migration.
 create or replace function kit.dues_level_as_of(p_slug text, p_at timestamptz)
 returns public.dues_levels language plpgsql stable security definer set search_path = '' as $$
 declare

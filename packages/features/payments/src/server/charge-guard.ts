@@ -36,9 +36,11 @@ export const CHARGE_REFUSALS = {
  * - it is still `pending`;
  * - it is at least `MIN_OPEN_AMOUNT_CENTS` (the card-testing floor);
  * - for dues, its amount equals the CURRENT price of the active level named
- *   in `metadata.dues_level`. This is the same comparison the
- *   `kit.record_online_dues_period` trigger makes on success, so a charge
- *   is never taken for a row the trigger would then skip.
+ *   in `metadata.dues_level`. Deliberately stricter than
+ *   `kit.record_online_dues_period`, which judges the level as of the
+ *   payment's creation: this guard compares to the price NOW, so a row
+ *   created before a price change is not charged at the stale price, and
+ *   anything charged here is one the trigger accepts.
  *
  * `loadDuesLevels` (active levels) is called only for a dues row that
  * passed the other checks.

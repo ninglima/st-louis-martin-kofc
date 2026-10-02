@@ -15,7 +15,8 @@ import type { DuesLevel, MyDuesSummary } from '../types';
  * `levels` must be the ACTIVE levels (`DuesService.levels()`). Every level
  * returned here also passes `kit.record_online_dues_period`'s own check
  * (active AND (self_service OR slug = members.dues_level OR (student AND
- * is_student))), which is looser -- so a payment the action accepts is
+ * is_student)), judged on the level's active flag and price as of the
+ * payment's creation), which is looser -- so a payment the action accepts is
  * never one the trigger rejects.
  */
 export function availableDuesLevels(

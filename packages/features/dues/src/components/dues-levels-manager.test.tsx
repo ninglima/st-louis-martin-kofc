@@ -10,6 +10,8 @@ vi.mock('../server/dues-level-actions', () => ({
   restoreDuesLevelAction: vi.fn(),
 }));
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const level = (overrides: Partial<AdminDuesLevel>): AdminDuesLevel => ({

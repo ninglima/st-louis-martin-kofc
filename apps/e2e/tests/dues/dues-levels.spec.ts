@@ -98,4 +98,9 @@ test.describe('Dues levels', () => {
 
     await memberPage.close();
   });
+
+  test('6. the E2E level is retired again, moving nobody', async () => {
+    await levels.goTo();
+    await levels.retire(slug, null);
+  });
 });

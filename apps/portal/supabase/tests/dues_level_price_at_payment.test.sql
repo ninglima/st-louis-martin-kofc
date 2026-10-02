@@ -3,7 +3,7 @@
 -- payment is processing does not strand it.
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(6);
+select plan(7);
 
 select tests.make_user('straddle-fs@example.com', 'administrator') as fs \gset
 select tests.make_user('straddle-a@example.com', 'member') as ua \gset
@@ -12,7 +12,9 @@ select tests.make_user('straddle-c@example.com', 'member') as uc \gset
 select tests.make_member('420001', :'ua') as ma \gset
 select tests.make_member('420002', :'ub') as mb \gset
 select tests.make_member('420003', :'uc') as mc \gset
-update public.members set accepted_on = current_date - 10 where id in (:'ma', :'mb', :'mc');
+select tests.make_user('straddle-d@example.com', 'member') as ud \gset
+select tests.make_member('420004', :'ud') as md \gset
+update public.members set accepted_on = current_date - 10 where id in (:'ma', :'mb', :'mc', :'md');
 
 -- An FS-assigned level for member B, so availability depends on assignment.
 select tests.act_as(:'fs');
@@ -43,8 +45,13 @@ insert into public.payments (id, user_id, provider, provider_payment_id, amount,
 values ('00000000-0000-0000-0000-0000000d1003', :'uc', 'stripe', 'pi_straddle_c', 5000, 'processing', 'dues',
         '{"dues_level": "regular"}');
 
+-- Payment D was created BEFORE the raise (now() - 1 hour) but charged the NEW price.
+insert into public.payments (id, user_id, provider, provider_payment_id, amount, status, payment_type, metadata, created_at)
+values ('00000000-0000-0000-0000-0000000d1004', :'ud', 'stripe', 'pi_straddle_d', 5500, 'processing', 'dues',
+        '{"dues_level": "regular"}', now() - interval '1 hour');
+
 update public.payments set status = 'succeeded'
- where provider_payment_id in ('pi_straddle_a', 'pi_straddle_b', 'pi_straddle_c');
+ where provider_payment_id in ('pi_straddle_a', 'pi_straddle_b', 'pi_straddle_c', 'pi_straddle_d');
 reset role;
 
 select is((select count(*)::int from public.dues_periods where member_id = :'ma'), 1,
@@ -57,6 +64,9 @@ select is((select level from public.dues_periods where member_id = :'mb'), :'hon
   'on the level it was paid for');
 select is((select count(*)::int from public.dues_periods where member_id = :'mc'), 0,
   'a payment created after the change at the old price records nothing');
+
+select is((select count(*)::int from public.dues_periods where member_id = :'md'), 0,
+  'a payment created before the raise but charged the new price records nothing');
 
 -- kit.dues_level_as_of stays internal
 select ok(not has_function_privilege('authenticated', 'kit.dues_level_as_of(text, timestamptz)', 'EXECUTE'),
