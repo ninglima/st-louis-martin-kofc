@@ -5,7 +5,7 @@ export interface ClaimedEventEmail {
   emailId: string;
   kind: EventEmailKind;
   sequence: number;
-  mode: string;
+  mode: 'dry_run' | 'live';
   signupId: string;
   eventId: string;
   firstName: string;

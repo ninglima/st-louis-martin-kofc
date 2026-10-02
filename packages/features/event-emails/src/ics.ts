@@ -58,8 +58,18 @@ export function icsMethod(e: ClaimedEventEmail): IcsMethod {
     : 'PUBLISH';
 }
 
-export function eventUrl(siteUrl: string, eventId: string): string {
-  return `${siteUrl}/home/events/${eventId}`;
+/** The site's hostname (no port), or null when the URL is blank or invalid. */
+function siteHost(siteUrl: string): string | null {
+  try {
+    return new URL(siteUrl).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+/** The event page, or null when there is no usable site URL. */
+export function eventUrl(siteUrl: string, eventId: string): string | null {
+  return siteHost(siteUrl) ? `${siteUrl}/home/events/${eventId}` : null;
 }
 
 export function buildIcs(
@@ -69,7 +79,8 @@ export function buildIcs(
 ): string {
   const method = icsMethod(e);
   const url = eventUrl(opts.siteUrl, e.eventId);
-  const host = new URL(opts.siteUrl).host;
+  const host = siteHost(opts.siteUrl) ?? 'portal.invalid';
+  const organizer = mailbox(opts.from);
   const summary = e.shiftLabel ? `${e.title} — ${e.shiftLabel}` : e.title;
   const description = [e.description?.trim(), url].filter(Boolean).join('\n\n');
 
@@ -88,9 +99,11 @@ export function buildIcs(
     `SUMMARY:${escapeText(summary)}`,
     ...(e.location ? [`LOCATION:${escapeText(e.location)}`] : []),
     `DESCRIPTION:${escapeText(description)}`,
-    `URL:${url}`,
+    ...(url ? [`URL:${url}`] : []),
     `STATUS:${method === 'CANCEL' ? 'CANCELLED' : 'CONFIRMED'}`,
-    ...(method === 'CANCEL' ? [`ORGANIZER:mailto:${mailbox(opts.from)}`] : []),
+    ...(method === 'CANCEL' && organizer
+      ? [`ORGANIZER:mailto:${organizer}`]
+      : []),
     'END:VEVENT',
     'END:VCALENDAR',
   ];

@@ -15,7 +15,7 @@ type RenderKind = 'confirmation' | 'update' | 'cancel' | 'reminder';
 
 export function renderEventEmail(
   e: ClaimedEventEmail,
-  opts: { siteUrl: string; from?: string; now?: Date },
+  opts: { siteUrl: string; from: string; now?: Date },
 ): RenderedEventEmail {
   // The DB can hand over a confirmation or update for an event cancelled
   // before it was sent; that is a cancellation.
@@ -25,12 +25,13 @@ export function renderEventEmail(
   const link = eventUrl(siteUrl, e.eventId);
   const what = e.shiftLabel ? `${e.title} — ${e.shiftLabel}` : e.title;
 
-  const subject = {
+  const rawSubject = {
     confirmation: `You're signed up: ${e.title}`,
     update: `Updated: ${e.title}`,
     cancel: `Cancelled: ${e.title}`,
     reminder: `Reminder: ${e.title} tomorrow`,
   }[kind];
+  const subject = rawSubject.replace(/\s+/g, ' ').trim();
 
   const intro = {
     confirmation: `You're signed up for ${what}.`,
@@ -45,10 +46,9 @@ export function renderEventEmail(
     ...(e.location ? [`Where: ${e.location}`] : []),
   ];
 
-  const footer =
-    kind === 'reminder'
-      ? `Don't want reminders? Turn them off on My volunteering: ${siteUrl}/home/volunteering`
-      : null;
+  const prefsUrl = link ? `${siteUrl}/home/volunteering` : null;
+  const optOut = "Don't want reminders? Turn them off on My volunteering";
+  const showFooter = kind === 'reminder';
 
   const text = [
     `Dear ${e.firstName},`,
@@ -56,21 +56,26 @@ export function renderEventEmail(
     intro,
     '',
     ...details,
-    '',
-    `Event details: ${link}`,
-    ...(footer ? ['', footer] : []),
+    ...(link ? ['', `Event details: ${link}`] : []),
+    ...(showFooter
+      ? ['', prefsUrl ? `${optOut}: ${prefsUrl}` : `${optOut}.`]
+      : []),
   ].join('\n');
 
   const html = [
     `<p>Dear ${escapeHtml(e.firstName)},</p>`,
     `<p>${escapeHtml(intro)}</p>`,
     `<p>${details.map(escapeHtml).join('<br>')}</p>`,
-    `<p><a href="${escapeHtml(link)}">View the event</a></p>`,
-    ...(footer
+    ...(link
+      ? [`<p><a href="${escapeHtml(link)}">View the event</a></p>`]
+      : []),
+    ...(showFooter
       ? [
-          `<p style="color:#666;font-size:12px">${escapeHtml(
-            "Don't want reminders? Turn them off on My volunteering:",
-          )} <a href="${escapeHtml(`${siteUrl}/home/volunteering`)}">${escapeHtml(`${siteUrl}/home/volunteering`)}</a></p>`,
+          `<p style="color:#666;font-size:12px">${escapeHtml(optOut)}${
+            prefsUrl
+              ? `: <a href="${escapeHtml(prefsUrl)}">${escapeHtml(prefsUrl)}</a>`
+              : '.'
+          }</p>`,
         ]
       : []),
   ].join('\n');
@@ -80,7 +85,7 @@ export function renderEventEmail(
   const method = icsMethod({ ...e, kind });
   const content = buildIcs(
     { ...e, kind },
-    { siteUrl, from: opts.from ?? '' },
+    { siteUrl, from: opts.from },
     opts.now,
   );
 

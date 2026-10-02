@@ -116,4 +116,29 @@ describe('renderEventEmail', () => {
     expect(r.text).toContain('What: Fish Fry — Setup');
     expect(r.text).not.toContain('Where:');
   });
+
+  it('collapses whitespace and newlines in the subject', () => {
+    const r = renderEventEmail(claimed({ title: 'Fish\n  Fry\r\n' }), opts);
+
+    expect(r.subject).toBe("You're signed up: Fish Fry");
+  });
+
+  it('still renders with a blank site URL, without links', () => {
+    const r = renderEventEmail(claimed(), { ...opts, siteUrl: '' });
+
+    expect(r.text).not.toContain('Event details');
+    expect(r.html).not.toContain('href');
+    expect(decode(r.ics!.content)).toContain('@portal.invalid');
+  });
+
+  it('puts the organizer address in a cancel file', () => {
+    const r = renderEventEmail(claimed({ kind: 'cancel' }), {
+      ...opts,
+      from: 'Events <events@example.org>',
+    });
+
+    expect(decode(r.ics!.content)).toContain(
+      'ORGANIZER:mailto:events@example.org',
+    );
+  });
 });

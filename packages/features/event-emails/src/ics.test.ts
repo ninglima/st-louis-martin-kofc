@@ -106,7 +106,7 @@ describe('buildIcs', () => {
   });
 
   it('folds long lines at 75 octets without splitting multibyte characters', () => {
-    const title = 'Ünïcödé—'.repeat(25); // 200 characters
+    const title = 'Ünïcödé—😀'.repeat(22); // astral emoji forces surrogate pairs
     const ics = buildIcs(claimed({ title }), opts, now);
     const lines = ics.split('\r\n').slice(0, -1);
 
@@ -128,5 +128,47 @@ describe('buildIcs', () => {
 
     expect(ics).toContain('METHOD:CANCEL');
     expect(ics).toContain('STATUS:CANCELLED');
+  });
+
+  it('uses the hostname without a port for the UID', () => {
+    const ics = buildIcs(
+      claimed(),
+      { ...opts, siteUrl: 'https://portal.example.org:8443' },
+      now,
+    );
+
+    expect(ics).toContain('UID:signup-signup-uuid-1@portal.example.org\r\n');
+  });
+
+  it.each(['', 'not a url'])(
+    'does not throw for site URL %j; falls back to portal.invalid, no URL',
+    (siteUrl) => {
+      const ics = unfold(buildIcs(claimed(), { ...opts, siteUrl }, now));
+
+      expect(ics).toContain('UID:signup-signup-uuid-1@portal.invalid');
+      expect(ics).not.toContain('URL:');
+      expect(ics).not.toContain('/home/events/');
+    },
+  );
+
+  it('omits ORGANIZER on a cancel when from has no address', () => {
+    const ics = buildIcs(
+      claimed({ kind: 'cancel' }),
+      { ...opts, from: '' },
+      now,
+    );
+
+    expect(ics).toContain('METHOD:CANCEL');
+    expect(ics).not.toContain('ORGANIZER');
+  });
+
+  it('uses the bare address from a plain from', () => {
+    const ics = buildIcs(
+      claimed({ kind: 'cancel' }),
+      { ...opts, from: 'events@example.org' },
+      now,
+    );
+
+    expect(ics).toContain('ORGANIZER:mailto:events@example.org');
   });
 });
