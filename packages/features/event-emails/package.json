@@ -13,7 +13,8 @@
     "./types": "./src/types.ts",
     "./config": "./src/config.ts",
     "./ics": "./src/ics.ts",
-    "./templates": "./src/templates.ts"
+    "./templates": "./src/templates.ts",
+    "./server/*": "./src/server/*.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",
@@ -25,6 +26,8 @@
     "@kit/events": "workspace:*"
   },
   "devDependencies": {
+    "@kit/supabase": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
     "@kit/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "server-only": "catalog:",

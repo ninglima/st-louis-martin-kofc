@@ -27,6 +27,8 @@ services:
       DUES_JOBS_SECRET: local-jobs
       DUES_NOTICES_FROM: 'Council Financial Secretary <dues@localhost>'
       DUES_NOTICES_REPLY_TO: fs@localhost
+      EVENT_EMAILS_MODE: dry-run
+      EVENT_EMAILS_FROM: 'Council Events <events@localhost>'
     extra_hosts:
       - host.docker.internal:host-gateway
 

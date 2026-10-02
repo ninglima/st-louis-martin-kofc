@@ -254,6 +254,9 @@ importers:
       '@kit/dues-notices':
         specifier: workspace:*
         version: link:../../packages/features/dues-notices
+      '@kit/event-emails':
+        specifier: workspace:*
+        version: link:../../packages/features/event-emails
       '@kit/events':
         specifier: workspace:*
         version: link:../../packages/features/events
@@ -793,9 +796,15 @@ importers:
         specifier: workspace:*
         version: link:../events
     devDependencies:
+      '@kit/supabase':
+        specifier: workspace:*
+        version: link:../../supabase
       '@kit/tsconfig':
         specifier: workspace:*
         version: link:../../../tooling/typescript
+      '@supabase/supabase-js':
+        specifier: 'catalog:'
+        version: 2.111.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
