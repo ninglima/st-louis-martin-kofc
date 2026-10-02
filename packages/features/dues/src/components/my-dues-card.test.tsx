@@ -75,7 +75,7 @@ describe('MyDuesCard', () => {
     expect(html).toContain('$58.00');
   });
 
-  it.each(['due', 'lapsed', 'due_soon'] as const)(
+  it.each(['due', 'lapsed', 'due_soon', 'no_record'] as const)(
     'offers a Pay dues link to /home/checkout when the status is %s',
     (duesStatus) => {
       const html = renderToStaticMarkup(
@@ -87,16 +87,13 @@ describe('MyDuesCard', () => {
     },
   );
 
-  it.each(['current', 'no_record'] as const)(
-    'hides the Pay dues link when the status is %s',
-    (duesStatus) => {
-      const html = renderToStaticMarkup(
-        <MyDuesCard summary={summary({ duesStatus })} ledger={[]} />,
-      );
+  it('hides the Pay dues link when the status is current', () => {
+    const html = renderToStaticMarkup(
+      <MyDuesCard summary={summary({ duesStatus: 'current' })} ledger={[]} />,
+    );
 
-      expect(html).not.toContain('data-test="my-dues-pay-link"');
-    },
-  );
+    expect(html).not.toContain('data-test="my-dues-pay-link"');
+  });
 
   it('shows "No dues recorded yet" in the ledger when it is empty', () => {
     const html = renderToStaticMarkup(

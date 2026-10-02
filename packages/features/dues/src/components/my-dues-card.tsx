@@ -13,6 +13,7 @@ import {
 } from '@kit/ui/table';
 import { cn } from '@kit/ui/utils';
 
+import { isPayable } from '../lib/describe-my-dues';
 import { formatAmountCents } from '../lib/format-amount';
 import type { MyDuesSummary, MyLedgerRow } from '../types';
 import { DuesStatusBadge } from './dues-status-badge';
@@ -24,14 +25,6 @@ const METHOD_LABELS: Record<MyLedgerRow['method'], string> = {
   online: 'Online',
   opening_balance: 'Opening balance',
 };
-
-/** The three statuses a checkout would actually move forward -- `current`
- * and `no_record` (no assigned level to check out on) get no offer. */
-const PAYABLE_STATUSES = new Set<MyDuesSummary['duesStatus']>([
-  'due',
-  'lapsed',
-  'due_soon',
-]);
 
 /**
  * The signed-in member's own dues card on `/home/payments`: their standing,
@@ -69,7 +62,7 @@ export function MyDuesCard({
             {summary.levelName} — {formatAmountCents(summary.amountCents)}
           </span>
 
-          <If condition={PAYABLE_STATUSES.has(summary.duesStatus)}>
+          <If condition={isPayable(summary.duesStatus)}>
             <Button
               data-test="my-dues-pay-link"
               nativeButton={false}
