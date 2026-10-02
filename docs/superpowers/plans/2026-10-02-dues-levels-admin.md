@@ -105,8 +105,14 @@
 | `apps/portal/app/home/settings/dues-levels/page.tsx` | The page |
 | `apps/e2e/tests/dues/dues-levels.po.ts`, `apps/e2e/tests/dues/dues-levels.spec.ts` | End-to-end tests |
 
-**Database test command** (Docker and local Supabase running; `pnpm supabase:web:start` from the repo root):
-`pnpm --filter portal exec supabase db reset && pnpm --filter portal supabase:test`
+**Database commands** (Docker and local Supabase running). **Never run `supabase db reset`:** the local database holds real roster data.
+- Apply new migrations: `cd apps/portal && npx supabase migration up --local`
+- Run the database tests: `cd apps/portal && npx supabase test db`
+- **To rework a migration that is already applied:**
+  1. Drop only that migration's own objects with `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
+  2. Delete its row: `delete from supabase_migrations.schema_migrations where version = '<timestamp>'`.
+  3. Run `migration up` again.
+- The supabase CLI talks to Docker, so it may need to run outside the command sandbox.
 
 ---
 
@@ -250,7 +256,7 @@ select ok(not has_table_privilege('anon', 'public.dues_level_changes', 'SELECT')
 
 - [ ] **Step 2: Run it to make sure it fails**
 
-Run: `pnpm --filter portal exec supabase db reset && pnpm --filter portal supabase:test`
+Run: `cd apps/portal && npx supabase migration up --local && npx supabase test db`
 Expected: `dues_levels_admin.test.sql` fails with `function public.save_dues_level(...) does not exist`. The grants test fails on the missing table.
 
 - [ ] **Step 3: Write the migration**
@@ -465,7 +471,7 @@ grant execute on function public.dues_levels_admin() to authenticated;
 
 - [ ] **Step 4: Run the tests and make sure they pass**
 
-Run: `pnpm --filter portal exec supabase db reset && pnpm --filter portal supabase:test`
+Run: `cd apps/portal && npx supabase migration up --local && npx supabase test db`
 Expected: every file passes, including `dues_levels_admin.test.sql` (32), `dues_table_grants.test.sql` (32) and `kit_authenticated_grants.test.sql`, which must stay unchanged.
 
 - [ ] **Step 5: Commit**
@@ -566,7 +572,7 @@ rollback;
 
 - [ ] **Step 2: Run it to make sure it fails**
 
-Run: `pnpm --filter portal exec supabase db reset && pnpm --filter portal supabase:test`
+Run: `cd apps/portal && npx supabase migration up --local && npx supabase test db`
 Expected: the new file fails. Member A gets 0 periods because the amount no longer matches the current price.
 
 - [ ] **Step 3: Write the migration**
@@ -668,7 +674,7 @@ revoke all on function kit.record_online_dues_period(uuid) from public, anon, au
 
 - [ ] **Step 4: Run the tests and make sure they pass**
 
-Run: `pnpm --filter portal exec supabase db reset && pnpm --filter portal supabase:test`
+Run: `cd apps/portal && npx supabase migration up --local && npx supabase test db`
 Expected: all files pass. The existing `dues_online_and_load.test.sql` and `dues_payment_contract.test.sql` must stay green: with no changes logged, `dues_level_as_of` returns the current row, exactly as before.
 
 - [ ] **Step 5: Commit**
@@ -1183,6 +1189,8 @@ import { useForm } from 'react-hook-form';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import { Form } from '@kit/ui/form';
+
 import { RetireDuesLevelSchema } from '../schemas';
 import type { AdminDuesLevel } from '../types';
 import { RetireLevelFields } from './retire-dues-level-dialog';
@@ -1223,7 +1231,12 @@ function Harness({ level }: { level: AdminDuesLevel }) {
     },
   });
 
-  return <RetireLevelFields form={form} level={level} targets={[regular]} />;
+  // FormField/FormItem read the form context, so the fields need <Form>.
+  return (
+    <Form {...form}>
+      <RetireLevelFields form={form} level={level} targets={[regular]} />
+    </Form>
+  );
 }
 
 describe('RetireLevelFields', () => {
