@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { isPlausibleEmail } from '@kit/email/email-format';
 import type { Database } from '@kit/supabase/database';
 
 import type { NoticesConfig } from '../config';
@@ -36,17 +37,7 @@ async function recordRun(client: Client, result: JobResult) {
   }
 }
 
-/**
- * A conservative format check (one `@`, a dot in the domain, no whitespace
- * or list separators). Resend's batch endpoint rejects the whole request when
- * any one address is invalid, so a single bad roster value (`john@gmail`,
- * `a@b.com; c@d.com`) would otherwise fail every notice in its batch.
- */
-const EMAIL_FORMAT = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>.]+$/;
-
-export function isPlausibleEmail(email: string): boolean {
-  return EMAIL_FORMAT.test(email);
-}
+export { isPlausibleEmail };
 
 export const INVALID_EMAIL_ERROR = 'invalid email address';
 

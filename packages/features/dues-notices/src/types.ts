@@ -1,16 +1,10 @@
+import type { EmailMode } from '@kit/email/mode';
+import type { Tracking as EmailTracking } from '@kit/email/tracking';
+
 export type NoticeKind = 'before_30' | 'due_date' | 'after_30';
-export type NoticesMode = 'off' | 'dry_run' | 'live';
-export type Tracking =
-  | 'pending'
-  | 'dry_run'
-  | 'failed'
-  | 'sent'
-  | 'delivered'
-  | 'opened'
-  | 'clicked'
-  | 'bounced'
-  | 'suppressed'
-  | 'complained';
+export type NoticesMode = EmailMode;
+/** Dues notices never reach the event-emails-only `no_email` state. */
+export type Tracking = Exclude<EmailTracking, 'no_email'>;
 
 export interface ClaimedNotice {
   noticeId: string;

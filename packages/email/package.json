@@ -1,0 +1,32 @@
+{
+  "name": "@kit/email",
+  "version": "0.1.0",
+  "private": true,
+  "typesVersions": {
+    "*": {
+      "*": [
+        "src/*"
+      ]
+    }
+  },
+  "exports": {
+    "./resend": "./src/resend.ts",
+    "./svix": "./src/svix.ts",
+    "./html": "./src/html.ts",
+    "./email-format": "./src/email-format.ts",
+    "./mode": "./src/mode.ts",
+    "./tracking": "./src/tracking.ts",
+    "./webhook": "./src/webhook.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "devDependencies": {
+    "@kit/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "server-only": "catalog:",
+    "vitest": "catalog:"
+  }
+}

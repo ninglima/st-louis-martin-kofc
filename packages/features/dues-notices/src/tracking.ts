@@ -1,29 +1,19 @@
+import {
+  TRACKING_LABELS as EMAIL_TRACKING_LABELS,
+  isProblem,
+} from '@kit/email/tracking';
+
 import type { NoticeKind, Tracking } from './types';
 
-export const TRACKING_LABELS: Record<Tracking, string> = {
-  pending: 'Pending',
-  dry_run: 'Dry run',
-  failed: 'Failed',
-  sent: 'Sent',
-  delivered: 'Delivered',
-  opened: 'Opened',
-  clicked: 'Clicked',
-  bounced: 'Bounced',
-  suppressed: 'Suppressed',
-  complained: 'Complained',
-};
+export { isProblem };
+
+// `no_email` is an event-emails state; dues notices never have it.
+const { no_email: _noEmail, ...duesLabels } = EMAIL_TRACKING_LABELS;
+
+export const TRACKING_LABELS: Record<Tracking, string> = duesLabels;
 
 export const KIND_LABELS: Record<NoticeKind, string> = {
   before_30: '30 days before',
   due_date: 'Due date',
   after_30: '30 days after',
 };
-
-export function isProblem(tracking: Tracking): boolean {
-  return (
-    tracking === 'bounced' ||
-    tracking === 'suppressed' ||
-    tracking === 'complained' ||
-    tracking === 'failed'
-  );
-}

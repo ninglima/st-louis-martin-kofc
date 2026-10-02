@@ -1,3 +1,4 @@
+import { escapeHtml } from '@kit/email/html';
 import { formatAmountCents } from '@kit/dues/lib/format-amount';
 
 import type { ClaimedNotice, NoticeKind } from './types';
@@ -7,15 +8,6 @@ const SUBJECTS: Record<NoticeKind, string> = {
   due_date: 'Your council dues are due',
   after_30: 'Your council dues are past due',
 };
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** 2026-11-14 (exclusive) -> "November 13, 2026", the last day covered. */
 function lastCoveredDay(cycleDate: string): string {

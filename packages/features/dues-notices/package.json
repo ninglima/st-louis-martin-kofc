@@ -24,6 +24,9 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run"
   },
+  "dependencies": {
+    "@kit/email": "workspace:*"
+  },
   "devDependencies": {
     "@kit/dues": "workspace:*",
     "@kit/next": "workspace:*",
