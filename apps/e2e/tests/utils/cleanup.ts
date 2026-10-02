@@ -21,8 +21,8 @@ const TEST_ROLE_SLUG = String.raw`^(no_payments|dues_e2e_roster_viewer)_\d+$`;
 /**
  * Deletes what the suite leaves behind: test users and accounts, the roles
  * the RBAC and dues specs build, test members with their dues periods and
- * notices, roster imports and hosting bills made by test users, and dues
- * notice runs recorded since `startedAt`.
+ * notices, roster imports and hosting bills made by test users, and dues and
+ * event email runs recorded since `startedAt`.
  *
  * Dues periods can't be deleted through the API (`kit.dues_periods_guard`),
  * so this connects to Postgres directly and lifts that one trigger inside
@@ -75,6 +75,15 @@ export async function cleanUpE2EData(startedAt?: string) {
       await tx`
         delete from public.roster_imports
         where uploaded_by in (select id from e2e_users)`;
+
+      // Cascades from the sign-ups too; explicit so the order is plain.
+      await tx`
+        delete from public.event_emails
+        where member_id in (select id from e2e_members)`;
+
+      if (startedAt) {
+        await tx`delete from public.event_email_runs where ran_at >= ${startedAt}`;
+      }
 
       await tx`
         delete from public.event_signups

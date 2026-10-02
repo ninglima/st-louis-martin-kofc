@@ -391,3 +391,69 @@ this stack. Do this once everything above has been running against
    4. `off` stops everything.
 5. **Deploy order.** Deploy the migration before or with the app. The pages
    show "Not available yet" until it has run.
+
+## 8. Event emails
+
+Volunteer events send members email. Everything shares the dues setup in
+section 7: the same Resend account, webhook, API key and jobs secret.
+
+1. **What gets sent**
+   - **Confirmation.** After a member signs themselves up for a shift, with
+     a calendar file (`event.ics`) attached. Officer walk-ins send nothing.
+   - **Update or cancel.** When an event is cancelled or restored, its
+     location changes, or a shift's start or end time changes. Each carries
+     a fresh calendar file. At most one is waiting per sign-up, and the
+     latest change wins. Title, description, lead, public-flag and type
+     edits, and officer removals, send nothing.
+   - **Reminder.** The morning before a shift, to members who have not
+     turned reminders off on `/home/volunteering` and who have a primary
+     email. No attachment.
+   - Only active sign-ups on shifts that have not started are notified.
+     Confirmations and change emails always send; only reminders can be
+     switched off.
+2. **Environment**
+   - `EVENT_EMAILS_MODE`: `off` (default), `dry-run` or `live`.
+   - `EVENT_EMAILS_FROM`, for example `Council Events <events@example.org>`.
+     The sender domain must be verified in Resend.
+   - `EVENT_EMAILS_REPLY_TO` (optional).
+   - Reused from section 7: `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`,
+     `DUES_JOBS_SECRET`, and the build-time `NEXT_PUBLIC_SITE_URL`. Live mode
+     refuses to send, and the run records why, when the API key or sender is
+     missing or the site URL is not a public https origin.
+   - Put the new variables in `--set-env-vars` in
+     `.github/workflows/deploy.yml`. No new secret is needed.
+3. **Rollout**
+   1. Deploy with `EVENT_EMAILS_MODE=off`. Nothing is sent or claimed.
+   2. Switch to `dry-run` for a week. Rows are claimed and marked
+      `dry_run`, which is final; Resend is never called. Nothing shows in
+      the officer delivery badges while a row is a dry run.
+   3. Switch to `live`. Sign yourself up for a test shift first, with your
+      own address on your member record, and check the confirmation, the
+      calendar file and the link.
+   4. `off` stops everything again.
+4. **Triggers.** Emails go out immediately after a sign-up or change. The
+   same Worker cron as dues (`0 14 * * *`, about 9 a.m. Central in daylight
+   time) also calls `POST /api/jobs/event-emails` to queue the next day's
+   reminders and retry anything that failed. Run it by hand with
+   `curl -X POST -H "Authorization: Bearer $DUES_JOBS_SECRET" https://<site>/api/jobs/event-emails`.
+5. **Webhook.** The one Resend webhook from section 7 serves both. Each
+   email carries an `event_email_id` tag, and the receiver routes the event
+   to dues notices or event emails by it. No second webhook is needed.
+6. **Bulk fixes.** To fix many sign-ups or events with SQL without
+   emailing anyone, run
+   `set local kit.suppress_event_emails = 'on';` inside the same
+   transaction. Every enqueue trigger then does nothing.
+7. **Reading `event_emails` and `event_email_runs`.** Each job run adds a row
+   to `event_email_runs` with the mode, `candidates`, `sent`, `skipped`,
+   `failed` and any `error`. A run with `mode = 'off'` or an `error` of
+   "Live mode needs …" explains an empty outbox. Per-email state is in
+   `event_emails.status`: `pending`, `sending`, `sent`, `failed` (retried
+   up to three times, 15 minutes apart), `dead` (a permanent 4xx, check
+   `error`), `dry_run`, `superseded`, `expired` (the shift started, or the
+   row is over 72 hours old) and `no_email`. A row stuck in `sending` for 10
+   minutes is reclaimed.
+8. **Resend rate limit.** Resend allows about two requests a second. Emails
+   with a calendar file are sent one at a time, about 0.6 seconds apart, and
+   a run stops after about 45 seconds; anything left is picked up by the next
+   run. A very large sign-up burst therefore drains over several runs.
+9. **Deploy order.** Deploy the migration before or with the app.
