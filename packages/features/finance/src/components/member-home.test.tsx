@@ -106,6 +106,22 @@ describe('MemberHome', () => {
     ).toBe('/home/payments');
   });
 
+  it('renders the payments card directly under the dues card', () => {
+    const { container } = render(
+      <MemberHome
+        summary={summary}
+        duesDeployed
+        today={TODAY}
+        paymentsCard={<section data-test="payments-slot" />}
+      />,
+    );
+    expect(
+      container.querySelector(
+        '[data-test="member-home-dues"] + [data-test="payments-slot"]',
+      ),
+    ).not.toBeNull();
+  });
+
   it('explains when the account has no member record', () => {
     const { container } = render(<MemberHome summary={null} duesDeployed />);
     expect(

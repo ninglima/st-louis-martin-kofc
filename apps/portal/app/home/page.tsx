@@ -38,8 +38,12 @@ import {
 } from '@kit/finance/lib/fraternal-year';
 import { FinanceService } from '@kit/finance/server/finance.service';
 import type { HostingProvider } from '@kit/finance/types';
+import { MyPaymentsCard } from '@kit/payments/components/my-payments-card';
+import { summarizeMyPayments } from '@kit/payments/lib/my-payments';
+import { PaymentService } from '@kit/payments/server/payment.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getCurrentPermissions } from '~/lib/server/require-permission';
+import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 /**
  * Per-user by construction: this segment reads the caller's session and
@@ -117,18 +121,33 @@ async function HomeContent({ searchParams }: { searchParams: SearchParams }) {
     );
   }
 
-  const dues = await readDuesIfDeployed(() =>
-    new DuesService(client).mySummary(),
-  );
-  const volunteering = await readDuesIfDeployed(() =>
-    new EventsService(client).myVolunteering(),
-  );
+  return <MemberHomeContent client={client} />;
+}
+
+/**
+ * The plain member home: dues, payments that need a word, volunteering.
+ * Payments are read with the member's own session, so the `payments` select
+ * policy limits them to the member's rows (the `eq` filter keeps an officer
+ * with `payments.manage` to their own as well).
+ */
+async function MemberHomeContent({ client }: { client: SupabaseServerClient }) {
+  const user = await requireUserInServerComponent();
+  const [dues, volunteering, payments] = await Promise.all([
+    readDuesIfDeployed(() => new DuesService(client).mySummary()),
+    readDuesIfDeployed(() => new EventsService(client).myVolunteering()),
+    new PaymentService(client).getPayments(user.id, false),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
       <MemberHome
         summary={dues.deployed ? dues.value : null}
         duesDeployed={dues.deployed}
+        paymentsCard={
+          <MyPaymentsCard
+            summary={summarizeMyPayments(payments, new Date(), chicagoToday())}
+          />
+        }
       />
       {volunteering.deployed ? (
         <VolunteerHomeCard data={volunteering.value} />
@@ -173,24 +192,7 @@ async function OverviewTab({
   );
 
   if (!read.deployed) {
-    const dues = await readDuesIfDeployed(() =>
-      new DuesService(client).mySummary(),
-    );
-    const volunteering = await readDuesIfDeployed(() =>
-      new EventsService(client).myVolunteering(),
-    );
-
-    return (
-      <div className="flex flex-col gap-4">
-        <MemberHome
-          summary={dues.deployed ? dues.value : null}
-          duesDeployed={dues.deployed}
-        />
-        {volunteering.deployed ? (
-          <VolunteerHomeCard data={volunteering.value} />
-        ) : null}
-      </div>
-    );
+    return <MemberHomeContent client={client} />;
   }
 
   const [dashboard, net, followUp, toCheck, providers] = read.value;
