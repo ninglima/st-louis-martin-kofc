@@ -194,11 +194,12 @@ async function priceDues(parsed: {
     throw new Error('That dues level is not available for your membership.');
   }
 
-  // Known race, accepted: the trigger re-checks the level and price when the
-  // payment reaches `succeeded`, not now. If the FS changes this member's
-  // level, or edits the level's price or active flag, while this payment is
-  // in flight, the trigger skips the period with only a `raise warning` and
-  // the FS has to record it by hand.
+  // The trigger re-checks the level and price when the payment reaches
+  // `succeeded`, judging the level as of the payment's creation, so later
+  // price or retirement changes do not strand it. Only the seconds-wide window
+  // between reading the price here and inserting the payments row remains: a
+  // change committed inside it makes the trigger skip the period with only a
+  // `raise warning`, and the FS records it by hand.
 
   return {
     payment_type: 'dues',

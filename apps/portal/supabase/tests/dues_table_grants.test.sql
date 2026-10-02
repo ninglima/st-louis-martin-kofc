@@ -2,7 +2,7 @@
 -- the dues tables except authenticated SELECT on dues_levels. Final review M3.
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(28);
+select plan(32);
 
 -- 2 roles x 2 tables x 6 privileges that must be gone (24).
 select ok(not has_table_privilege(r, t, p), format('%s has no %s on %s', r, p, t))
@@ -19,6 +19,11 @@ select tests.act_as(:'u');
 select throws_ok($$ truncate public.dues_periods $$, '42501', null, 'a member cannot truncate dues_periods');
 select lives_ok($$ select count(*) from public.dues_levels $$, 'a member can still list the levels');
 reset role;
+
+select ok(not has_table_privilege('authenticated', 'public.dues_level_changes', 'INSERT'), 'authenticated cannot insert level changes');
+select ok(not has_table_privilege('authenticated', 'public.dues_level_changes', 'UPDATE'), 'authenticated cannot update level changes');
+select ok(not has_table_privilege('authenticated', 'public.dues_level_changes', 'DELETE'), 'authenticated cannot delete level changes');
+select ok(not has_table_privilege('anon', 'public.dues_level_changes', 'SELECT'), 'anon cannot read level changes');
 
 select * from finish();
 rollback;

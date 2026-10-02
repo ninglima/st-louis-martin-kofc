@@ -1,4 +1,5 @@
 import {
+  BadgeDollarSign,
   CalendarDays,
   CreditCard,
   HandHeart,
@@ -104,6 +105,13 @@ const routes = [
         path: pathsConfig.app.paymentSettings,
         Icon: <Settings className={iconClasses} />,
         section: 'payment_settings',
+        verb: 'manage' as const,
+      },
+      {
+        label: 'common.routes.duesLevels',
+        path: pathsConfig.app.duesLevels,
+        Icon: <BadgeDollarSign className={iconClasses} />,
+        section: 'finance',
         verb: 'manage' as const,
       },
       {

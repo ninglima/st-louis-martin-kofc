@@ -65,3 +65,13 @@ export interface DuesLedgerRow {
  */
 export type MyLedgerRow =
   Database['public']['Functions']['my_dues_ledger']['Returns'][number];
+
+/** One row of the Dues levels admin page (`dues_levels_admin`): every level,
+ * retired ones included, with how many members are on it and its last change. */
+export interface AdminDuesLevel extends DuesLevel {
+  sortOrder: number;
+  active: boolean;
+  memberCount: number;
+  changedAt: string | null;
+  changedByEmail: string | null;
+}
