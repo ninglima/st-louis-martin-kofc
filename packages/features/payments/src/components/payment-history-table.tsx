@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useTranslations } from 'next-intl';
 
 import { Badge } from '@kit/ui/badge';
@@ -13,16 +15,9 @@ import {
 } from '@kit/ui/table';
 import { Trans } from '@kit/ui/trans';
 
-import type { Payment, PaymentStatus } from '../types/payment.types';
-
-const statusVariants: Record<PaymentStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'outline',
-  processing: 'secondary',
-  succeeded: 'default',
-  failed: 'destructive',
-  refunded: 'secondary',
-  cancelled: 'destructive',
-};
+import type { Payment } from '../types/payment.types';
+import type { Payer } from '../lib/payers';
+import { PAYMENT_STATUS_VARIANTS } from '../lib/payment-status';
 
 function formatAmount(amount: number, currency: string) {
   return new Intl.NumberFormat('en-US', {
@@ -41,9 +36,15 @@ function formatDate(dateString: string) {
 export function PaymentHistoryTable({
   payments,
   showMember,
+  payers,
+  linkMembers,
 }: {
   payments: Payment[];
   showMember?: boolean;
+  /** Keyed by the payment's `user_id`; see `PaymentService.getPayers`. */
+  payers?: Record<string, Payer>;
+  /** `members.view`: the name links to the member's page. */
+  linkMembers?: boolean;
 }) {
   const t = useTranslations('payments');
 
@@ -100,7 +101,7 @@ export function PaymentHistoryTable({
               {formatAmount(payment.amount, payment.currency)}
             </TableCell>
             <TableCell>
-              <Badge variant={statusVariants[payment.status]}>
+              <Badge variant={PAYMENT_STATUS_VARIANTS[payment.status]}>
                 {t(`statuses.${payment.status}`)}
               </Badge>
             </TableCell>
@@ -108,8 +109,11 @@ export function PaymentHistoryTable({
               {payment.provider}
             </TableCell>
             {showMember && (
-              <TableCell>
-                {payment.user_id.slice(0, 8)}...
+              <TableCell data-test="payment-member">
+                <PayerName
+                  payer={payers?.[payment.user_id]}
+                  linkMembers={linkMembers}
+                />
               </TableCell>
             )}
           </TableRow>
@@ -117,4 +121,27 @@ export function PaymentHistoryTable({
       </TableBody>
     </Table>
   );
+}
+
+function PayerName({
+  payer,
+  linkMembers,
+}: {
+  payer: Payer | undefined;
+  linkMembers?: boolean;
+}) {
+  if (!payer) return <span className="text-muted-foreground">—</span>;
+
+  if (payer.memberId && linkMembers) {
+    return (
+      <Link
+        href={`/home/members/${payer.memberId}`}
+        className="font-medium underline-offset-4 hover:underline"
+      >
+        {payer.name}
+      </Link>
+    );
+  }
+
+  return <span>{payer.name}</span>;
 }

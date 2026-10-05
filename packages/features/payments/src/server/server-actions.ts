@@ -6,18 +6,26 @@ import { enhanceAction } from '@kit/next/actions';
 import { hasPermission } from '@kit/rbac/types';
 import { loadPermissionsForUser } from '@kit/rbac/server/permissions.service';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+import { availableDuesLevels } from '@kit/dues/lib/available-levels';
+import { DUES_LEVEL_METADATA_KEY } from '@kit/dues/lib/payment-metadata';
+import { DuesService } from '@kit/dues/server/dues.service';
 
 import { PaymentConfigSchema } from '../schemas/payment-config.schema';
 import { CreatePaymentSchema } from '../schemas/create-payment.schema';
 import { ConfirmSquarePaymentSchema } from '../schemas/confirm-square-payment.schema';
 import { PaymentConfigService } from './payment-config.service';
+import { refuseToCharge } from './charge-guard';
 import { PaymentService } from './payment.service';
 import { getPaymentProvider } from '../providers/provider-factory';
 import {
   describeSquareChargeError,
   isDefiniteSquareChargeFailure,
 } from '../providers/square.provider';
-import type { PaymentStatus } from '../types/payment.types';
+import type {
+  CreatePaymentParams,
+  PaymentStatus,
+} from '../types/payment.types';
 
 /**
  * Next.js redacts thrown Server Action error messages in production builds
@@ -109,11 +117,13 @@ export const createPaymentAction = enhanceAction(
     }
 
     const parsed = CreatePaymentSchema.parse(data);
+    const payment: CreatePaymentParams =
+      parsed.payment_type === 'dues' ? await priceDues(parsed) : parsed;
     const adminClient = getSupabaseServerAdminClient();
 
     const provider = await getPaymentProvider(adminClient);
     const result = await provider.createPayment({
-      ...parsed,
+      ...payment,
       userId: user.id,
     });
 
@@ -125,8 +135,8 @@ export const createPaymentAction = enhanceAction(
     const activeProvider = configResult.data?.active_provider ?? 'square';
 
     const paymentService = new PaymentService(adminClient);
-    const payment = await paymentService.createPayment({
-      ...parsed,
+    const row = await paymentService.createPayment({
+      ...payment,
       userId: user.id,
       provider: activeProvider,
       providerPaymentId: result.paymentId,
@@ -139,14 +149,69 @@ export const createPaymentAction = enhanceAction(
     // verify ownership once a card token exists. Stripe already returns a
     // real, provider-issued `paymentId` (the PaymentIntent id) that the
     // client uses together with `clientSecret`, so it is left untouched.
+    // The amount goes back too: Square's bank (ACH) flow shows it to the
+    // member in its authorization step. It is the server-priced amount on
+    // the row, not anything the client sent.
     if (activeProvider === 'square') {
-      return { ...result, paymentId: payment.id };
+      return { ...result, paymentId: row.id, amountCents: payment.amount };
     }
 
     return result;
   },
   {},
 );
+
+/**
+ * Dues are priced here, never by the client: the level decides the amount.
+ *
+ * Reads run with the member's own session (`getSupabaseServerClient()`),
+ * because `my_dues_summary` answers for `auth.uid()` -- the admin client
+ * has no user. The allowed-level rule is `availableDuesLevels`, shared with
+ * the checkout form and never looser than the `kit.record_online_dues_period`
+ * trigger's own re-check, and the amount is `dues_levels.amount_cents` in
+ * USD -- exactly what the trigger compares `payments.amount` against -- so a
+ * payment accepted here is never one the trigger skips.
+ *
+ * Throws, like the rest of `createPaymentAction` (see its comment).
+ */
+async function priceDues(parsed: {
+  level: string;
+}): Promise<CreatePaymentParams> {
+  const dues = new DuesService(getSupabaseServerClient());
+  const [levels, mine] = await Promise.all([dues.levels(), dues.mySummary()]);
+
+  if (!mine) {
+    throw new Error(
+      'Your sign-in is not linked to a council member record yet. Please contact the Financial Secretary to pay dues.',
+    );
+  }
+
+  const level = availableDuesLevels(levels, mine).find(
+    (candidate) => candidate.slug === parsed.level,
+  );
+
+  if (!level) {
+    throw new Error('That dues level is not available for your membership.');
+  }
+
+  // The trigger re-checks the level and price when the payment reaches
+  // `succeeded`, judging the level as of the payment's creation, so later
+  // price or retirement changes do not strand it. Only the seconds-wide window
+  // between reading the price here and inserting the payments row remains: a
+  // change committed inside it makes the trigger skip the period with only a
+  // `raise warning`, and the FS records it by hand.
+
+  return {
+    payment_type: 'dues',
+    amount: level.amountCents,
+    currency: 'usd',
+    description: `Annual dues — ${level.name}`,
+    // Built by the server only; client metadata is ignored for dues. The
+    // trigger reads this top-level key from `payments.metadata` -- see
+    // `DUES_LEVEL_METADATA_KEY`.
+    metadata: { [DUES_LEVEL_METADATA_KEY]: level.slug },
+  };
+}
 
 const CONFIRM_SQUARE_UNAUTHORIZED_MESSAGE =
   'You do not have permission to make a payment.';
@@ -188,13 +253,24 @@ export const confirmSquarePaymentAction = enhanceAction(
       return { success: false, error: 'Payment not found.' };
     }
 
-    // A caller must not be able to confirm -- and thus charge a card
-    // against -- a payment row that belongs to someone else.
-    if (payment.user_id !== user.id) {
+    // Re-check the row itself before any card is charged: it must belong
+    // to the caller, still be pending, meet the $0.50 floor, and (for dues)
+    // match the current price of its level. See `refuseToCharge`.
+    let refusal: string | null;
+
+    try {
+      refusal = await refuseToCharge(payment, user.id, () =>
+        new DuesService(getSupabaseServerClient()).levels(),
+      );
+    } catch {
       return {
         success: false,
-        error: 'You do not have permission to confirm this payment.',
+        error: 'Failed to process payment. Please try again.',
       };
+    }
+
+    if (refusal) {
+      return { success: false, error: refusal };
     }
 
     const provider = await getPaymentProvider(adminClient);
@@ -308,11 +384,14 @@ export const confirmSquarePaymentAction = enhanceAction(
       // this either. This log is the only remaining record that money was
       // taken; it has to be reconciled by hand against Square's dashboard.
       // No card data or tokens, only the ids needed to look the charge up.
-      console.error('Square charge succeeded but payment record update failed.', {
-        paymentId: payment.id,
-        squarePaymentId: result.paymentId,
-        error: updateError.message,
-      });
+      console.error(
+        'Square charge succeeded but payment record update failed.',
+        {
+          paymentId: payment.id,
+          squarePaymentId: result.paymentId,
+          error: updateError.message,
+        },
+      );
 
       return {
         success: false,

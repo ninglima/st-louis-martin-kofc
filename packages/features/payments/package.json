@@ -16,11 +16,13 @@
     "./server/*": "./src/server/*.ts",
     "./providers/*": "./src/providers/*.ts",
     "./components/*": "./src/components/*.tsx",
-    "./hooks/*": "./src/hooks/*.ts"
+    "./hooks/*": "./src/hooks/*.ts",
+    "./lib/*": "./src/lib/*.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@kit/i18n": "workspace:*",
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "@hookform/resolvers": "catalog:",
+    "@kit/dues": "workspace:*",
     "@kit/next": "workspace:*",
     "@kit/rbac": "workspace:*",
     "@kit/shared": "workspace:*",
@@ -49,6 +52,7 @@
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "sonner": "catalog:",
+    "vitest": "catalog:",
     "zod": "catalog:"
   }
 }

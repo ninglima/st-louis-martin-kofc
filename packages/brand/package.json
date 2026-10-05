@@ -1,0 +1,39 @@
+{
+  "name": "@kit/brand",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./app-logo": "./src/app-logo.tsx",
+    "./fonts": "./src/fonts.ts",
+    "./root-metadata": "./src/root-metadata.ts",
+    "./providers": "./src/base-providers.tsx",
+    "./i18n": "./src/i18n/load-messages.ts",
+    "./config/app": "./src/config/app.config.ts",
+    "./config/feature-flags": "./src/config/feature-flags.config.ts",
+    "./config/paths": "./src/config/paths.config.ts",
+    "./skeletons/*": "./src/skeletons/*.tsx",
+    "./styles/*": "./styles/*"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .turbo node_modules",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@kit/i18n": "workspace:*",
+    "@kit/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "next": "catalog:",
+    "next-intl": "catalog:",
+    "next-themes": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@kit/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -33,7 +33,8 @@ export interface PaymentProviderInterface {
   ): Promise<PaymentResult>;
   getPaymentStatus(providerPaymentId: string): Promise<PaymentStatus>;
   verifyWebhookSignature(payload: string, signature: string): Promise<boolean>;
-  parseWebhookEvent(payload: string): Promise<WebhookEvent>;
+  /** `null` when the event must not change any payment's status. */
+  parseWebhookEvent(payload: string): Promise<WebhookEvent | null>;
   /**
    * Charges a previously tokenized payment source (e.g. a Square Web
    * Payments SDK card token). Optional because providers like Stripe use a

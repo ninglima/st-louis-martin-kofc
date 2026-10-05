@@ -1,0 +1,101 @@
+import { Suspense } from 'react';
+
+import { getTranslations } from 'next-intl/server';
+
+import { AppBreadcrumbs } from '@kit/ui/app-breadcrumbs';
+import { PageBody, PageHeader } from '@kit/ui/page';
+import { Skeleton } from '@kit/ui/skeleton';
+import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
+import { getSupabaseServerClient } from '@kit/supabase/server-client';
+
+import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
+import { DuesService } from '@kit/dues/server/dues.service';
+import { CheckoutForm } from '@kit/payments/components/checkout-form';
+import { Delayed } from '@kit/brand/skeletons/page-skeletons';
+import { requirePermission } from '~/lib/server/require-permission';
+
+import type { DuesLevel, MyDuesSummary } from '@kit/dues/types';
+import type { PublicPaymentConfig } from '@kit/payments/types';
+
+/**
+ * Per-user by construction: this segment reads the caller's session and
+ * permissions, and the guard can redirect, so there is no shell worth
+ * prerendering or streaming ahead of knowing who is asking. The parent
+ * layout's `instant = false` does not cover sibling segments -- navigations
+ * between /home pages are still validated -- so each one declares its own.
+ * See the fuller note in app/home/layout.tsx.
+ */
+export const instant = false;
+
+export const generateMetadata = async () => {
+  const t = await getTranslations();
+  return { title: t('payments.checkout') };
+};
+
+function CheckoutPage() {
+  return (
+    <>
+      <PageHeader description={<AppBreadcrumbs />} />
+      <PageBody>
+        <div className="flex w-full flex-1 flex-col lg:max-w-2xl">
+          <Suspense fallback={<CheckoutSkeleton />}>
+            <CheckoutContent />
+          </Suspense>
+        </div>
+      </PageBody>
+    </>
+  );
+}
+
+async function CheckoutContent() {
+  await requirePermission('checkout', 'view');
+  const adminClient = getSupabaseServerAdminClient();
+  // The member's own session: `my_dues_summary` answers for `auth.uid()`.
+  const dues = new DuesService(getSupabaseServerClient());
+
+  const [{ data: configData }, duesRead] = await Promise.all([
+    adminClient
+      .from('payment_config')
+      .select(
+        'active_provider, stripe_publishable_key, square_application_id, square_location_id, environment',
+      )
+      .single(),
+    // Before the dues migrations land (they deploy in parallel with the
+    // app), checkout still works for everything else: no dues option.
+    readDuesIfDeployed(() => Promise.all([dues.levels(), dues.mySummary()])),
+  ]);
+
+  const [duesLevels, myDues]: [DuesLevel[], MyDuesSummary | null] =
+    duesRead.deployed ? duesRead.value : [[], null];
+
+  const config: PublicPaymentConfig = {
+    activeProvider: (configData?.active_provider ??
+      'square') as PublicPaymentConfig['activeProvider'],
+    publishableKey:
+      configData?.active_provider === 'stripe'
+        ? (configData?.stripe_publishable_key ?? null)
+        : (configData?.square_application_id ?? null),
+    locationId: configData?.square_location_id ?? null,
+    environment: (configData?.environment ??
+      'sandbox') as PublicPaymentConfig['environment'],
+  };
+
+  return (
+    <CheckoutForm
+      config={config}
+      duesAvailable={duesRead.deployed}
+      duesLevels={duesLevels}
+      myDues={myDues}
+    />
+  );
+}
+
+function CheckoutSkeleton() {
+  return (
+    <Delayed className="flex flex-col gap-y-4">
+      <Skeleton className="h-64 w-full rounded-lg" />
+    </Delayed>
+  );
+}
+
+export default CheckoutPage;

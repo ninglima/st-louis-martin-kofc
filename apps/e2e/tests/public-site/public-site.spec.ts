@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { Page, expect, test } from '@playwright/test';
 
-import { PUBLIC_ROUTES } from '../../../web/config/site-navigation.config';
+import { PUBLIC_ROUTES } from '../../../site/config/site-navigation.config';
 
 /**
  * The public marketing site is not gated, so unlike the rbac and account
@@ -68,7 +68,7 @@ const CATHOLIC_RESOURCES_MDX = join(
   '..',
   '..',
   '..',
-  'web',
+  'site',
   'app',
   '(marketing)',
   'catholic-resources',
@@ -362,6 +362,11 @@ test.describe('public site', () => {
   test('the mobile menu theme toggle really switches the theme', async ({
     page,
   }) => {
+    test.skip(
+      process.env.NEXT_PUBLIC_ENABLE_THEME_TOGGLE !== 'true',
+      'the theme toggle is disabled',
+    );
+
     // `DEFAULT_THEME_MODE` is `light` and the header's icon toggle is `md:`-only,
     // so before this control existed a phone visitor could not reach dark mode
     // at all.

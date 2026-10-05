@@ -76,7 +76,7 @@ export function ResendAuthLinkForm(props: { redirectPath?: string }) {
           name={'email'}
         />
 
-        <Button disabled={resendLink.isPending}>
+        <Button type="submit" disabled={resendLink.isPending}>
           <Trans i18nKey={'auth.resendLink'} defaults={'Resend Link'} />
         </Button>
       </form>

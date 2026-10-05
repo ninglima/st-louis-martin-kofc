@@ -17,6 +17,7 @@
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "node-html-parser": "catalog:",
+    "postgres": "catalog:",
     "typescript": "catalog:"
   }
 }

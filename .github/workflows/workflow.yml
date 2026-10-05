@@ -1,13 +1,15 @@
 name: Workflow
 on:
+  # Checks run on dev and main. Deploys run only after this workflow
+  # succeeds on a push to main (deploy.yml filters `branches: [main]`).
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 jobs:
   typescript:
     name: ʦ TypeScript
-    timeout-minutes: 8
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     steps:
@@ -37,6 +39,17 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+
+      # Runs before the unit tests: the router's tests serve apps/site/out.
+      - name: Build static site (split guard)
+        run: pnpm --filter site build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          NEXT_PUBLIC_SITE_URL: https://kofc-15256.org
+
+      - name: Unit tests
+        run: pnpm turbo test:unit
 
   test:
     name: ⚫️ Test
@@ -70,7 +83,7 @@ jobs:
         run: |
           PLAYWRIGHT_VERSION=$(pnpm ls @playwright/test --filter web-e2e | grep @playwright | sed 's/.*@//')
           echo "Playwright's Version: $PLAYWRIGHT_VERSION"
-          echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
+          echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> "$GITHUB_ENV"
 
       - name: Cache Playwright Browsers for Playwright's Version
         id: cache-playwright-browsers
@@ -90,10 +103,10 @@ jobs:
         run: pnpm run supabase:web:start -- -x studio,migra,deno-relay,pgadmin-schema-diff,imgproxy,logflare
 
       - name: Run Next.js Production Build (test env)
-        run: pnpm --filter web build:test
+        run: pnpm --filter portal build:test
 
       - name: Run Next.js Server
-        run: pnpm --filter web start:test &
+        run: pnpm --filter portal start:test &
 
       - name: Run Playwright tests
         run: |
@@ -101,7 +114,7 @@ jobs:
           pnpm run test
 
       - name: Run Supabase tests
-        run: pnpm --filter web supabase:test
+        run: pnpm --filter portal supabase:test
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,0 +1,54 @@
+import { z } from 'zod';
+
+type LanguagePriority = 'user' | 'application';
+
+const FeatureFlagsSchema = z.object({
+  enableThemeToggle: z.boolean({
+    error: 'Provide the variable NEXT_PUBLIC_ENABLE_THEME_TOGGLE',
+  }),
+  languagePriority: z
+    .enum(['user', 'application'], {
+      error: 'Provide the variable NEXT_PUBLIC_LANGUAGE_PRIORITY',
+    })
+    .default('application'),
+  enableVersionUpdater: z.boolean({
+    error: 'Provide the variable NEXT_PUBLIC_ENABLE_VERSION_UPDATER',
+  }),
+  enablePayments: z.boolean({
+    error: 'Provide the variable NEXT_PUBLIC_ENABLE_PAYMENTS',
+  }),
+  enableHostingCosts: z.boolean({
+    error: 'Provide the variable NEXT_PUBLIC_ENABLE_HOSTING_COSTS',
+  }),
+});
+
+const featuresFlagConfig = FeatureFlagsSchema.parse({
+  enableThemeToggle: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_THEME_TOGGLE,
+    true,
+  ),
+  languagePriority: process.env
+    .NEXT_PUBLIC_LANGUAGE_PRIORITY as LanguagePriority,
+  enableVersionUpdater: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_VERSION_UPDATER,
+    false,
+  ),
+  enablePayments: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_PAYMENTS,
+    true,
+  ),
+  enableHostingCosts: getBoolean(
+    process.env.NEXT_PUBLIC_ENABLE_HOSTING_COSTS,
+    false,
+  ),
+} satisfies z.infer<typeof FeatureFlagsSchema>);
+
+export default featuresFlagConfig;
+
+function getBoolean(value: unknown, defaultValue: boolean) {
+  if (typeof value === 'string') {
+    return value === 'true';
+  }
+
+  return defaultValue;
+}

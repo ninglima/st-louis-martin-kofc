@@ -1,4 +1,4 @@
-![Makerkit - Next.js Supabase SaaS Starter Kit \[Lite version\]](apps/web/public/images/makerkit.webp)
+![Makerkit - Next.js Supabase SaaS Starter Kit \[Lite version\]](apps/site/public/images/makerkit.webp)
 
 # NEW! Next.js Supabase SaaS Starter Kit (Lite)
 
@@ -136,13 +136,13 @@ For more Supabase commands, see the [Supabase CLI documentation](https://supabas
 
 ```
 # Create new migration
-pnpm --filter web supabase migration new <name>
+pnpm --filter portal supabase migration new <name>
 
 # Link to Supabase project
-pnpm --filter web supabase link
+pnpm --filter portal supabase link
 
 # Push migrations
-pnpm --filter web supabase db push
+pnpm --filter portal supabase db push
 ```
 
 #### 4. Start the Next.js application
@@ -177,26 +177,35 @@ Turborepo will cache the results of these commands, so you can run them as many 
 
 ## Project Structure
 
-The project is organized into the following folders:
+The project is split into three deployable apps plus shared packages:
 
 ```
 apps/
-├── web/                  # Next.js application
+├── site/                 # Static marketing site (Cloudflare Workers static assets)
 │   ├── app/             # App Router pages
-│   │   ├── (marketing)/ # Public marketing pages
+│   │   └── (marketing)/ # Public marketing pages
+│   └── public/          # Static assets (images, makerkit.webp, etc.)
+│
+├── portal/               # Next.js application (Cloud Run, scale to zero)
+│   ├── app/             # App Router pages
 │   │   ├── auth/        # Authentication pages
 │   │   └── home/        # Protected app pages
 │   ├── supabase/        # Database & migrations
 │   └── config/          # App configuration
 │
+├── router/               # Cloudflare Worker: serves the site's static
+│                         # assets and proxies portal paths to Cloud Run
+└── e2e/                  # Playwright end-to-end tests
+
 packages/
+├── brand/               # Shared config (portal path prefixes, etc.)
 ├── ui/                  # Shared UI components
 └── features/           # Core feature packages
     ├── auth/           # Authentication logic
     └── ...
 ```
 
-For more information about this project structure, see the article [Next.js App Router: Project Structure](https://makerkit.dev/blog/tutorials/nextjs-app-router-project-structure).
+See [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for how these three apps are deployed and operated together.
 
 ### Environment Variables
 
@@ -219,41 +228,43 @@ Here are the available variables:
 
 ## Architecture
 
-This starter kit uses a monorepo architecture.
+This starter kit uses a monorepo architecture, split into three deployable apps:
 
-1. The `apps/web` directory is the Next.js application.
-2. The `packages` directory contains all the packages used by the application.
-3. The `packages/features` directory contains all the features of the application.
-4. The `packages/ui` directory contains all the UI components.
+1. The `apps/site` directory is the static marketing site (public pages, statically exported).
+2. The `apps/portal` directory is the Next.js application that requires a server (auth, gated pages, APIs).
+3. The `apps/router` directory is the Cloudflare Worker that serves the site's static assets and proxies portal paths to the portal.
+4. The `packages` directory contains all the packages shared by the apps.
+5. The `packages/features` directory contains all the features of the application.
+6. The `packages/ui` directory contains all the UI components.
 
-For more information about the architecture, please refer to the [Makerkit blog post about Next.js Project Structure](https://makerkit.dev/blog/tutorials/nextjs-app-router-project-structure).
+For more information about the architecture, please refer to the [Makerkit blog post about Next.js Project Structure](https://makerkit.dev/blog/tutorials/nextjs-app-router-project-structure), and to [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for how the three apps are deployed and operated.
 
 ### Marketing Pages
 
-Marketing pages are located in the `apps/web/app/(marketing)` directory. These pages are used to showcase the features of the SaaS and provide information about the product.
+Marketing pages are located in the `apps/site/app/(marketing)` directory. These pages are used to showcase the features of the SaaS and provide information about the product.
 
 ### Authentication
 
-Authenticated is backed by Supabase. The `apps/web/app/auth` directory contains the authentication pages, however, the logic is into its own package `@kit/auth` located in `packages/features/auth`.
+Authenticated is backed by Supabase. The `apps/portal/app/auth` directory contains the authentication pages, however, the logic is into its own package `@kit/auth` located in `packages/features/auth`.
 
 This package can be used across multiple applications.
 
 ### Gated Pages
 
-Gated pages are located in the `apps/web/app/home` directory. Here is where you can build your SaaS pages that are gated by authentication.
+Gated pages are located in the `apps/portal/app/home` directory. Here is where you can build your SaaS pages that are gated by authentication.
 
 ### Database
 
-The Supabase database is located in the `apps/web/supabase` directory. In this directory you will find the database schema, migrations, and seed data.
+The Supabase database is located in the `apps/portal/supabase` directory. In this directory you will find the database schema, migrations, and seed data.
 
 #### Creating a new migration
 To create a new migration, run the following command:
 
 ```bash
-pnpm --filter web supabase migration new --name <migration-name>
+pnpm --filter portal supabase migration new --name <migration-name>
 ```
 
-This command will create a new migration file in the `apps/web/supabase/migrations` directory. 
+This command will create a new migration file in the `apps/portal/supabase/migrations` directory. 
 
 #### Applying a migration
 
@@ -270,7 +281,7 @@ This command will apply the migration to the database and update the schema. It 
 Linking the local Supabase database to the Supabase project is done by running the following command:
 
 ```bash
-pnpm --filter web supabase db link
+pnpm --filter portal supabase db link
 ```
 
 This command will link the local Supabase database to the Supabase project.
@@ -280,7 +291,7 @@ This command will link the local Supabase database to the Supabase project.
 After you have made changes to the migration, you can push the migration to the Supabase project by running the following command:
 
 ```bash
-pnpm --filter web supabase db push
+pnpm --filter portal supabase db push
 ```
 
 This command will push the migration to the Supabase project. You can now apply the migration to the Supabase database.
@@ -296,7 +307,7 @@ To deploy your application to production, you will need to create a Supabase pro
 After you have made changes to the migration, you can push the migration to the Supabase project by running the following command:
 
 ```bash
-pnpm --filter web supabase db push
+pnpm --filter portal supabase db push
 ```
 
 This command will push the migration to the Supabase project.
@@ -311,23 +322,24 @@ Please set the callback URL in the Supabase project settings to the following UR
 
 Where `<url>` is the URL of your application.
 
-#### 4. Deploy to Vercel or any other hosting provider
+#### 4. Deploy
 
-You can deploy your application to any hosting provider that supports Next.js.
+See [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for the full deploy and operations runbook (one-time cloud setup, CI/CD, rollback, secret rotation, and the cutover checklist).
 
-#### 5. Deploy to Cloudflare
+## Hosting
 
-The configuration should work as is, but you need to set the runtime to `edge` in the root layout file (`apps/web/app/layout.tsx`).
+The site is split across three apps:
 
-```tsx
-export const runtime = 'edge';
-```
+- **`apps/site`** — the static marketing site, built with `next build` (static export) and served as static assets by the Cloudflare Worker in `apps/router`.
+- **`apps/portal`** — the authenticated Next.js application (sign-in, gated pages, APIs), deployed as a container to Google Cloud Run, scaling to zero when idle.
+- **`apps/router`** — a Cloudflare Worker that serves `apps/site`'s static assets directly and proxies portal paths (`/auth`, `/home`, `/api`, `/version`, `/update-password`, `/portal-assets`) to the Cloud Run service.
 
-Remember to enable Node.js compatibility in the Cloudflare dashboard.
+For local development:
 
-## Deployment Options
+- `pnpm dev` runs the site and portal directly (site on port 3000, portal on port 3001) against a local Supabase instance started with `pnpm supabase:web:start`.
+- `pnpm stack:up` (and `pnpm stack:down`) runs the full production-like stack (router + portal, built as containers) at [http://localhost:3000](http://localhost:3000).
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/9r-iFh?referralCode=RmCO-Z&utm_medium=integration&utm_source=template&utm_campaign=generic)
+See [`docs/runbook/hosting.md`](docs/runbook/hosting.md) for the full deploy and operations runbook: one-time cloud setup, CI/CD, migrations, rollback, secret rotation, and the cutover checklist.
 
 ## Contributing
 

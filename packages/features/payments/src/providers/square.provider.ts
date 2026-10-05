@@ -105,20 +105,126 @@ export class SquareProvider implements PaymentProviderInterface {
     });
   }
 
-  async parseWebhookEvent(payload: string): Promise<WebhookEvent> {
-    const event = JSON.parse(payload) as {
-      type: string;
-      data: { object: { payment?: { id: string; status: string } } };
-    };
+  async parseWebhookEvent(payload: string): Promise<WebhookEvent | null> {
+    return mapSquareWebhookEvent(JSON.parse(payload) as SquareWebhookPayload);
+  }
+}
 
-    const payment = event.data?.object?.payment;
+interface SquareMoney {
+  amount?: number | null;
+  currency?: string | null;
+}
+
+/** The parts of Square's `payment.*` and `refund.*` webhook bodies we read. */
+export interface SquareWebhookPayload {
+  type: string;
+  data?: {
+    object?: {
+      payment?: {
+        id: string;
+        status?: string;
+        amount_money?: SquareMoney | null;
+        total_money?: SquareMoney | null;
+        refunded_money?: SquareMoney | null;
+      };
+      refund?: {
+        id: string;
+        status?: string;
+        payment_id?: string;
+        amount_money?: SquareMoney | null;
+      };
+    };
+  };
+}
+
+/**
+ * Turns a verified Square event into the status write for our `payments`
+ * row (keyed by the Square payment id stored as `provider_payment_id`), or
+ * `null` when the event must not change any row.
+ *
+ * - `payment.*`: the payment's status, as before -- except a payment whose
+ *   `refunded_money` equals its total is `refunded`. A partial refund is
+ *   logged and otherwise ignored: the payment's own status still applies
+ *   (Square keeps such a payment `COMPLETED`).
+ * - `refund.*` with refund status `COMPLETED`: `refunded`, but the event
+ *   carries no payment total, so it sets `onlyIfAmount` to the refund
+ *   amount and the write only lands on a row whose `amount` matches -- a
+ *   partial refund matches nothing.
+ * - `refund.*` with status `FAILED`: logged at error level for the FS to
+ *   reconcile by hand; no status change.
+ * - Anything else (no payment or refund, or a refund still PENDING or
+ *   REJECTED): ignored. Previously these fell through as an update
+ *   keyed by `''`, which never matched a row.
+ */
+export function mapSquareWebhookEvent(
+  event: SquareWebhookPayload,
+): WebhookEvent | null {
+  const payment = event.data?.object?.payment;
+
+  if (payment) {
+    const refunded = payment.refunded_money?.amount ?? 0;
+    const total =
+      payment.total_money?.amount ?? payment.amount_money?.amount ?? null;
+
+    if (refunded > 0) {
+      if (total !== null && refunded >= total) {
+        return {
+          type: event.type,
+          providerPaymentId: payment.id,
+          status: 'refunded',
+        };
+      }
+
+      // A partial refund is not a refund of the dues, but this event may
+      // still be the first to report the payment's own status (an earlier
+      // update may have been lost), so that status is still applied.
+      console.warn('Square partial refund ignored; applying payment status.', {
+        paymentId: payment.id,
+        total,
+        refunded,
+      });
+    }
 
     return {
       type: event.type,
-      providerPaymentId: payment?.id ?? '',
-      status: mapSquareStatus(payment?.status),
+      providerPaymentId: payment.id,
+      status: mapSquareStatus(payment.status),
     };
   }
+
+  const refund = event.data?.object?.refund;
+  const refundAmount = refund?.amount_money?.amount;
+
+  if (refund?.status === 'FAILED') {
+    // The status is left alone: `refunded` is terminal (see
+    // `PaymentService.updatePaymentStatus`), so if an earlier event already
+    // marked this payment refunded and voided its dues period, only a person
+    // can put that right.
+    console.error(
+      'Square refund FAILED; the council may still hold this money. The Financial Secretary must reconcile this payment and its dues period by hand.',
+      {
+        paymentId: refund.payment_id,
+        refundId: refund.id,
+        amount: refundAmount,
+      },
+    );
+    return null;
+  }
+
+  if (
+    refund?.status === 'COMPLETED' &&
+    refund.payment_id &&
+    typeof refundAmount === 'number'
+  ) {
+    return {
+      type: event.type,
+      providerPaymentId: refund.payment_id,
+      status: 'refunded',
+      onlyIfAmount: refundAmount,
+    };
+  }
+
+  return null;
 }
 
 function mapSquareStatus(status: string | undefined): PaymentStatus {
@@ -127,7 +233,11 @@ function mapSquareStatus(status: string | undefined): PaymentStatus {
     COMPLETED: 'succeeded',
     CANCELED: 'cancelled',
     FAILED: 'failed',
-    PENDING: 'pending',
+    // Square reports an ACH bank transfer as PENDING while it clears. The
+    // row has already been claimed out of `pending` before the charge (see
+    // `confirmSquarePaymentAction`), and must not return there: `pending`
+    // is what lets a row be charged again.
+    PENDING: 'processing',
   };
   return map[status ?? ''] ?? 'pending';
 }

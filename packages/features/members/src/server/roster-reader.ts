@@ -58,6 +58,9 @@ function padRow(row: string[]): string[] {
  */
 function readSheetRows(sheet: ExcelJS.Worksheet): SheetRow[] {
   const rows: SheetRow[] = [];
+  // Read once: ExcelJS computes `columnCount` by scanning every row, so
+  // reading it in the loop condition made the whole read quadratic.
+  const columnCount = sheet.columnCount;
 
   // `rowNumber` is ExcelJS's own 1-based sheet row, which counts the empty
   // rows `includeEmpty: false` declines to yield. Verified identical on both
@@ -65,7 +68,7 @@ function readSheetRows(sheet: ExcelJS.Worksheet): SheetRow[] {
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     const values: string[] = [];
     // ExcelJS row values are 1-based with a leading hole at index 0.
-    for (let column = 1; column <= sheet.columnCount; column++) {
+    for (let column = 1; column <= columnCount; column++) {
       values.push(cellToString(row.getCell(column).value));
     }
     rows.push({ rowNumber, cells: padRow(values) });

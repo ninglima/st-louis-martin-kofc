@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '@kit/supabase/database';
 
+import { toFormValues } from '../lib/member-edit';
+import type { MemberEditChanges, MemberForEdit } from '../lib/member-edit';
 import { FILLABLE } from './roster-plan';
 import type { ExistingMember, FillableField } from './roster-plan';
 
@@ -36,6 +38,28 @@ export interface MemberListRow {
   postalCode: string | null;
   phone: string | null;
 }
+
+/**
+ * The member detail page's roster half. Deliberately narrower than
+ * `MemberListRow`: it carries only plaintext columns (see `getMember`
+ * below), so there is no decrypted address or phone here.
+ */
+export interface MemberDetail {
+  id: string;
+  membershipNumber: string;
+  userId: string | null;
+  fullName: string;
+  primaryEmail: string | null;
+  city: string | null;
+  state: string | null;
+  badAddress: boolean;
+  rosterLastSeenAt: string | null;
+}
+
+/** Columns `getMember` selects directly, all plaintext -- see its doc
+ * comment for why decryption never enters into it. */
+const DETAIL_SELECT =
+  'id, membership_number, user_id, prefix, first_name, middle_name, last_name, suffix, primary_email, city, state, bad_address, roster_last_seen_at';
 
 type MemberColumn = keyof Database['public']['Tables']['members']['Row'];
 
@@ -131,6 +155,60 @@ export class MembersService {
   }
 
   /**
+   * One member by id, for the member detail page.
+   *
+   * Reads `members` directly rather than through `members_list`: that RPC
+   * decrypts a page of ciphertext columns and has no id filter, so bending
+   * it to find one row would mean decrypting up to 200 rows -- most of them
+   * thrown away -- to find the one that matches. `members_select_own`
+   * already grants `members.view` holders (and a member their own row) read
+   * access here, and every column this selects is plaintext, so there is
+   * nothing to decrypt at all. It returns `null` rather than throwing on a
+   * missing id -- the caller (the page) turns that into `notFound()`, which
+   * is a normal outcome and not an error.
+   *
+   * A malformed id (not a uuid at all) is treated the same way: Postgres
+   * raises `22P02` ("invalid input syntax for type uuid") for `.eq('id',
+   * ...)` on a non-uuid string, and a typo'd or truncated link is exactly as
+   * ordinary an outcome as a well-formed id that no longer exists. The page
+   * validates the id before ever calling this, so this branch is a second
+   * line of defence for any other caller that does not.
+   */
+  async getMember(id: string): Promise<MemberDetail | null> {
+    const { data, error } = await this.client
+      .from('members')
+      .select(DETAIL_SELECT)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === '22P02') return null;
+      throw new Error(error.message);
+    }
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      membershipNumber: data.membership_number,
+      userId: data.user_id,
+      fullName: [
+        data.prefix,
+        data.first_name,
+        data.middle_name,
+        data.last_name,
+        data.suffix,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(' '),
+      primaryEmail: data.primary_email,
+      city: data.city,
+      state: data.state,
+      badAddress: data.bad_address,
+      rosterLastSeenAt: data.roster_last_seen_at,
+    };
+  }
+
+  /**
    * The cities the council's members live in, for the list's city filter.
    *
    * Its own RPC rather than something derived from the rows on screen: the
@@ -186,5 +264,41 @@ export class MembersService {
         filledFields,
       };
     });
+  }
+
+  /**
+   * One member's editable fields, decrypted, via `member_for_edit`
+   * (members.manage). `null` for a member that no longer exists.
+   */
+  async getForEdit(id: string): Promise<MemberForEdit | null> {
+    const { data, error } = await this.client.rpc('member_for_edit', {
+      p_member_id: id,
+    });
+
+    if (error) {
+      if (error.message === 'unknown member') return null;
+      throw new Error(error.message);
+    }
+
+    const row = data?.[0];
+
+    if (!row) return null;
+
+    return {
+      membershipNumber: row.membership_number,
+      values: toFormValues(row),
+    };
+  }
+
+  /** Applies only the given fields; `member_update` validates and logs. */
+  async update(id: string, changes: MemberEditChanges): Promise<void> {
+    const { error } = await this.client.rpc('member_update', {
+      p_member_id: id,
+      p_changes: changes,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }

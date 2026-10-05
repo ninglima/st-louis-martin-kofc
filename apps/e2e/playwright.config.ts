@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
+  /* Remove the users, roles and members the specs create (tests/utils/cleanup.ts). */
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -20,8 +23,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
-  /* Ignore billing tests if the environment variable is not set. */
-  testIgnore: [],
+  /* The cold-start suite needs a stack started with SIMULATE_COLD_START_MS. */
+  testIgnore: process.env.E2E_COLD_START === 'true' ? [] : ['**/cold-start/**'],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */

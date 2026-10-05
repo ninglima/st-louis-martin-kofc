@@ -5,6 +5,12 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
+import {
+  DuesStatusBadge,
+  LABEL_BY_STATUS,
+} from '@kit/dues/components/dues-status-badge';
+import type { MemberDuesSummary } from '@kit/dues/types';
+
 import { Badge } from '@kit/ui/badge';
 import { badgeExtras } from '@kit/ui/badge-extras';
 import { Button } from '@kit/ui/button';
@@ -29,8 +35,10 @@ import {
 } from '@kit/ui/table';
 import { cn } from '@kit/ui/utils';
 
+import type { DuesFilter } from '../lib/dues-filter';
 import { exportMembersAction } from '../server/members-actions';
 import type { MemberListRow } from '../server/members.service';
+import { MemberEditDialog } from './member-edit-dialog';
 
 /**
  * Long enough that typing "Smith" is one request rather than five, short
@@ -44,6 +52,14 @@ const DEBOUNCE_MS = 300;
  * free-text columns are allowed to wrap; the short ones keep their single line.
  */
 const WRAP = 'whitespace-normal break-words';
+
+/**
+ * Short, fixed-shape columns shrink to their content (`w-px` on a table
+ * column means "as narrow as the cells allow", and the cells don't wrap), so
+ * the spare width on a wide window goes to Address and City instead of being
+ * spread across every column.
+ */
+const FIT = 'w-px';
 
 function formatLastSeen(value: string | null) {
   if (value === null) return '—';
@@ -73,6 +89,18 @@ const ACCOUNT_LABELS: Record<AccountFilter, string> = {
 };
 
 /**
+ * `finance.view` gates this filter entirely -- it only appears when the
+ * caller passed a `dues` map, which is the same signal that gates the three
+ * dues columns. `DuesFilter` and `parseDuesFilter` themselves live in
+ * `../lib/dues-filter` -- see that file's doc comment for why they can't
+ * live in this `'use client'` component alongside their labels.
+ */
+const DUES_FILTER_LABELS: Record<DuesFilter, string> = {
+  all: 'Any dues status',
+  ...LABEL_BY_STATUS,
+};
+
+/**
  * The sentinel the city Select uses for "no filter".
  *
  * A Select item cannot carry the empty string as its value -- Base UI reads
@@ -91,6 +119,9 @@ export function MembersList({
   page,
   pageSize,
   hasMore,
+  dues,
+  duesFilter = 'all',
+  canEdit = false,
 }: {
   members: MemberListRow[];
   /** The committed term, straight off the URL — never the keystroke in flight. */
@@ -104,6 +135,17 @@ export function MembersList({
   page: number;
   pageSize: number;
   hasMore: boolean;
+  /**
+   * Keyed by member id, one entry per row on this page. `undefined` --
+   * never an empty `Map` -- is what says "the caller has no `finance.view`":
+   * the three dues columns and the status filter render only when this is
+   * present, so no dues data ever reaches the client without the grant.
+   */
+  dues?: Map<string, MemberDuesSummary>;
+  /** The committed `?dues=` value, or `'all'` for no filter. */
+  duesFilter?: DuesFilter;
+  /** members.manage: shows an Edit button per row. */
+  canEdit?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -137,22 +179,27 @@ export function MembersList({
       // Back to page 1: page 4 of "Smith" is almost never a page that exists,
       // and an empty page reads as "no such member".
       startNavigation(() => {
-        router.replace(hrefFor(pathname, { search: term, city, account }, 1), {
-          scroll: false,
-        });
+        router.replace(
+          hrefFor(pathname, { search: term, city, account, duesFilter }, 1),
+          { scroll: false },
+        );
       });
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [term, city, account, router, pathname]);
+  }, [term, city, account, duesFilter, router, pathname]);
 
-  // Both filters commit immediately -- there is no half-typed state to wait
+  // Every filter commits immediately -- there is no half-typed state to wait
   // for, and a debounce on a Select only makes the screen feel broken. Page 1
   // for the same reason the search does it.
   const navigateTo = (next: Partial<Criteria>) => {
     startNavigation(() => {
       router.replace(
-        hrefFor(pathname, { search: term, city, account, ...next }, 1),
+        hrefFor(
+          pathname,
+          { search: term, city, account, duesFilter, ...next },
+          1,
+        ),
         { scroll: false },
       );
     });
@@ -188,6 +235,14 @@ export function MembersList({
 
   const first = members.length === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = (page - 1) * pageSize + members.length;
+
+  // Narrows only what's already on screen -- "Showing X–Y" above stays keyed
+  // to `members.length`, the real page of the roster, not to how many of
+  // those rows also match the filter.
+  const visibleMembers =
+    dues && duesFilter !== 'all'
+      ? members.filter((m) => dues.get(m.id)?.duesStatus === duesFilter)
+      : members;
 
   return (
     <div className="flex w-full flex-col gap-y-4" data-test="members-list">
@@ -283,6 +338,50 @@ export function MembersList({
               </SelectContent>
             </Select>
           </div>
+
+          {/*
+            Gated on `dues` itself, not a separate `canSeeDues` flag: the map
+            is only ever passed by a caller who already checked
+            `finance.view`, so its presence is the one signal this filter
+            needs. Labelled "on this page" because, unlike city and account,
+            it narrows only the rows already fetched rather than requerying
+            the roster -- a member whose status doesn't match is still on
+            the roster, just hidden from this page's table.
+          */}
+          <If condition={dues}>
+            <div className="flex flex-col gap-y-2">
+              <Label htmlFor="members-dues">Dues status (on this page)</Label>
+
+              <Select
+                value={duesFilter}
+                onValueChange={(next) =>
+                  navigateTo({ duesFilter: next as DuesFilter })
+                }
+              >
+                <SelectTrigger
+                  id="members-dues"
+                  data-test="members-dues-filter"
+                  className="w-48"
+                >
+                  <SelectValue>
+                    {(value: string | null) =>
+                      DUES_FILTER_LABELS[(value as DuesFilter | null) ?? 'all']
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+
+                <SelectContent>
+                  {(Object.keys(DUES_FILTER_LABELS) as DuesFilter[]).map(
+                    (option) => (
+                      <SelectItem key={option} value={option}>
+                        {DUES_FILTER_LABELS[option]}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </If>
         </div>
 
         <Button
@@ -305,35 +404,56 @@ export function MembersList({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Member #</TableHead>
+              <TableHead className={FIT}>Member #</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Address</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>Last seen</TableHead>
-              <TableHead>Account</TableHead>
+              <TableHead className={FIT}>Phone</TableHead>
+              <TableHead className="min-w-56">Address</TableHead>
+              <TableHead className="min-w-36">City</TableHead>
+              <TableHead className={FIT}>Last seen</TableHead>
+              <TableHead className={FIT}>Account</TableHead>
+              <If condition={Boolean(dues)}>
+                <TableHead className={FIT}>Level</TableHead>
+                <TableHead className={FIT}>Paid through</TableHead>
+                <TableHead className={FIT}>Status</TableHead>
+              </If>
+              <If condition={canEdit}>
+                <TableHead className={FIT}>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </If>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            <If condition={members.length === 0}>
+            <If condition={visibleMembers.length === 0}>
               <TableRow data-test="members-empty">
-                <TableCell colSpan={8} className="text-muted-foreground">
-                  {search === ''
-                    ? 'No members yet. Import the roster to add them.'
-                    : `No member matches “${search}”.`}
+                <TableCell
+                  colSpan={(dues ? 11 : 8) + (canEdit ? 1 : 0)}
+                  className="text-muted-foreground"
+                >
+                  {members.length > 0
+                    ? 'No member on this page matches that dues status.'
+                    : search === ''
+                      ? 'No members yet. Import the roster to add them.'
+                      : `No member matches “${search}”.`}
                 </TableCell>
               </TableRow>
             </If>
 
-            {members.map((member) => (
+            {visibleMembers.map((member) => (
               <TableRow
                 key={member.id}
                 data-test={`member-row-${member.membershipNumber}`}
               >
                 <TableCell className={WRAP}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span>{member.fullName}</span>
+                    <Link
+                      href={`/home/members/${member.id}`}
+                      className="hover:underline"
+                      data-test="member-name-link"
+                    >
+                      {member.fullName}
+                    </Link>
 
                     <If condition={member.badAddress}>
                       <Badge
@@ -415,6 +535,46 @@ export function MembersList({
                     </Badge>
                   </If>
                 </TableCell>
+
+                <If condition={dues}>
+                  {(duesMap) => {
+                    const memberDues = duesMap.get(member.id);
+
+                    return (
+                      <>
+                        <TableCell>{memberDues?.levelName ?? '—'}</TableCell>
+                        <TableCell>{memberDues?.paidThrough ?? '—'}</TableCell>
+                        <TableCell>
+                          <If condition={memberDues} fallback={<span>—</span>}>
+                            {(row) => (
+                              <span data-test="member-dues-status">
+                                <DuesStatusBadge status={row.duesStatus} />
+                              </span>
+                            )}
+                          </If>
+                        </TableCell>
+                      </>
+                    );
+                  }}
+                </If>
+
+                <If condition={canEdit}>
+                  <TableCell>
+                    <MemberEditDialog
+                      memberId={member.id}
+                      trigger={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-test={`member-edit-${member.id}`}
+                          aria-label={`Edit ${member.fullName}`}
+                        >
+                          Edit
+                        </Button>
+                      }
+                    />
+                  </TableCell>
+                </If>
               </TableRow>
             ))}
           </TableBody>
@@ -445,7 +605,7 @@ export function MembersList({
               <Link
                 href={hrefFor(
                   pathname,
-                  { search, city, account },
+                  { search, city, account, duesFilter },
                   Math.max(page - 1, 1),
                 )}
               />
@@ -462,7 +622,11 @@ export function MembersList({
             nativeButton={false}
             render={
               <Link
-                href={hrefFor(pathname, { search, city, account }, page + 1)}
+                href={hrefFor(
+                  pathname,
+                  { search, city, account, duesFilter },
+                  page + 1,
+                )}
               />
             }
           >
@@ -479,6 +643,12 @@ export interface Criteria {
   search: string;
   city: string;
   account: AccountFilter;
+  /**
+   * Optional: only ever set by a caller who also holds `finance.view`, and
+   * omitted entirely by every existing call site, so an old three-field
+   * `Criteria` object still type-checks unchanged.
+   */
+  duesFilter?: DuesFilter;
 }
 
 /**
@@ -496,6 +666,9 @@ export function hrefFor(pathname: string, criteria: Criteria, page: number) {
   if (criteria.search !== '') params.set('q', criteria.search);
   if (criteria.city !== '') params.set('city', criteria.city);
   if (criteria.account !== 'all') params.set('account', criteria.account);
+  if (criteria.duesFilter && criteria.duesFilter !== 'all') {
+    params.set('dues', criteria.duesFilter);
+  }
   if (page > 1) params.set('page', String(page));
 
   const query = params.toString();

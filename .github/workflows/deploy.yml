@@ -1,0 +1,180 @@
+name: Deploy
+on:
+  workflow_run:
+    workflows: [Workflow]
+    types: [completed]
+    branches: [main]
+  # Manual redeploy (Actions → Deploy → Run workflow, on main). Use it after
+  # changing a repository variable (PORTAL_ORIGIN, ROUTER_ENV, *_MODE, ...),
+  # which does not trigger a deploy on its own.
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: Deploy the portal and the router even if they did not change
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  SITE_URL: ${{ vars.SITE_URL || 'https://kofc-15256.org' }}
+
+jobs:
+  # Decides which apps to deploy: those turbo reports as affected (including
+  # through workspace dependencies) between the last successful deploy and
+  # this commit. With no earlier deploy, or when deploy config changed,
+  # everything deploys.
+  changes:
+    # Workload Identity only trusts refs/heads/main, so a dispatch from any
+    # other branch could not deploy anyway.
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      portal: ${{ steps.affected.outputs.portal }}
+      router: ${{ steps.affected.outputs.router }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+      - id: affected
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_ALL: ${{ inputs.force_all }}
+          TURBO_TELEMETRY_DISABLED: '1'
+        run: |
+          all() { echo "portal=true" >> "$GITHUB_OUTPUT"; echo "router=true" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          if [ "$FORCE_ALL" = "true" ]; then echo "Forced: deploying everything"; all; fi
+
+          # The newest successful run whose `changes` job actually ran: a run
+          # skipped because checks failed can still be reported as a success,
+          # and its commit was never deployed.
+          BASE=""
+          for RUN in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=20" --jq '.workflow_runs[] | "\(.id):\(.head_sha)"'); do
+            RAN=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/${RUN%%:*}/jobs" --jq '[.jobs[] | select(.name == "changes" and .conclusion == "success")] | length')
+            if [ "$RAN" -gt 0 ]; then BASE=${RUN#*:}; break; fi
+          done
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No earlier successful deploy: deploying everything"; all
+          fi
+          echo "Last successful deploy: $BASE"
+
+          if git diff --name-only "$BASE" "$SHA" -- .github/workflows/deploy.yml infra | grep -q .; then
+            echo "Deploy config changed: deploying everything"; all
+          fi
+
+          AFFECTED=$(TURBO_SCM_BASE="$BASE" TURBO_SCM_HEAD="$SHA" npx --yes turbo@2.10.8 ls --affected --output=json | jq -r '.packages.items[].name')
+          echo "Affected packages:"; echo "$AFFECTED"
+          has() { echo "$AFFECTED" | grep -qx "$1"; }
+
+          if has portal; then echo "portal=true" >> "$GITHUB_OUTPUT"; else echo "portal=false" >> "$GITHUB_OUTPUT"; fi
+          if has router || has site; then echo "router=true" >> "$GITHUB_OUTPUT"; else echo "router=false" >> "$GITHUB_OUTPUT"; fi
+
+  portal:
+    needs: changes
+    if: needs.changes.outputs.portal == 'true'
+    runs-on: ubuntu-latest
+    # Only this job authenticates to Google Cloud, so only it may mint an OIDC token.
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE: us-east4-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/portal/portal
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker us-east4-docker.pkg.dev --quiet
+      # GIT_HASH is a build arg because /version is prerendered at build time.
+      # NEXT_PUBLIC_SITE_URL is baked in too: email links are built from it.
+      - name: Build and push
+        run: |
+          docker build -f apps/portal/Dockerfile \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            --build-arg NEXT_PUBLIC_SITE_URL="$SITE_URL" \
+            --build-arg NEXT_PUBLIC_CAPTCHA_SITE_KEY="${{ vars.NEXT_PUBLIC_CAPTCHA_SITE_KEY }}" \
+            --build-arg GIT_HASH="$SHA" \
+            -t "$IMAGE:$SHA" .
+          docker push "$IMAGE:$SHA"
+      # --no-cpu-throttling keeps CPU allocated after the response, so work
+      # scheduled with after() (event-email sends) finishes instead of
+      # stalling until the next request. The service still scales to zero.
+      # Env vars use `^@^` as the list delimiter so values may contain commas.
+      # Email modes default to off; change the repository variables and run
+      # this workflow again to switch them.
+      - name: Deploy to Cloud Run
+        env:
+          DUES_NOTICES_MODE: ${{ vars.DUES_NOTICES_MODE || 'off' }}
+          DUES_NOTICES_FROM: ${{ vars.DUES_NOTICES_FROM }}
+          DUES_NOTICES_REPLY_TO: ${{ vars.DUES_NOTICES_REPLY_TO }}
+          EVENT_EMAILS_MODE: ${{ vars.EVENT_EMAILS_MODE || 'off' }}
+          EVENT_EMAILS_FROM: ${{ vars.EVENT_EMAILS_FROM }}
+          EVENT_EMAILS_REPLY_TO: ${{ vars.EVENT_EMAILS_REPLY_TO }}
+          EMAIL_ALLOWLIST: ${{ vars.EMAIL_ALLOWLIST }}
+        run: |
+          DIGEST=$(gcloud artifacts docker images describe "$IMAGE:$SHA" --format='value(image_summary.digest)')
+          gcloud run deploy portal \
+            --image "$IMAGE@$DIGEST" \
+            --region us-east4 \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --min-instances 0 --max-instances 3 \
+            --cpu 1 --memory 1Gi --no-cpu-throttling \
+            --timeout 300 \
+            --allow-unauthenticated \
+            --set-env-vars "^@^GIT_HASH=$SHA@DUES_NOTICES_MODE=$DUES_NOTICES_MODE@DUES_NOTICES_FROM=$DUES_NOTICES_FROM@DUES_NOTICES_REPLY_TO=$DUES_NOTICES_REPLY_TO@EVENT_EMAILS_MODE=$EVENT_EMAILS_MODE@EVENT_EMAILS_FROM=$EVENT_EMAILS_FROM@EVENT_EMAILS_REPLY_TO=$EVENT_EMAILS_REPLY_TO@EMAIL_ALLOWLIST=$EMAIL_ALLOWLIST" \
+            --set-secrets SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ORIGIN_AUTH=origin-auth:latest,CAPTCHA_SECRET_TOKEN=captcha-secret-token:latest,RESEND_API_KEY=resend-api-key:latest,RESEND_WEBHOOK_SECRET=resend-webhook-secret:latest,DUES_JOBS_SECRET=dues-jobs-secret:latest
+
+  router:
+    needs: [changes, portal]
+    # Runs when the portal was skipped (unchanged), never after it failed.
+    if: >-
+      always() && needs.changes.outputs.router == 'true'
+      && needs.portal.result != 'failure' && needs.portal.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      # An empty PORTAL_ORIGIN deploys a router whose portal paths all 500.
+      # It is empty only before the portal's first deploy: set it to the
+      # Cloud Run URL (runbook 2.4) and run this workflow again.
+      - name: Require PORTAL_ORIGIN
+        if: vars.PORTAL_ORIGIN == ''
+        run: |
+          echo "::error::PORTAL_ORIGIN is not set. Set it to the Cloud Run service URL, then run Deploy again (docs/runbook/hosting.md, 2.4)."
+          exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter site build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
+      # ROUTER_ENV=production deploys the Worker that owns the custom domain
+      # (cutover, runbook section 6); unset deploys the *.workers.dev Worker.
+      - run: pnpm --filter router exec wrangler deploy ${{ vars.ROUTER_ENV == 'production' && '--env production' || '' }} --var "PORTAL_ORIGIN:${{ vars.PORTAL_ORIGIN }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

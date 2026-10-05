@@ -1,0 +1,58 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kofc-router",
+  "main": "src/index.ts",
+  // `@cloudflare/vitest-pool-workers@0.22.0` (the newest release, needed for
+  // its Vitest 4 support) bundles its own pinned `workerd` via `miniflare`,
+  // which as of this writing only understands compatibility dates up to
+  // 2026-08-22 -- a later date makes `test:unit` fail to boot the runtime.
+  // Bump this once a newer `@cloudflare/vitest-pool-workers` release ships.
+  "compatibility_date": "2026-08-22",
+  "assets": {
+    "directory": "../site/out",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash",
+    // A browser navigation (`Sec-Fetch-Mode: navigate`) to a path with no
+    // matching file is answered by `not_found_handling` before the Worker
+    // runs, so without this list every portal page a visitor opens directly
+    // would get the site's 404. These are `PORTAL_PREFIXES` from
+    // `@kit/brand/config/paths`; `routing.test.ts` fails if they drift.
+    "run_worker_first": [
+      "/home",
+      "/home/*",
+      "/auth",
+      "/auth/*",
+      "/update-password",
+      "/update-password/*",
+      "/api",
+      "/api/*",
+      "/version",
+      "/version/*",
+      "/portal-assets",
+      "/portal-assets/*",
+    ],
+  },
+  // PORTAL_ORIGIN is set per environment with --var at deploy time.
+  // ORIGIN_AUTH is a secret: `wrangler secret put ORIGIN_AUTH`.
+  "vars": { "PORTAL_ORIGIN": "" },
+  // Daily dues notices job: wakes the portal and runs the notices job. See
+  // docs/runbook/hosting.md, "Dues notices". DUES_JOBS_SECRET is a secret:
+  // `wrangler secret put DUES_JOBS_SECRET`.
+  "triggers": { "crons": ["0 14 * * *"] },
+  // Attaching the real domain is the cutover (docs/runbook/hosting.md,
+  // section 6): CI deploys with --env production once the ROUTER_ENV
+  // repository variable is `production`. Until then, deploys run without
+  // --env and traffic stays on *.workers.dev. www is not routed here: static
+  // assets answer before the Worker runs, so the Worker could not redirect
+  // it; a Cloudflare redirect rule sends www to the apex instead.
+  "env": {
+    "production": {
+      "routes": [{ "pattern": "kofc-15256.org", "custom_domain": true }],
+      // One origin: the production Worker answers only on the domain.
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": { "PORTAL_ORIGIN": "" },
+    },
+  },
+}

@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@kit/supabase/database';
 
 import type { CreatePaymentParams, Payment, PaymentItem, PaymentStatus } from '../types/payment.types';
+import { resolvePayers, type Payer } from '../lib/payers';
 
 type PaymentsClient = SupabaseClient<Database>;
 
@@ -66,6 +67,36 @@ export class PaymentService {
     return (data ?? []) as Payment[];
   }
 
+  /**
+   * Names the people behind these payments, for the admin Payments table:
+   * the linked member record where there is one, otherwise the account.
+   * Uses whichever client this service holds; the page passes the admin
+   * client, and only renders the column for `payments.manage`.
+   */
+  async getPayers(userIds: string[]): Promise<Record<string, Payer>> {
+    const ids = [...new Set(userIds)];
+
+    if (ids.length === 0) return {};
+
+    const [members, accounts] = await Promise.all([
+      this.client
+        .from('members')
+        .select('id, user_id, first_name, last_name')
+        .in('user_id', ids),
+      this.client.from('accounts').select('id, name, email').in('id', ids),
+    ]);
+
+    if (members.error) {
+      throw new Error(`Failed to fetch payers: ${members.error.message}`);
+    }
+
+    if (accounts.error) {
+      throw new Error(`Failed to fetch payers: ${accounts.error.message}`);
+    }
+
+    return resolvePayers(ids, members.data ?? [], accounts.data ?? []);
+  }
+
   async getPaymentItems(paymentId: string): Promise<PaymentItem[]> {
     const { data, error } = await this.client
       .from('payment_items')
@@ -79,12 +110,30 @@ export class PaymentService {
     return (data ?? []) as PaymentItem[];
   }
 
+  /**
+   * A plain UPDATE of `payments.status`, so the `AFTER UPDATE OF status`
+   * trigger `kit.payments_dues_sync` fires: `succeeded` records the dues
+   * period, `refunded` voids it.
+   *
+   * - `refunded` is terminal here: a late or replayed success event (a
+   *   Stripe PaymentIntent stays `succeeded` after a refund) must not move
+   *   the row back out of it.
+   * - `onlyIfAmount` restricts the write to a row with that exact amount
+   *   (see `WebhookEvent.onlyIfAmount`).
+   *
+   * Because `refunded` is terminal, a refund that later fails or is
+   * reversed leaves the row at `refunded` with its dues period voided. The
+   * webhook mappers log those events at error level (see
+   * `mapStripeWebhookEvent` / `mapSquareWebhookEvent`) for the FS to
+   * reconcile by hand.
+   */
   async updatePaymentStatus(
     adminClient: PaymentsClient,
     providerPaymentId: string,
     status: PaymentStatus,
+    options: { onlyIfAmount?: number } = {},
   ): Promise<void> {
-    const { error } = await adminClient
+    let query = adminClient
       .from('payments')
       .update({
         status,
@@ -92,8 +141,57 @@ export class PaymentService {
       })
       .eq('provider_payment_id', providerPaymentId);
 
+    if (status !== 'refunded') {
+      query = query.neq('status', 'refunded');
+    }
+
+    if (options.onlyIfAmount !== undefined) {
+      query = query.eq('amount', options.onlyIfAmount);
+    }
+
+    const { data, error } = await query.select('id');
+
     if (error) {
       throw new Error(`Failed to update payment status: ${error.message}`);
     }
+
+    if (status === 'refunded' && (data ?? []).length === 0) {
+      await this.explainUnmatchedRefund(
+        adminClient,
+        providerPaymentId,
+        options.onlyIfAmount,
+      );
+    }
+  }
+
+  /** Tells a partial refund (filtered out on purpose) from an unknown one. */
+  private async explainUnmatchedRefund(
+    adminClient: PaymentsClient,
+    providerPaymentId: string,
+    onlyIfAmount: number | undefined,
+  ): Promise<void> {
+    if (onlyIfAmount !== undefined) {
+      const { data: existing } = await adminClient
+        .from('payments')
+        .select('id, amount')
+        .eq('provider_payment_id', providerPaymentId);
+
+      const payment = existing?.[0];
+
+      if (payment) {
+        console.warn('Partial refund ignored; payment status unchanged.', {
+          providerPaymentId,
+          paymentId: payment.id,
+          amount: payment.amount,
+          refundAmount: onlyIfAmount,
+        });
+        return;
+      }
+    }
+
+    console.warn('Refund matched no payment; nothing marked refunded.', {
+      providerPaymentId,
+      onlyIfAmount,
+    });
   }
 }

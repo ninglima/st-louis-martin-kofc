@@ -328,7 +328,7 @@ export function PaymentSettingsForm({
               </If>
 
               <div className="flex items-center gap-x-2">
-                <Button disabled={isPending}>
+                <Button type="submit" disabled={isPending}>
                   <Trans i18nKey="payments.saveSettings" />
                 </Button>
                 <Button

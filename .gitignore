@@ -65,6 +65,7 @@ yarn-error.log*
 .idea/sonarlint/
 .idea/httpRequests
 .idea/caches/build_file_checksums.ser
+.idea/awsToolkit.xml
 *.iws
 .idea_modules/
 
@@ -99,3 +100,4 @@ playwright-report/
 
 # synthetic fixtures generated on demand — never commit real member PII
 packages/features/members/test/fixtures/roster-sample.xlsx
+.run/

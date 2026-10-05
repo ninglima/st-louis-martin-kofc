@@ -126,7 +126,10 @@ export function PageBody(
     className?: string;
   }>,
 ) {
-  const className = cn('flex min-w-0 flex-1 flex-col lg:px-4', props.className);
+  const className = cn(
+    'flex min-w-0 flex-1 flex-col pb-8 lg:px-8',
+    props.className,
+  );
 
   return <div className={className}>{props.children}</div>;
 }
@@ -184,7 +187,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        'flex flex-col gap-4 py-4 sm:py-5 lg:flex-row lg:items-center lg:justify-between',
+        'flex flex-col gap-4 py-4 sm:py-5 lg:flex-row lg:items-center lg:justify-between lg:px-8',
         className,
       )}
     >

@@ -12,7 +12,8 @@
   "exports": {
     "./types": "./src/types/roster.ts",
     "./server/*": "./src/server/*.ts",
-    "./components/*": "./src/components/*.tsx"
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",
@@ -25,6 +26,8 @@
     "next-intl": "catalog:"
   },
   "devDependencies": {
+    "@hookform/resolvers": "catalog:",
+    "@kit/dues": "workspace:*",
     "@kit/next": "workspace:*",
     "@kit/rbac": "workspace:*",
     "@kit/supabase": "workspace:*",
@@ -39,6 +42,7 @@
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
   }

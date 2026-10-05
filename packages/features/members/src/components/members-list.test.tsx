@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MemberDuesSummary } from '@kit/dues/types';
+
 import type { MemberListRow } from '../server/members.service';
 import { hrefFor, MembersList } from './members-list';
 import type { AccountFilter } from './members-list';
@@ -8,12 +10,14 @@ import type { AccountFilter } from './members-list';
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace }),
+  useRouter: () => ({ replace, refresh: vi.fn() }),
   usePathname: () => '/home/members',
 }));
 
 vi.mock('../server/members-actions', () => ({
   exportMembersAction: vi.fn(),
+  loadMemberForEditAction: vi.fn(),
+  updateMemberAction: vi.fn(),
 }));
 
 function member(overrides: Partial<MemberListRow> = {}): MemberListRow {
@@ -34,6 +38,22 @@ function member(overrides: Partial<MemberListRow> = {}): MemberListRow {
   };
 }
 
+function duesSummary(
+  overrides: Partial<MemberDuesSummary> = {},
+): MemberDuesSummary {
+  return {
+    memberId: 'bd1d9c3a-1111-2222-3333-444455556666',
+    duesLevel: 'regular_full',
+    levelName: 'Regular',
+    amountCents: 5800,
+    acceptedOn: '2026-01-01',
+    isStudent: false,
+    paidThrough: '2027-03-14',
+    duesStatus: 'due',
+    ...overrides,
+  };
+}
+
 function render(
   options: {
     members?: MemberListRow[];
@@ -41,6 +61,8 @@ function render(
     city?: string;
     account?: AccountFilter;
     cities?: string[];
+    dues?: Map<string, MemberDuesSummary>;
+    canEdit?: boolean;
   } = {},
 ) {
   return renderToStaticMarkup(
@@ -53,6 +75,8 @@ function render(
       page={1}
       pageSize={50}
       hasMore={false}
+      dues={options.dues}
+      canEdit={options.canEdit}
     />,
   );
 }
@@ -74,6 +98,18 @@ describe('MembersList', () => {
 
     expect(html).not.toContain('data-test="member-no-email"');
     expect(html).toContain('john@example.com');
+  });
+
+  it("links the member's name to their detail page", () => {
+    const html = render({
+      members: [member({ id: 'bd1d9c3a-1111-2222-3333-444455556666' })],
+    });
+
+    expect(html).toContain(
+      'href="/home/members/bd1d9c3a-1111-2222-3333-444455556666"',
+    );
+    expect(html).toContain('data-test="member-name-link"');
+    expect(html).toContain('>John Smith</a>');
   });
 
   it('keeps the no-email marker and the no-account badge apart', () => {
@@ -130,6 +166,47 @@ describe('MembersList', () => {
     expect(html).toContain(
       'href="/home/members?city=Saint+Louis&amp;account=no&amp;page=2"',
     );
+  });
+
+  it('shows no dues columns without a dues map -- finance.view is the gate', () => {
+    // No `dues` prop at all, the shape a caller without `finance.view` sends.
+    // "Paid through" is the header text the column would carry if it were
+    // there, so its absence is the whole test.
+    const html = render();
+
+    expect(html).not.toContain('Paid through');
+    expect(html).not.toContain('data-test="member-dues-status"');
+  });
+
+  it('renders the status badge for a member the dues map covers', () => {
+    const html = render({
+      members: [member({ id: 'bd1d9c3a-1111-2222-3333-444455556666' })],
+      dues: new Map([['bd1d9c3a-1111-2222-3333-444455556666', duesSummary()]]),
+    });
+
+    expect(html).toContain('Paid through');
+    expect(html).toContain('data-test="member-dues-status"');
+  });
+
+  it('offers an Edit button per row only to someone who can edit', () => {
+    expect(render({ canEdit: true })).toContain(
+      'data-test="member-edit-bd1d9c3a-1111-2222-3333-444455556666"',
+    );
+    expect(render()).not.toContain('data-test="member-edit-');
+  });
+
+  it('labels the Edit button with the member it edits, for a screen reader', () => {
+    // The visible text stays the plain "Edit" every row shares; a screen
+    // reader on a 50-row page needs the name to tell them apart.
+    expect(render({ canEdit: true })).toContain('aria-label="Edit John Smith"');
+  });
+
+  it('widens the empty row to cover the Edit column', () => {
+    // react-dom@19.2.8's renderToStaticMarkup serializes this prop as
+    // `colSpan`, not the lowercase `colspan` the brief assumed -- verified
+    // directly against this repo's react-dom before changing the assertion.
+    expect(render({ members: [], canEdit: true })).toContain('colSpan="9"');
+    expect(render({ members: [] })).toContain('colSpan="8"');
   });
 });
 

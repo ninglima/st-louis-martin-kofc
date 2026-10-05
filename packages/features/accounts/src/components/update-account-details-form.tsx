@@ -86,7 +86,7 @@ export function UpdateAccountDetailsForm({
           />
 
           <div>
-            <Button disabled={updateAccountMutation.isPending}>
+            <Button type="submit" disabled={updateAccountMutation.isPending}>
               <Trans i18nKey={'account.updateProfileSubmitLabel'} />
             </Button>
           </div>
