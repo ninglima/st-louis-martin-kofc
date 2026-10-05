@@ -163,8 +163,10 @@ Optional repository **variables** (leave unset for the default):
 - `ROUTER_ENV` — leave unset until cutover; `production` deploys the Worker
   that owns the custom domain (section 6).
 - `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM`, `DUES_NOTICES_REPLY_TO`,
-  `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO` — sections
-  7 and 8. Both modes default to `off`.
+  `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO`,
+  `EMAIL_ALLOWLIST` — sections 7 and 8. Both modes default to `off`.
+  `EMAIL_ALLOWLIST` is a comma-separated list of addresses that may receive
+  live mail; leave unset only when every eligible member should get email.
 
 Changing a variable does not deploy anything by itself: run the Deploy
 workflow afterwards (section 2.5).
@@ -454,11 +456,16 @@ the smoke test below passes.
    `0 14 * * *` runs at 9 a.m. Central during daylight time and 8 a.m. in
    standard time.
 4. **Going live**
-   1. Set the repository variable `DUES_NOTICES_MODE` to `dry-run` and run
+   1. Set the repository variable `EMAIL_ALLOWLIST` to the E2E cohort
+      addresses (comma-separated, e.g. your address first). While this is
+      set, live mode sends only to those addresses; everyone else is
+      skipped and never reaches Resend. Clear it only when the whole
+      roster should receive mail.
+   2. Set the repository variable `DUES_NOTICES_MODE` to `dry-run` and run
       Deploy (2.5). Leave it for a week.
-   2. Check `/home/dues-notices`.
-   3. Switch the variable to `live` and run Deploy again.
-   4. `off` (or unsetting it) stops everything.
+   3. Check `/home/dues-notices`.
+   4. Switch the variable to `live` and run Deploy again.
+   5. `off` (or unsetting it) stops everything.
 5. **Deploy order.** Deploy the migration before or with the app. The pages
    show "Not available yet" until it has run.
 
@@ -487,7 +494,8 @@ section 7: the same Resend account, webhook, API key and jobs secret.
      The sender domain must be verified in Resend.
    - `EVENT_EMAILS_REPLY_TO` (optional).
    - Reused from section 7: `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`,
-     `DUES_JOBS_SECRET`, and the build-time `NEXT_PUBLIC_SITE_URL`. Live mode
+     `DUES_JOBS_SECRET`, the build-time `NEXT_PUBLIC_SITE_URL`, and
+     `EMAIL_ALLOWLIST` (same allowlist gates event emails). Live mode
      refuses to send, and the run records why, when the API key or sender is
      missing or the site URL is not a public https origin.
    - Set these as repository variables and run Deploy (2.5);

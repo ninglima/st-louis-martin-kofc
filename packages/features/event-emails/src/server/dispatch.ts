@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import {
+  isEmailAllowlisted,
+  NOT_ON_ALLOWLIST_ERROR,
+} from '@kit/email/allowlist';
 import { isPlausibleEmail } from '@kit/email/email-format';
 import { type OutgoingEmail, sendBatch, sendEmail } from '@kit/email/resend';
 import type { Database } from '@kit/supabase/database';
@@ -211,6 +215,15 @@ export async function dispatchEventEmails({
             { ok: false, error: INVALID_EMAIL_ERROR, retryable: false },
             attempts,
           );
+          continue;
+        }
+
+        if (!isEmailAllowlisted(row.email, config.allowlist)) {
+          result.skipped += 1;
+          await write(row.emailId, {
+            status: 'dead',
+            error: NOT_ON_ALLOWLIST_ERROR,
+          });
           continue;
         }
 

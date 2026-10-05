@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { parseEmailAllowlist } from '@kit/email/allowlist';
 import { parseMode, siteUrlProblem } from '@kit/email/mode';
 
 import type { NoticesMode } from './types';
@@ -12,6 +13,8 @@ export interface NoticesConfig {
   from: string;
   replyTo: string;
   siteUrl: string;
+  /** Non-null when EMAIL_ALLOWLIST is set: only these addresses get live mail. */
+  allowlist: ReadonlySet<string> | null;
   /** What live mode needs but lacks (a missing env name, or a site URL that
    * is not a public https origin); empty when live can send. */
   missingForLive: string[];
@@ -38,6 +41,7 @@ export function readNoticesConfig(
     from: env.DUES_NOTICES_FROM?.trim() ?? '',
     replyTo: env.DUES_NOTICES_REPLY_TO?.trim() ?? '',
     siteUrl: (env.NEXT_PUBLIC_SITE_URL?.trim() ?? '').replace(/\/+$/, ''),
+    allowlist: parseEmailAllowlist(env.EMAIL_ALLOWLIST),
   };
 
   const missingForLive = [

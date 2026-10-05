@@ -70,6 +70,7 @@ const live = {
   from: 'FS <d@x.org>',
   replyTo: 'fs@x.org',
   siteUrl: 'https://x.org',
+  allowlist: null,
   missingForLive: [],
 };
 
@@ -147,6 +148,46 @@ describe('runDuesNoticesJob', () => {
         }),
       },
     ]);
+  });
+
+  it('skips addresses not on EMAIL_ALLOWLIST and never calls Resend for them', async () => {
+    const { client, updates } = fakeClient();
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ data: [{ id: 're_1' }] }), {
+          status: 200,
+        }),
+    );
+    const result = await runDuesNoticesJob({
+      client,
+      config: { ...live, allowlist: new Set(['a@x.org']) },
+      fetchImpl: fetchImpl as never,
+    });
+    expect(result).toMatchObject({
+      candidates: 2,
+      sent: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'n2',
+          values: {
+            status: 'failed',
+            error: 'not on EMAIL_ALLOWLIST',
+          },
+        },
+        {
+          id: 'n1',
+          values: expect.objectContaining({
+            status: 'sent',
+            resend_email_id: 're_1',
+          }),
+        },
+      ]),
+    );
   });
 
   it('marks notices failed when Resend fails, and still records the run', async () => {

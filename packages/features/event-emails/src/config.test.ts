@@ -76,5 +76,12 @@ describe('readEventEmailsConfig', () => {
     expect(c.replyTo).toBe('fs@example.org');
     expect(c.webhookSecret).toBe('whsec_x');
     expect(c.jobsSecret).toBe('jobs');
+    expect(c.allowlist).toBeNull();
+  });
+
+  it('parses EMAIL_ALLOWLIST', () => {
+    expect(
+      readEventEmailsConfig({ ...full, EMAIL_ALLOWLIST: 'a@b.com' }).allowlist,
+    ).toEqual(new Set(['a@b.com']));
   });
 });

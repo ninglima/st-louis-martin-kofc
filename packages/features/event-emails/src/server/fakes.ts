@@ -10,6 +10,7 @@ export const liveConfig: EventEmailsConfig = {
   from: 'Council Events <events@x.org>',
   replyTo: 'fs@x.org',
   siteUrl: 'https://x.org',
+  allowlist: null,
   missingForLive: [],
 };
 

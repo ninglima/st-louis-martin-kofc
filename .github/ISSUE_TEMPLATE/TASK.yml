@@ -1,0 +1,32 @@
+name: Task
+description: Work item for deploy, dues sim, or docs
+title: ""
+labels: []
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What needs to happen and why
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist of done
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: dropdown
+    id: milestone_hint
+    attributes:
+      label: Milestone
+      options:
+        - M1 Deploy kofc-15256.org
+        - M2 Email allowlist + live Resend
+        - M3 IDCS dues sim
+        - None / other
+    validations:
+      required: true
