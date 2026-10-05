@@ -12,17 +12,7 @@ test.describe('Password Reset Flow', () => {
     const email = `${emailAddress}@makerkit.dev`;
     const auth = new AuthPageObject(page);
 
-    await page.goto('/auth/sign-up');
-
-    await auth.signUp({
-      email,
-      password: 'password',
-      repeatPassword: 'password',
-    });
-
-    await auth.visitConfirmEmailLink(email);
-    await auth.signOut();
-    await page.waitForURL('/');
+    await auth.createConfirmedUser({ email, password: 'password' });
 
     await page.goto('/auth/password-reset');
 

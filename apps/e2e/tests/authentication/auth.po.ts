@@ -2,6 +2,15 @@ import { Page, expect } from '@playwright/test';
 
 import { Mailbox } from '../utils/mailbox';
 
+/**
+ * Local-only Supabase demo project constants (same well-known CLI defaults
+ * as `rbac.po.ts` / `dues.po.ts`). Not secrets; only meaningful on
+ * 127.0.0.1:54321.
+ */
+const SUPABASE_URL = 'http://127.0.0.1:54321';
+const SUPABASE_SERVICE_ROLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+
 export class AuthPageObject {
   private readonly page: Page;
   private readonly mailbox: Mailbox;
@@ -13,10 +22,6 @@ export class AuthPageObject {
 
   goToSignIn() {
     return this.page.goto('/auth/sign-in');
-  }
-
-  goToSignUp() {
-    return this.page.goto('/auth/sign-up');
   }
 
   async signOut() {
@@ -32,18 +37,35 @@ export class AuthPageObject {
     await this.page.click('button[type="submit"]');
   }
 
-  async signUp(params: {
+  /**
+   * Creates a confirmed auth user via the Admin API. Public self sign-up is
+   * disabled; tests that need a member account use this instead of the
+   * removed `/auth/sign-up` form.
+   */
+  async createConfirmedUser(params: {
     email: string;
     password: string;
-    repeatPassword: string;
-  }) {
-    await this.page.waitForTimeout(1000);
+  }): Promise<void> {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: params.email,
+        password: params.password,
+        email_confirm: true,
+      }),
+    });
 
-    await this.page.fill('input[name="email"]', params.email);
-    await this.page.fill('input[name="password"]', params.password);
-    await this.page.fill('input[name="repeatPassword"]', params.repeatPassword);
-
-    await this.page.click('button[type="submit"]');
+    if (!res.ok) {
+      throw new Error(
+        `createConfirmedUser failed for ${params.email}: ` +
+          `${res.status} ${await res.text()}`,
+      );
+    }
   }
 
   async visitConfirmEmailLink(
@@ -67,22 +89,20 @@ export class AuthPageObject {
     return `${value.toFixed(0)}@makerkit.dev`;
   }
 
+  /**
+   * Provisions a confirmed user (admin API) and signs them in, landing on
+   * `path`. Same return contract as before so call sites that promote the
+   * user afterward still receive the email.
+   */
   async signUpFlow(path: string) {
     const email = this.createRandomEmail();
+    const password = 'password';
 
-    await this.page.goto(`/auth/sign-up?next=${path}`);
+    await this.createConfirmedUser({ email, password });
+    await this.page.goto(`/auth/sign-in?next=${path}`);
+    await this.signIn({ email, password });
+    await this.page.waitForURL(`**${path}`);
 
-    await this.signUp({
-      email,
-      password: 'password',
-      repeatPassword: 'password',
-    });
-
-    await this.visitConfirmEmailLink(email);
-
-    // Returned so callers that need to act on this specific user afterwards
-    // (e.g. promoting them to administrator by a direct DB write) don't have
-    // to re-derive or duplicate the random email generation themselves.
     return email;
   }
 
