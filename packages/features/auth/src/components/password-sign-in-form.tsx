@@ -26,9 +26,12 @@ import { PasswordSignInSchema } from '../schemas/password-sign-in.schema';
 export function PasswordSignInForm({
   onSubmit,
   loading,
+  disabled = false,
 }: {
   onSubmit: (params: z.infer<typeof PasswordSignInSchema>) => unknown;
   loading: boolean;
+  /** When true (e.g. Turnstile token not ready yet), the submit control is inert. */
+  disabled?: boolean;
 }) {
   const t = useTranslations('auth');
 
@@ -110,7 +113,7 @@ export function PasswordSignInForm({
           data-test="auth-submit-button"
           className={'group w-full'}
           type="submit"
-          disabled={loading}
+          disabled={loading || disabled}
         >
           <If
             condition={loading}
