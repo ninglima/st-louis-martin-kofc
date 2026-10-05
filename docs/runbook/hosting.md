@@ -151,11 +151,15 @@ Repository **variables**:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_CAPTCHA_SITE_KEY` — Cloudflare Turnstile **site** key for the
-  invisible widget on `/auth/sign-in`. Leave empty only while captcha is
-  intentionally off (local e2e). When set, also put the matching **secret**
-  key in GCP `captcha-secret-token` and enable Turnstile under Supabase →
+  invisible widget on `/auth/sign-in` (and other auth forms). Production value
+  is already the live widget site key. Leave the committed `apps/portal/.env`
+  empty for local e2e; put the site key in ignored `apps/portal/.env.local`
+  for manual local testing. Pair with GCP secret `captcha-secret-token`
+  (Turnstile **secret** key) and enable Turnstile under Supabase →
   Authentication → Attack Protection / Captcha (same keys), then redeploy
-  the portal so the site key is baked into the image.
+  the portal so the site key is baked into the image. Optional:
+  `CAPTCHA_EXPECTED_HOSTNAMES` (comma-separated) for server-side siteverify
+  hostname checks; defaults to the hostname of `NEXT_PUBLIC_SITE_URL`.
 - `PORTAL_ORIGIN` — **cannot be set yet.** This is the Cloud Run service URL,
   which does not exist until the portal has been deployed once. Skip it for
   now; step 2.4 below comes back to it. Until it is set, the `router` job in
