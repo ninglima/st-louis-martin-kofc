@@ -11,6 +11,11 @@ import type { PasswordSignInSchema } from '../schemas/password-sign-in.schema';
 import { AuthErrorAlert } from './auth-error-alert';
 import { PasswordSignInForm } from './password-sign-in-form';
 
+/** When unset, Turnstile is not mounted and sign-in must not wait for a token. */
+const captchaEnabled = Boolean(
+  process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY?.trim(),
+);
+
 export function PasswordSignInContainer({
   onSignIn,
 }: {
@@ -19,9 +24,14 @@ export function PasswordSignInContainer({
   const { captchaToken, resetCaptchaToken } = useCaptchaToken();
   const signInMutation = useSignInWithEmailPassword();
   const isLoading = signInMutation.isPending;
+  const captchaReady = !captchaEnabled || Boolean(captchaToken);
 
   const onSubmit = useCallback(
     async (credentials: z.infer<typeof PasswordSignInSchema>) => {
+      if (captchaEnabled && !captchaToken) {
+        return;
+      }
+
       try {
         const data = await signInMutation.mutateAsync({
           ...credentials,
@@ -46,7 +56,11 @@ export function PasswordSignInContainer({
     <>
       <AuthErrorAlert error={signInMutation.error} />
 
-      <PasswordSignInForm onSubmit={onSubmit} loading={isLoading} />
+      <PasswordSignInForm
+        onSubmit={onSubmit}
+        loading={isLoading}
+        disabled={!captchaReady}
+      />
     </>
   );
 }
