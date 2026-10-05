@@ -389,11 +389,13 @@ the smoke test below passes.
       `MX` and `TXT` records alone (they carry mail). A Worker custom domain
       cannot attach while another record exists for the same name.
 - [ ] Set the repository variable `ROUTER_ENV` to `production` and run the
-      Deploy workflow (2.5). The router deploys as the production Worker,
-      and Cloudflare creates the apex DNS record and certificate. Do not run
-      `wrangler deploy --env production` from your machine: it would publish
-      whatever `apps/site/out` you last built locally instead of the site CI
-      builds from `main`.
+      Deploy workflow (2.5). The router deploys as the production Worker.
+      Prefer **zone routes** on `kofc-15256.org` / `www` when apex DNS is
+      already Cloudflare-proxied (`custom_domain` fails with error 100117
+      until those A/AAAA/CNAME records are removed). Do not run
+      `wrangler deploy --env production` from your machine unless you have
+      just built `apps/site/out` from `main` — otherwise you publish a
+      stale local site build.
 - [ ] Redirect `www` to the apex. Static pages are answered before the
       Worker runs, so the Worker cannot do this:
   - DNS → Records: add `AAAA` `www` → `100::`, **Proxied**.
