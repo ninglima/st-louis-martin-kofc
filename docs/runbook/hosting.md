@@ -163,8 +163,10 @@ Optional repository **variables** (leave unset for the default):
 - `ROUTER_ENV` — leave unset until cutover; `production` deploys the Worker
   that owns the custom domain (section 6).
 - `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM`, `DUES_NOTICES_REPLY_TO`,
-  `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO` — sections
-  7 and 8. Both modes default to `off`.
+  `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO`,
+  `EMAIL_ALLOWLIST` — sections 7 and 8. Both modes default to `off`.
+  `EMAIL_ALLOWLIST` is a comma-separated list of addresses that may receive
+  live mail; leave unset only when every eligible member should get email.
 
 Changing a variable does not deploy anything by itself: run the Deploy
 workflow afterwards (section 2.5).
@@ -387,11 +389,13 @@ the smoke test below passes.
       `MX` and `TXT` records alone (they carry mail). A Worker custom domain
       cannot attach while another record exists for the same name.
 - [ ] Set the repository variable `ROUTER_ENV` to `production` and run the
-      Deploy workflow (2.5). The router deploys as the production Worker,
-      and Cloudflare creates the apex DNS record and certificate. Do not run
-      `wrangler deploy --env production` from your machine: it would publish
-      whatever `apps/site/out` you last built locally instead of the site CI
-      builds from `main`.
+      Deploy workflow (2.5). The router deploys as the production Worker.
+      Prefer **zone routes** on `kofc-15256.org` / `www` when apex DNS is
+      already Cloudflare-proxied (`custom_domain` fails with error 100117
+      until those A/AAAA/CNAME records are removed). Do not run
+      `wrangler deploy --env production` from your machine unless you have
+      just built `apps/site/out` from `main` — otherwise you publish a
+      stale local site build.
 - [ ] Redirect `www` to the apex. Static pages are answered before the
       Worker runs, so the Worker cannot do this:
   - DNS → Records: add `AAAA` `www` → `100::`, **Proxied**.
@@ -454,11 +458,16 @@ the smoke test below passes.
    `0 14 * * *` runs at 9 a.m. Central during daylight time and 8 a.m. in
    standard time.
 4. **Going live**
-   1. Set the repository variable `DUES_NOTICES_MODE` to `dry-run` and run
+   1. Set the repository variable `EMAIL_ALLOWLIST` to the E2E cohort
+      addresses (comma-separated, e.g. your address first). While this is
+      set, live mode sends only to those addresses; everyone else is
+      skipped and never reaches Resend. Clear it only when the whole
+      roster should receive mail.
+   2. Set the repository variable `DUES_NOTICES_MODE` to `dry-run` and run
       Deploy (2.5). Leave it for a week.
-   2. Check `/home/dues-notices`.
-   3. Switch the variable to `live` and run Deploy again.
-   4. `off` (or unsetting it) stops everything.
+   3. Check `/home/dues-notices`.
+   4. Switch the variable to `live` and run Deploy again.
+   5. `off` (or unsetting it) stops everything.
 5. **Deploy order.** Deploy the migration before or with the app. The pages
    show "Not available yet" until it has run.
 
@@ -487,7 +496,8 @@ section 7: the same Resend account, webhook, API key and jobs secret.
      The sender domain must be verified in Resend.
    - `EVENT_EMAILS_REPLY_TO` (optional).
    - Reused from section 7: `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`,
-     `DUES_JOBS_SECRET`, and the build-time `NEXT_PUBLIC_SITE_URL`. Live mode
+     `DUES_JOBS_SECRET`, the build-time `NEXT_PUBLIC_SITE_URL`, and
+     `EMAIL_ALLOWLIST` (same allowlist gates event emails). Live mode
      refuses to send, and the run records why, when the API key or sender is
      missing or the site URL is not a public https origin.
    - Set these as repository variables and run Deploy (2.5);

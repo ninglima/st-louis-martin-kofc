@@ -14,6 +14,7 @@
     "./svix": "./src/svix.ts",
     "./html": "./src/html.ts",
     "./email-format": "./src/email-format.ts",
+    "./allowlist": "./src/allowlist.ts",
     "./mode": "./src/mode.ts",
     "./tracking": "./src/tracking.ts",
     "./webhook": "./src/webhook.ts"

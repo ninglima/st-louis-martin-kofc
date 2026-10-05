@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import {
+  isEmailAllowlisted,
+  NOT_ON_ALLOWLIST_ERROR,
+} from '@kit/email/allowlist';
 import { isPlausibleEmail } from '@kit/email/email-format';
 import type { Database } from '@kit/supabase/database';
 
@@ -104,8 +108,34 @@ export async function runDuesNoticesJob({
 
   try {
     // Invalid addresses never reach Resend: they are marked failed on their
-    // own and the rest of the batch still goes out.
-    const sendable = claimed.filter((n) => isPlausibleEmail(n.email));
+    // own and the rest of the batch still goes out. Allowlist misses are
+    // marked failed with a fixed error and counted as skipped so a later
+    // job cannot leave them stuck in pending (claim only returns inserts).
+    const blocked: ClaimedNotice[] = [];
+    const sendable = claimed.filter((n) => {
+      if (!isPlausibleEmail(n.email)) return false;
+      if (!isEmailAllowlisted(n.email, config.allowlist)) {
+        blocked.push(n);
+        return false;
+      }
+      return true;
+    });
+
+    for (const notice of blocked) {
+      const { error: updateError } = await client
+        .from('dues_notices')
+        .update({ status: 'failed', error: NOT_ON_ALLOWLIST_ERROR })
+        .eq('id', notice.noticeId);
+
+      result.skipped += 1;
+
+      if (updateError) {
+        console.error(
+          `Dues notice ${notice.noticeId} was blocked by EMAIL_ALLOWLIST but could not be recorded:`,
+          updateError,
+        );
+      }
+    }
 
     const emails = sendable.map((n) => {
       const rendered = renderNotice(n, config.siteUrl);
@@ -128,9 +158,19 @@ export async function runDuesNoticesJob({
     const byNotice = new Map<string, SendResult>(
       sendable.map((n, i) => [n.noticeId, sentResults[i]!]),
     );
-    const sent: SendResult[] = claimed.map(
-      (n) =>
-        byNotice.get(n.noticeId) ?? { ok: false, error: INVALID_EMAIL_ERROR },
+    // Allowlist-blocked notices already have a terminal status; do not
+    // overwrite them with INVALID_EMAIL_ERROR below.
+    const blockedIds = new Set(blocked.map((n) => n.noticeId));
+    const toRecord = claimed.filter((n) => !blockedIds.has(n.noticeId));
+    const sent: { notice: ClaimedNotice; outcome: SendResult }[] = toRecord.map(
+      (n) => ({
+        notice: n,
+        outcome:
+          byNotice.get(n.noticeId) ?? {
+            ok: false as const,
+            error: INVALID_EMAIL_ERROR,
+          },
+      }),
     );
 
     // Updated in parallel, after the whole batch: sequentially, one round
@@ -140,9 +180,7 @@ export async function runDuesNoticesJob({
     // matches on the notice_id tag it can see from the moment the email is
     // sent, which closes the remaining gap.
     const outcomes = await Promise.all(
-      sent.map(async (outcome, i) => {
-        const notice = claimed[i]!;
-
+      sent.map(async ({ notice, outcome }) => {
         if (outcome.ok) {
           const { error: updateError } = await client
             .from('dues_notices')

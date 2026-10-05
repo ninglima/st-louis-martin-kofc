@@ -81,4 +81,11 @@ describe('readNoticesConfig', () => {
       else process.env.NEXT_PUBLIC_SITE_URL = previous;
     }
   });
+
+  it('parses EMAIL_ALLOWLIST; empty means unrestricted', () => {
+    expect(readNoticesConfig({}).allowlist).toBeNull();
+    expect(
+      readNoticesConfig({ EMAIL_ALLOWLIST: ' Nick@X.org , a@b.com ' }).allowlist,
+    ).toEqual(new Set(['nick@x.org', 'a@b.com']));
+  });
 });

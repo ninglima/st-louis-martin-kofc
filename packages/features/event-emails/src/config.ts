@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { parseEmailAllowlist } from '@kit/email/allowlist';
 import { type EmailMode, parseMode, siteUrlProblem } from '@kit/email/mode';
 
 export interface EventEmailsConfig {
@@ -10,6 +11,8 @@ export interface EventEmailsConfig {
   from: string;
   replyTo: string;
   siteUrl: string;
+  /** Non-null when EMAIL_ALLOWLIST is set: only these addresses get live mail. */
+  allowlist: ReadonlySet<string> | null;
   /** What live mode needs but lacks (a missing env name, or a site URL that
    * is not a public https origin); empty when live can send. */
   missingForLive: string[];
@@ -35,6 +38,7 @@ export function readEventEmailsConfig(
     from: env.EVENT_EMAILS_FROM?.trim() ?? '',
     replyTo: env.EVENT_EMAILS_REPLY_TO?.trim() ?? '',
     siteUrl: (env.NEXT_PUBLIC_SITE_URL?.trim() ?? '').replace(/\/+$/, ''),
+    allowlist: parseEmailAllowlist(env.EMAIL_ALLOWLIST),
   };
 
   const missingForLive = [

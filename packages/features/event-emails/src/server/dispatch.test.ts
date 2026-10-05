@@ -333,4 +333,43 @@ describe('dispatchEventEmails', () => {
     expect(r.error).toContain('denied');
     spy.mockRestore();
   });
+
+  it('skips addresses not on EMAIL_ALLOWLIST without calling Resend', async () => {
+    const { client, updates } = fakeClient({
+      pages: [
+        [
+          row({ email_id: 'ok', email: 'nick@example.org' }),
+          row({ email_id: 'no', email: 'other@example.org' }),
+        ],
+      ],
+    });
+    const fetchImpl = vi.fn(async () => ok('rid-ok'));
+    const r = await dispatchEventEmails({
+      client,
+      config: {
+        ...liveConfig,
+        allowlist: new Set(['nick@example.org']),
+      },
+      fetchImpl: fetchImpl as never,
+      ...base,
+    });
+    expect(r).toMatchObject({
+      candidates: 2,
+      sent: 1,
+      skipped: 1,
+      failed: 0,
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'no',
+          values: {
+            status: 'dead',
+            error: 'not on EMAIL_ALLOWLIST',
+          },
+        },
+      ]),
+    );
+  });
 });
