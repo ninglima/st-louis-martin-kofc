@@ -117,9 +117,10 @@ jobs:
       # --no-cpu-throttling keeps CPU allocated after the response, so work
       # scheduled with after() (event-email sends) finishes instead of
       # stalling until the next request. The service still scales to zero.
-      # Env vars use `^@^` as the list delimiter so values may contain commas.
-      # Email modes default to off; change the repository variables and run
-      # this workflow again to switch them.
+      # Env vars go through --env-vars-file (YAML), not --set-env-vars: From
+      # headers like `Name <addr@host>` contain `<`/`>` which break gcloud's
+      # dict parser even with a custom delimiter. Email modes default to off;
+      # change the repository variables and run this workflow again to switch.
       - name: Deploy to Cloud Run
         env:
           DUES_NOTICES_MODE: ${{ vars.DUES_NOTICES_MODE || 'off' }}
@@ -131,6 +132,23 @@ jobs:
           EMAIL_ALLOWLIST: ${{ vars.EMAIL_ALLOWLIST }}
         run: |
           DIGEST=$(gcloud artifacts docker images describe "$IMAGE:$SHA" --format='value(image_summary.digest)')
+          python3 -c '
+          import os
+          def emit(key: str, value: str) -> None:
+              escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+              print(f"{key}: \"{escaped}\"")
+          emit("GIT_HASH", os.environ["SHA"])
+          for key in (
+              "DUES_NOTICES_MODE",
+              "DUES_NOTICES_FROM",
+              "DUES_NOTICES_REPLY_TO",
+              "EVENT_EMAILS_MODE",
+              "EVENT_EMAILS_FROM",
+              "EVENT_EMAILS_REPLY_TO",
+              "EMAIL_ALLOWLIST",
+          ):
+              emit(key, os.environ.get(key, ""))
+          ' > /tmp/portal-env.yaml
           gcloud run deploy portal \
             --image "$IMAGE@$DIGEST" \
             --region us-east4 \
@@ -139,7 +157,7 @@ jobs:
             --cpu 1 --memory 1Gi --no-cpu-throttling \
             --timeout 300 \
             --allow-unauthenticated \
-            --set-env-vars "^@^GIT_HASH=$SHA@DUES_NOTICES_MODE=$DUES_NOTICES_MODE@DUES_NOTICES_FROM=$DUES_NOTICES_FROM@DUES_NOTICES_REPLY_TO=$DUES_NOTICES_REPLY_TO@EVENT_EMAILS_MODE=$EVENT_EMAILS_MODE@EVENT_EMAILS_FROM=$EVENT_EMAILS_FROM@EVENT_EMAILS_REPLY_TO=$EVENT_EMAILS_REPLY_TO@EMAIL_ALLOWLIST=$EMAIL_ALLOWLIST" \
+            --env-vars-file=/tmp/portal-env.yaml \
             --set-secrets SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ORIGIN_AUTH=origin-auth:latest,CAPTCHA_SECRET_TOKEN=captcha-secret-token:latest,RESEND_API_KEY=resend-api-key:latest,RESEND_WEBHOOK_SECRET=resend-webhook-secret:latest,DUES_JOBS_SECRET=dues-jobs-secret:latest
 
   router:
