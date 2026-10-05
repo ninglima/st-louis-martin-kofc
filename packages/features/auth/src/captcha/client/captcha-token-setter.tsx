@@ -6,6 +6,9 @@ import { Turnstile, TurnstileProps } from '@marsidev/react-turnstile';
 
 import { Captcha } from './captcha-provider';
 
+/** Stable action for all auth surfaces that share the portal Turnstile widget. */
+export const TURNSTILE_AUTH_ACTION = 'auth';
+
 export function CaptchaTokenSetter(props: {
   siteKey: string | undefined;
   options?: TurnstileProps;
@@ -19,6 +22,7 @@ export function CaptchaTokenSetter(props: {
   const options = props.options ?? {
     options: {
       size: 'invisible',
+      action: TURNSTILE_AUTH_ACTION,
     },
   };
 

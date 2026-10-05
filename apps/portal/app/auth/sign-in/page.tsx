@@ -1,9 +1,6 @@
-import Link from 'next/link';
-
 import { getTranslations } from 'next-intl/server';
 
 import { SignInMethodsContainer } from '@kit/auth/sign-in';
-import { Button } from '@kit/ui/button';
 import { Heading } from '@kit/ui/heading';
 import { Trans } from '@kit/ui/trans';
 
@@ -36,19 +33,6 @@ function SignInPage() {
       </div>
 
       <SignInMethodsContainer paths={paths} providers={authConfig.providers} />
-
-      <div className={'flex justify-center'}>
-        <Button
-          nativeButton={false}
-          variant={'link'}
-          size={'sm'}
-          render={
-            <Link href={pathsConfig.auth.signUp}>
-              <Trans i18nKey={'auth.doNotHaveAccountYet'} />
-            </Link>
-          }
-        />
-      </div>
     </>
   );
 }

@@ -28,7 +28,9 @@ const authConfig = AuthConfigSchema.parse({
   providers: {
     password: process.env.NEXT_PUBLIC_AUTH_PASSWORD === 'true',
     magicLink: process.env.NEXT_PUBLIC_AUTH_MAGIC_LINK === 'true',
-    oAuth: ['google'],
+    // Public self-serve OAuth is disabled; members use email/password.
+    // Keep the OauthProviders UI wired for an empty list (renders nothing).
+    oAuth: [],
   },
 } satisfies z.infer<typeof AuthConfigSchema>);
 

@@ -129,8 +129,9 @@ not something issued by a third party. Remember both: you'll set the same
 values as the router's `ORIGIN_AUTH` and `DUES_JOBS_SECRET` Worker secrets in
 step 2.3. Until email goes live (sections 7 and 8) the two Resend secrets may
 hold a placeholder such as `unset`; the email modes default to `off`, so
-nothing reads them. `captcha-secret-token` may be a placeholder too while
-`NEXT_PUBLIC_CAPTCHA_SITE_KEY` is empty.
+nothing reads them. Once Turnstile is live, replace any placeholder in
+`captcha-secret-token` with the Cloudflare Turnstile **secret** key and set
+the matching site key on `NEXT_PUBLIC_CAPTCHA_SITE_KEY` (see 2.2).
 
 Stripe and Square keys are **not** environment secrets — the portal reads
 them from the `payment_config` table, not `process.env`. There is nothing to
@@ -149,7 +150,16 @@ Repository **variables**:
 - `GCP_RUNTIME_SA` — printed by `setup.sh` (`portal-runtime@<project>.iam.gserviceaccount.com`)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_CAPTCHA_SITE_KEY` (may be left empty)
+- `NEXT_PUBLIC_CAPTCHA_SITE_KEY` — Cloudflare Turnstile **site** key for the
+  invisible widget on `/auth/sign-in` (and other auth forms). Production value
+  is already the live widget site key. Leave the committed `apps/portal/.env`
+  empty for local e2e; put the site key in ignored `apps/portal/.env.local`
+  for manual local testing. Pair with GCP secret `captcha-secret-token`
+  (Turnstile **secret** key) and enable Turnstile under Supabase →
+  Authentication → Attack Protection / Captcha (same keys), then redeploy
+  the portal so the site key is baked into the image. Optional:
+  `CAPTCHA_EXPECTED_HOSTNAMES` (comma-separated) for server-side siteverify
+  hostname checks; defaults to the hostname of `NEXT_PUBLIC_SITE_URL`.
 - `PORTAL_ORIGIN` — **cannot be set yet.** This is the Cloud Run service URL,
   which does not exist until the portal has been deployed once. Skip it for
   now; step 2.4 below comes back to it. Until it is set, the `router` job in
