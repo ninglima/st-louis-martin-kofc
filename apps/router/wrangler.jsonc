@@ -48,7 +48,15 @@
   // it; a Cloudflare redirect rule sends www to the apex instead.
   "env": {
     "production": {
-      "routes": [{ "pattern": "kofc-15256.org", "custom_domain": true }],
+      // Zone route (not custom_domain): apex already has Cloudflare-proxied
+      // DNS. custom_domain fails with 100117 until those records are removed;
+      // a route works with the existing orange-clouded hostname.
+      "routes": [
+        { "pattern": "kofc-15256.org/*", "zone_name": "kofc-15256.org" },
+        { "pattern": "kofc-15256.org", "zone_name": "kofc-15256.org" },
+        { "pattern": "www.kofc-15256.org/*", "zone_name": "kofc-15256.org" },
+        { "pattern": "www.kofc-15256.org", "zone_name": "kofc-15256.org" }
+      ],
       // One origin: the production Worker answers only on the domain.
       "workers_dev": false,
       "preview_urls": false,
