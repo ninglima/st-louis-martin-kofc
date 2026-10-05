@@ -172,6 +172,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
+          # Force relative portal links. An empty .env.production value does
+          # not always clear the shared .env default during next build.
+          NEXT_PUBLIC_PORTAL_URL: ''
       # ROUTER_ENV=production deploys the Worker that owns the custom domain
       # (cutover, runbook section 6); unset deploys the *.workers.dev Worker.
       - run: pnpm --filter router exec wrangler deploy ${{ vars.ROUTER_ENV == 'production' && '--env production' || '' }} --var "PORTAL_ORIGIN:${{ vars.PORTAL_ORIGIN }}"
