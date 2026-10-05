@@ -115,23 +115,15 @@ function AuthButtons() {
         <If condition={features.enableThemeToggle}>
           <ModeToggle />
         </If>
-
-        <Button
-          nativeButton={false}
-          render={<SiteLink href={pathsConfig.auth.signIn} />}
-          variant={'ghost'}
-        >
-          <Trans i18nKey={'auth.signIn'} />
-        </Button>
       </div>
 
       <Button
         nativeButton={false}
-        render={<SiteLink href={pathsConfig.auth.signUp} />}
+        render={<SiteLink href={pathsConfig.auth.signIn} />}
         className="group"
         variant={'default'}
       >
-        <Trans i18nKey={'auth.signUp'} />
+        <Trans i18nKey={'auth.signIn'} />
       </Button>
     </div>
   );

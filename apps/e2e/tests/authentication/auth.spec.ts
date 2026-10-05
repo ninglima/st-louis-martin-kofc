@@ -7,36 +7,22 @@ test.describe('Auth flow', () => {
 
   let email: string;
 
-  test('will sign-up and redirect to the home page', async ({ page }) => {
+  test('will create a user via admin API and sign in', async ({ page }) => {
     const auth = new AuthPageObject(page);
-    await auth.goToSignUp();
 
     email = auth.createRandomEmail();
 
-    console.log(`Signing up with email ${email} ...`);
-
-    const signUp = auth.signUp({
-      email,
-      password: 'password',
-      repeatPassword: 'password',
-    });
-
-    const response = page.waitForResponse((resp) => {
-      return resp.url().includes('auth');
-    });
-
-    await Promise.all([signUp, response]);
-
-    await auth.visitConfirmEmailLink(email);
+    await auth.createConfirmedUser({ email, password: 'password' });
+    await auth.goToSignIn();
+    await auth.signIn({ email, password: 'password' });
 
     await page.waitForURL('**/home');
+    expect(page.url()).toContain('/home');
   });
 
   test('will sign-in with the correct credentials', async ({ page }) => {
     const auth = new AuthPageObject(page);
     await auth.goToSignIn();
-
-    console.log(`Signing in with email ${email} ...`);
 
     await auth.signIn({
       email,
@@ -50,6 +36,12 @@ test.describe('Auth flow', () => {
     await auth.signOut();
 
     expect(page.url()).toContain('/');
+  });
+
+  test('redirects /auth/sign-up to sign-in', async ({ page }) => {
+    await page.goto('/auth/sign-up');
+    await page.waitForURL('**/auth/sign-in');
+    expect(page.url()).toContain('/auth/sign-in');
   });
 });
 

@@ -333,9 +333,9 @@ test.describe('public site', () => {
   test('Sign In is reachable from a phone viewport', async ({ page }) => {
     // The live WordPress council site carries a permanent "Member Login", so
     // losing Sign In on a phone is a regression against the site being
-    // replaced, not merely a missing nicety. Below `md` the header has room
-    // for the logo, the hamburger and Sign Up only, so Sign In moved into the
-    // navigation dropdown rather than off the phone entirely.
+    // replaced, not merely a missing nicety. Public Sign Up is gone; Sign In
+    // is the primary header CTA at every width, and the navigation dropdown
+    // still exposes it for consistency with other mobile nav items.
     await page.setViewportSize({ width: 390, height: 844 });
 
     await page.goto('/');
