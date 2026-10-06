@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(20);
+select plan(24);
 
 -- schema
 select has_table('public', 'dues_levels', 'dues_levels exists');
@@ -39,6 +39,21 @@ select throws_ok(
 select throws_ok(
   format($$ delete from public.dues_periods where member_id = %L $$, :'m1'),
   'P0001', null, 'periods cannot be deleted');
+select is(
+  (select confdeltype = 'c' from pg_constraint where conname = 'dues_periods_member_id_fkey'),
+  true, 'member delete cascades to dues periods');
+select is(
+  (select confdeltype = 'c' from pg_constraint where conname = 'dues_notices_member_id_fkey'),
+  true, 'member delete cascades to dues notices');
+select tests.make_member('100003') as m3 \gset
+insert into public.dues_periods (member_id, level, amount_cents, method, received_on, period_start, period_end)
+values (:'m3', 'regular_contrib', 0, 'opening_balance', '2026-01-01', '2026-01-01', '2027-01-01');
+select lives_ok(
+  format($$ delete from public.members where id = %L $$, :'m3'),
+  'deleting a member removes their dues periods');
+select is_empty(
+  format($$ select 1 from public.dues_periods where member_id = %L $$, :'m3'),
+  'cascaded dues periods are gone');
 
 -- the one allowed transition: voiding. Un-voiding, and any other update to an
 -- already-voided row, must stay rejected so a later task can't loosen the
