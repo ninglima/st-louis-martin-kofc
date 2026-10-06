@@ -31,7 +31,7 @@ describe('DashboardTabsNav', () => {
       container
         .querySelector('[data-test="dashboard-tab-retention"]')
         ?.getAttribute('href'),
-    ).toBe('/home?tab=retention');
+    ).toBe('/home/dashboard?tab=retention');
   });
 });
 

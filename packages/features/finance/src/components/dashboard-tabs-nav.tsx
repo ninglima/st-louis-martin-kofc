@@ -22,7 +22,7 @@ export function DashboardTabsNav({ active }: { active: DashboardTab }) {
       {DASHBOARD_TABS.map((tab) => (
         <Link
           key={tab}
-          href={`/home?tab=${tab}`}
+          href={`/home/dashboard?tab=${tab}`}
           aria-current={tab === active ? 'page' : undefined}
           data-test={`dashboard-tab-${tab}`}
           className={cn(

@@ -22,6 +22,7 @@
   },
   "sections": {
     "home": "Home",
+    "dashboard_finance": "Finance dashboard",
     "payments": "Payments",
     "checkout": "Checkout",
     "payment_settings": "Payment Settings",

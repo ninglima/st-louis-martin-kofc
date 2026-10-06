@@ -8,10 +8,15 @@ export class FinancePageObject {
   }
 
   /**
-   * Optional `query` lets callers land on e.g. `/home?tab=bogus` for the
-   * unknown-tab-falls-back-to-overview scenario, without a second method
-   * that just special-cases the query string.
+   * Optional `query` lets callers land on e.g. `/home/dashboard?tab=bogus`
+   * for the unknown-tab-falls-back-to-overview scenario.
    */
+  goToDashboard(query?: string) {
+    return this.page.goto(
+      query ? `/home/dashboard?${query}` : '/home/dashboard',
+    );
+  }
+
   goToHome(query?: string) {
     return this.page.goto(query ? `/home?${query}` : '/home');
   }

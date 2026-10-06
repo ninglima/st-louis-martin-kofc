@@ -11,7 +11,14 @@ export const SECTIONS = [
   {
     key: 'home',
     label: 'Home',
-    description: 'The main dashboard',
+    description: 'The member home: own dues, payments, and volunteering',
+    verbs: ['view'],
+  },
+  {
+    key: 'dashboard_finance',
+    label: 'Finance dashboard',
+    description:
+      'The council finance dashboard: overview, collection, lapses, and retention',
     verbs: ['view'],
   },
   {

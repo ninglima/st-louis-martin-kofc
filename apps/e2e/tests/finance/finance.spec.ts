@@ -96,7 +96,7 @@ test.describe('finance', () => {
 
     const today = chicagoToday();
 
-    await officerFinance.goToHome();
+    await officerFinance.goToDashboard();
     const hostingBefore = await officerFinance.hostingToDateDollars();
 
     await officerFinance.goToHostingCosts();
@@ -129,7 +129,7 @@ test.describe('finance', () => {
       officerFinance.hostingCostRows().filter({ hasText: '$25.00' }),
     ).toHaveCount(rowsWith25Before + 1);
 
-    await officerFinance.goToHome();
+    await officerFinance.goToDashboard();
     const hostingAfter = await officerFinance.hostingToDateDollars();
 
     expect(hostingAfter).toBeGreaterThan(hostingBefore);
@@ -217,7 +217,15 @@ test.describe('finance', () => {
       // The link being absent is cosmetic. The redirect below is the part
       // that distinguishes a hidden door from a locked one -- same
       // reasoning as `members.spec.ts` scenario 1.
-      await memberRbac.expectSidebarToHide(['Hosting costs']);
+      await memberRbac.expectSidebarToHide(['Hosting costs', 'Dashboard']);
+
+      await memberFinance.goToDashboard();
+
+      await memberPage.waitForURL('**/home');
+      expect(memberPage.url()).not.toContain('/dashboard');
+      await expect(
+        memberPage.locator('[data-test="finance-dashboard"]'),
+      ).toHaveCount(0);
 
       await memberFinance.goToHostingCosts();
 
@@ -267,7 +275,7 @@ test.describe('finance', () => {
     });
     await expect(officerDues.duesStatus()).toHaveText('Current');
 
-    await officerFinance.goToHome();
+    await officerFinance.goToDashboard();
 
     await expect(
       officerPage.locator('[data-test="dashboard-tab-overview"]'),
@@ -313,7 +321,7 @@ test.describe('finance', () => {
   });
 
   test('5. an unknown tab falls back to Overview', async () => {
-    await officerFinance.goToHome('tab=bogus');
+    await officerFinance.goToDashboard('tab=bogus');
 
     await expect(
       officerPage.locator('[data-test="dashboard-tab-overview"]'),

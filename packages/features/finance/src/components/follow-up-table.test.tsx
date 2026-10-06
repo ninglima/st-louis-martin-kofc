@@ -50,7 +50,7 @@ describe('FollowUpTable', () => {
 
     expect(container.textContent).toContain('3 lapsed members');
     const link = container.querySelector('[data-test="follow-up-lapsed-link"]');
-    expect(link?.getAttribute('href')).toBe('/home?tab=lapses');
+    expect(link?.getAttribute('href')).toBe('/home/dashboard?tab=lapses');
   });
 
   it('uses the singular for exactly one lapsed member', () => {
