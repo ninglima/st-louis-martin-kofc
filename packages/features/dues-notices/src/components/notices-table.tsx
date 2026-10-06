@@ -103,10 +103,22 @@ function NoticeTableRow({
       {expanded ? (
         <TableRow>
           <TableCell colSpan={6}>
+            {row.error ? (
+              <p
+                className="text-destructive mb-2 text-sm"
+                data-test="dues-notice-error"
+              >
+                {row.error}
+              </p>
+            ) : null}
             {isPending || events === null ? (
               <p className="text-muted-foreground text-sm">Loading…</p>
             ) : events.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No events yet.</p>
+              <p className="text-muted-foreground text-sm">
+                {row.error
+                  ? 'No delivery events (the email never reached Resend).'
+                  : 'No events yet.'}
+              </p>
             ) : (
               <ul
                 data-test="dues-notice-events"

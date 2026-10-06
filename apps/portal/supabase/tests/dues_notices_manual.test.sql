@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(12);
+select plan(14);
 
 select tests.make_user('dn-man-admin@example.com', 'administrator') as admin \gset
 select tests.make_user('dn-man-knight@example.com', 'member') as knight \gset
@@ -37,12 +37,15 @@ select is((select status from public.dues_notices n
             where n.member_id = :'outm' and n.kind = 'due_date' and n.mode = 'live'),
           'pending', 'stored as pending live');
 
--- 4 conflict: second claim returns nothing
+-- 4 resend: second claim replaces the prior live row
 select is((select count(*)::int from kit.dues_notices_manual_claim_at(
-             'due_date', array[:'outm'::uuid], '2040-10-15')), 0,
-          'second manual claim for the same kind+cycle returns nothing');
+             'due_date', array[:'outm'::uuid], '2040-10-15')), 1,
+          'second manual claim replaces the prior live notice');
+select is((select count(*)::int from public.dues_notices n
+            where n.member_id = :'outm' and n.kind = 'due_date' and n.mode = 'live'),
+          1, 'still one live row for the kind+cycle after resend');
 
--- 5 eligible marks already_sent
+-- 5 eligible still marks already_sent (informational; UI allows re-send)
 select is((select already_sent from kit.dues_notices_manual_eligible_at('due_date', '2040-10-15')
             where membership_number = 'DNM-OUT'), true,
           'eligible list marks already sent');
