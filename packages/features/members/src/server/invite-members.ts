@@ -5,10 +5,7 @@ import { isPlausibleEmail } from '@kit/email/email-format';
 
 import { MAX_MEMBER_INVITES } from '../lib/member-invite';
 import type { MemberInviteResult, MemberInviteRow } from '../lib/member-invite';
-import {
-  memberInviteConfirmUrl,
-  renderMemberInvite,
-} from '../templates/invite';
+import { memberInviteConfirmUrl } from '../templates/invite';
 import type { MemberInvitesConfig } from './invite-config';
 
 export const INVITES_OFF = 'Member invites are turned off.';

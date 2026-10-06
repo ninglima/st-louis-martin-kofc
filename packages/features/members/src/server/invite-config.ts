@@ -1,7 +1,4 @@
-import {
-  isEmailAllowlisted,
-  parseEmailAllowlist,
-} from '@kit/email/allowlist';
+import { parseEmailAllowlist } from '@kit/email/allowlist';
 import { parseMode, siteUrlProblem, type EmailMode } from '@kit/email/mode';
 
 export interface MemberInvitesConfig {

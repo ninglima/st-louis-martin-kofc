@@ -26,6 +26,8 @@ import type { ManualEligibleMember, NoticeKind } from '../types';
 
 const KINDS = Object.keys(KIND_LABELS) as NoticeKind[];
 
+const NO_MEMBERS: ManualEligibleMember[] = [];
+
 export function ManualSendPanel({
   membersByKind,
   allowlistActive,
@@ -41,7 +43,7 @@ export function ManualSendPanel({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const members = membersByKind[kind] ?? [];
+  const members = membersByKind[kind] ?? NO_MEMBERS;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
