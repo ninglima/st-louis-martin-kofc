@@ -7,7 +7,7 @@ import { AuthLayoutShell } from '@kit/auth/shared';
 
 import { AppLogo } from '@kit/brand/app-logo';
 import { AuthFormSkeleton } from '@kit/brand/skeletons/page-skeletons';
-import pathsConfig from '@kit/brand/config/paths';
+import { afterPasswordUpdatePath } from '~/lib/after-password-update-path';
 import { requireUserInServerComponent } from '~/lib/server/require-user-in-server-component';
 
 export const generateMetadata = async () => {
@@ -44,7 +44,7 @@ async function UpdatePassword(props: UpdatePasswordPageProps) {
   await requireUserInServerComponent();
 
   const { callback } = await props.searchParams;
-  const redirectTo = callback ?? pathsConfig.app.home;
+  const redirectTo = afterPasswordUpdatePath(callback);
 
   return <UpdatePasswordForm redirectTo={redirectTo} />;
 }

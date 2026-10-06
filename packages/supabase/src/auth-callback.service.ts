@@ -75,10 +75,14 @@ class AuthCallbackService {
 
     const errorPath = params.errorPath ?? '/auth/callback/error';
 
-    // remove the query params from the url
+    // Drop the params this handler consumed. `callback` is the post-verify
+    // path (invite links pass an absolute URL). Leaving it on the URL makes
+    // /update-password treat it as the success-button target, which reloads
+    // the password screen.
     searchParams.delete('token_hash');
     searchParams.delete('type');
     searchParams.delete('next');
+    searchParams.delete('callback');
 
     // if we have a next path, we redirect to that path
     if (nextPath) {
