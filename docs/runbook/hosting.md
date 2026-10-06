@@ -253,10 +253,11 @@ the Workflow on `main` (section 2.5). The router deploys to
 ### 2.5. How deploys run
 
 Every push to `main` runs the checks and, when they pass, the deploy jobs in
-the same `Workflow` (`workflow.yml`). A matrix runs **Unit** always and **E2E**
-when `ENABLE_E2E_JOB` is `true`. The `changes` job then compares the commit
-with the last successfully deployed one (`turbo ls --affected`, which follows
-workspace dependencies) and deploys only what changed:
+the same `Workflow` (`workflow.yml`). **Unit** always runs; **E2E** runs only
+when the repository variable `ENABLE_E2E_JOB` is `true` (default `false`). The
+`changes` job then compares the commit with the last successfully deployed one
+(`turbo ls --affected`, which follows workspace dependencies) and deploys only
+what changed:
 
 - the **portal** when `apps/portal` or any package it depends on changed
   (migrations under `apps/portal/supabase` count);

@@ -26,23 +26,13 @@ env:
   SITE_URL: ${{ vars.SITE_URL || 'https://kofc-15256.org' }}
 
 jobs:
-  check:
-    name: ${{ matrix.name }}
-    timeout-minutes: ${{ matrix.timeout }}
+  # Optional E2E is a separate job (not a dynamic matrix include): job-level
+  # `if` cannot use `matrix`, and custom `vars.*` in matrix expressions trip
+  # the Actions language service when the variable is unset.
+  unit:
+    name: Unit
+    timeout-minutes: 15
     runs-on: ubuntu-latest
-    # E2E stays in the matrix but is skipped unless the repo variable is set.
-    if: ${{ matrix.suite != 'e2e' || vars.ENABLE_E2E_JOB == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Unit
-            suite: unit
-            timeout: 15
-          - name: E2E
-            suite: e2e
-            timeout: 12
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,16 +56,13 @@ jobs:
         run: pnpm install
 
       - name: Typecheck
-        if: matrix.suite == 'unit'
         run: pnpm run typecheck
 
       - name: Lint
-        if: matrix.suite == 'unit'
         run: pnpm run lint
 
       # Runs before the unit tests: the router's tests serve apps/site/out.
       - name: Build static site (split guard)
-        if: matrix.suite == 'unit'
         run: pnpm --filter site build
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
@@ -83,18 +70,42 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://kofc-15256.org
 
       - name: Unit tests
-        if: matrix.suite == 'unit'
         run: pnpm turbo test:unit
 
+  e2e:
+    name: E2E
+    timeout-minutes: 12
+    runs-on: ubuntu-latest
+    if: vars.ENABLE_E2E_JOB == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Install dependencies
+        run: pnpm install
+
       - name: Store Playwright's Version
-        if: matrix.suite == 'e2e'
         run: |
           PLAYWRIGHT_VERSION=$(pnpm ls @playwright/test --filter web-e2e | grep @playwright | sed 's/.*@//')
           echo "Playwright's Version: $PLAYWRIGHT_VERSION"
           echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> "$GITHUB_ENV"
 
       - name: Cache Playwright Browsers for Playwright's Version
-        if: matrix.suite == 'e2e'
         id: cache-playwright-browsers
         uses: actions/cache@v4
         with:
@@ -102,37 +113,31 @@ jobs:
           key: playwright-browsers-${{ env.PLAYWRIGHT_VERSION }}
 
       - name: Install Playwright Browsers
-        if: matrix.suite == 'e2e' && steps.cache-playwright-browsers.outputs.cache-hit != 'true'
+        if: steps.cache-playwright-browsers.outputs.cache-hit != 'true'
         run: pnpm exec ./apps/e2e/node_modules/.bin/playwright install --with-deps
 
       - name: Supabase CLI
-        if: matrix.suite == 'e2e'
         uses: supabase/setup-cli@v1
 
       - name: Supabase Server
-        if: matrix.suite == 'e2e'
         run: pnpm run supabase:web:start -- -x studio,migra,deno-relay,pgadmin-schema-diff,imgproxy,logflare
 
       - name: Run Next.js Production Build (test env)
-        if: matrix.suite == 'e2e'
         run: pnpm --filter portal build:test
 
       - name: Run Next.js Server
-        if: matrix.suite == 'e2e'
         run: pnpm --filter portal start:test &
 
       - name: Run Playwright tests
-        if: matrix.suite == 'e2e'
         run: |
           echo "Running Playwright tests."
           pnpm run test
 
       - name: Run Supabase tests
-        if: matrix.suite == 'e2e'
         run: pnpm --filter portal supabase:test
 
       - uses: actions/upload-artifact@v4
-        if: matrix.suite == 'e2e' && always()
+        if: always()
         with:
           name: playwright-report
           path: apps/e2e/playwright-report/
@@ -143,12 +148,13 @@ jobs:
   # this commit. With no earlier deploy, or when deploy config changed,
   # everything deploys.
   changes:
-    needs: check
+    needs: [unit, e2e]
     # Workload Identity only trusts refs/heads/main, so a dispatch from any
     # other branch could not deploy anyway. PRs and pushes to `dev` stop here.
     if: >-
       always()
-      && needs.check.result == 'success'
+      && needs.unit.result == 'success'
+      && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
       && (
         (github.event_name == 'push' && github.ref == 'refs/heads/main')
         || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
