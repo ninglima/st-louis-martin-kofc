@@ -180,8 +180,8 @@ jobs:
           FORCE_ALL: ${{ inputs.force_all }}
           TURBO_TELEMETRY_DISABLED: '1'
         run: |
-          # Write the outputs once, at the end. `exit` from a helper drops
-          # every line but the last, and the portal job then never starts.
+          # Write both flags once, at the end, and print them. The portal job
+          # reads these after this step finishes.
           deploy_all=false
 
           if [ "$FORCE_ALL" = "true" ]; then
@@ -214,21 +214,30 @@ jobs:
           fi
 
           if [ "$deploy_all" = true ]; then
-            echo "portal=true" >> "$GITHUB_OUTPUT"
-            echo "router=true" >> "$GITHUB_OUTPUT"
+            deploy_portal=true
+            deploy_router=true
           else
             AFFECTED=$(TURBO_SCM_BASE="$BASE" TURBO_SCM_HEAD="$SHA" npx --yes turbo@2.10.8 ls --affected --output=json | jq -r '.packages.items[].name')
             echo "Affected packages:"; echo "$AFFECTED"
             has() { echo "$AFFECTED" | grep -qx "$1"; }
 
-            if has portal; then echo "portal=true" >> "$GITHUB_OUTPUT"; else echo "portal=false" >> "$GITHUB_OUTPUT"; fi
-            if has router || has site; then echo "router=true" >> "$GITHUB_OUTPUT"; else echo "router=false" >> "$GITHUB_OUTPUT"; fi
+            if has portal; then deploy_portal=true; else deploy_portal=false; fi
+            if has router || has site; then deploy_router=true; else deploy_router=false; fi
           fi
+
+          echo "Deploy flags: portal=$deploy_portal router=$deploy_router"
+          echo "portal=$deploy_portal" >> "$GITHUB_OUTPUT"
+          echo "router=$deploy_router" >> "$GITHUB_OUTPUT"
 
   portal:
     name: Deploy portal
     needs: changes
-    if: needs.changes.outputs.portal == 'true'
+    # E2E stays skipped unless ENABLE_E2E_JOB is set. A skipped job skips
+    # every job after it unless that job opts in with always(), so this
+    # condition never ran and the portal image never shipped.
+    if: >-
+      always() && needs.changes.result == 'success'
+      && needs.changes.outputs.portal == 'true'
     runs-on: ubuntu-24.04
     # Only this job authenticates to Google Cloud, so only it may mint an OIDC token.
     permissions:
