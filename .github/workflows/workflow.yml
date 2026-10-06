@@ -30,18 +30,12 @@ jobs:
     name: ${{ matrix.name }}
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-latest
-    # E2E stays in the matrix but is skipped unless the repo variable is set.
-    if: ${{ matrix.suite != 'e2e' || vars.ENABLE_E2E_JOB == 'true' }}
     strategy:
       fail-fast: false
+      # Build the matrix here (not in a job-level `if`): `matrix` is not
+      # available in job `if`, so optional E2E is included only when enabled.
       matrix:
-        include:
-          - name: Unit
-            suite: unit
-            timeout: 15
-          - name: E2E
-            suite: e2e
-            timeout: 12
+        include: ${{ fromJSON(vars.ENABLE_E2E_JOB == 'true' && '[{"name":"Unit","suite":"unit","timeout":15},{"name":"E2E","suite":"e2e","timeout":12}]' || '[{"name":"Unit","suite":"unit","timeout":15}]') }}
 
     steps:
       - uses: actions/checkout@v4
