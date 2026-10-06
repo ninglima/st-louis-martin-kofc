@@ -76,3 +76,23 @@ export interface Unreachable {
 export type NoticesActionResult =
   | { success: true }
   | { success: false; error: string };
+
+export interface ManualEligibleMember {
+  memberId: string;
+  firstName: string;
+  lastName: string;
+  membershipNumber: string;
+  email: string;
+  cycleDate: string;
+  alreadySent: boolean;
+}
+
+export type ManualSendResult =
+  | {
+      success: true;
+      candidates: number;
+      sent: number;
+      skipped: number;
+      failed: number;
+    }
+  | { success: false; error: string };

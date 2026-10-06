@@ -13,6 +13,7 @@
     "./resend": "./src/resend.ts",
     "./svix": "./src/svix.ts",
     "./html": "./src/html.ts",
+    "./branded-layout": "./src/branded-layout.ts",
     "./email-format": "./src/email-format.ts",
     "./allowlist": "./src/allowlist.ts",
     "./mode": "./src/mode.ts",

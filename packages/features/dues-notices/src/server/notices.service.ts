@@ -4,6 +4,7 @@ import type { Database } from '@kit/supabase/database';
 
 import type {
   LastNotice,
+  ManualEligibleMember,
   MemberNoticeHistoryRow,
   NoticeEvent,
   NoticeKind,
@@ -145,5 +146,22 @@ export class NoticesService {
       p_opt_out: optOut,
     });
     if (error) throw error;
+  }
+
+  async manualEligible(kind: NoticeKind): Promise<ManualEligibleMember[]> {
+    const { data, error } = await this.client.rpc(
+      'dues_notices_manual_eligible',
+      { p_kind: kind },
+    );
+    if (error) throw error;
+    return (data ?? []).map((r) => ({
+      memberId: r.member_id,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      membershipNumber: r.membership_number,
+      email: r.email,
+      cycleDate: r.cycle_date,
+      alreadySent: r.already_sent,
+    }));
   }
 }

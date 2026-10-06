@@ -125,4 +125,19 @@ describe('renderNotice', () => {
       'reply to this email',
     );
   });
+
+  it('wraps HTML in the branded council layout with a Pay dues CTA', () => {
+    const n = renderNotice(base, 'https://council.example.org');
+    expect(n.html).toContain(
+      'https://kofc-15256.org/images/brand/kofc_r_hz_rgb_pos.png',
+    );
+    expect(n.html).toContain(
+      'Knights of Columbus St. Louis Martin Council #15256',
+    );
+    expect(n.html).toContain('background-color: #003595');
+    expect(n.html).toContain('Pay dues');
+    expect(n.html).toContain(
+      'href="https://council.example.org/home/checkout"',
+    );
+  });
 });
