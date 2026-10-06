@@ -162,8 +162,8 @@ Repository **variables**:
   hostname checks; defaults to the hostname of `NEXT_PUBLIC_SITE_URL`.
 - `PORTAL_ORIGIN` — **cannot be set yet.** This is the Cloud Run service URL,
   which does not exist until the portal has been deployed once. Skip it for
-  now; step 2.4 below comes back to it. Until it is set, the `router` job in
-  `deploy.yml` fails on purpose instead of deploying a router whose portal
+  now; step 2.4 below comes back to it. Until it is set, the `Deploy router` job in
+  `workflow.yml` fails on purpose instead of deploying a router whose portal
   paths would all return 500.
 
 Optional repository **variables** (leave unset for the default):
@@ -236,8 +236,8 @@ The first deploy is the merge of the branch that renamed `apps/web` to
       database).
 
 Merge to `main` once with the variables above in place (`PORTAL_ORIGIN` still
-unset). The `portal` job in `deploy.yml` builds and deploys the portal to
-Cloud Run; the `router` job then fails with "PORTAL_ORIGIN is not set". That
+unset). The `Deploy portal` job in `workflow.yml` builds and deploys the portal to
+Cloud Run; the `Deploy router` job then fails with "PORTAL_ORIGIN is not set". That
 failure is expected.
 
 Once the portal has deployed at least once, get its URL:
@@ -247,33 +247,35 @@ gcloud run services describe portal --region us-east4 --format 'value(status.url
 ```
 
 Set that URL as the `PORTAL_ORIGIN` repository variable in GitHub, then run
-the Deploy workflow (section 2.5). The router deploys to
+the Workflow on `main` (section 2.5). The router deploys to
 `kofc-router.<account-subdomain>.workers.dev` with the real portal origin.
 
 ### 2.5. How deploys run
 
-Every push to `main` runs the checks (`Workflow`); when they pass, `Deploy`
-runs. Its `changes` job compares the commit with the last successfully
-deployed one (`turbo ls --affected`, which follows workspace dependencies) and
-deploys only what changed:
+Every push to `main` runs the checks and, when they pass, the deploy jobs in
+the same `Workflow` (`workflow.yml`). A matrix runs **Unit** always and **E2E**
+when `ENABLE_E2E_JOB` is `true`. The `changes` job then compares the commit
+with the last successfully deployed one (`turbo ls --affected`, which follows
+workspace dependencies) and deploys only what changed:
 
 - the **portal** when `apps/portal` or any package it depends on changed
   (migrations under `apps/portal/supabase` count);
 - the **router** when `apps/router` or `apps/site` (or a package either
   depends on) changed;
 - **both** when there is no earlier successful deploy, when the lockfile or
-  root config changed, or when `.github/workflows/deploy.yml` or `infra/`
+  root config changed, or when `.github/workflows/workflow.yml` or `infra/`
   changed.
 
 A docs-only merge deploys nothing. When both deploy, the router waits for the
-portal and never deploys after a failed portal deploy.
+portal and never deploys after a failed portal deploy. Pushes and PRs to `dev`
+run checks only.
 
 To redeploy by hand — after changing a repository variable, for example — go
-to Actions → Deploy → **Run workflow** on `main` (`force_all` deploys both),
+to Actions → Workflow → **Run workflow** on `main` (`force_all` deploys both),
 or:
 
 ```bash
-gh workflow run deploy.yml --ref main -f force_all=true
+gh workflow run workflow.yml --ref main -f force_all=true
 ```
 
 ## 3. Migrations
@@ -399,7 +401,7 @@ the smoke test below passes.
       `MX` and `TXT` records alone (they carry mail). A Worker custom domain
       cannot attach while another record exists for the same name.
 - [ ] Set the repository variable `ROUTER_ENV` to `production` and run the
-      Deploy workflow (2.5). The router deploys as the production Worker.
+      Workflow on `main` (2.5). The router deploys as the production Worker.
       Prefer **zone routes** on `kofc-15256.org` / `www` when apex DNS is
       already Cloudflare-proxied (`custom_domain` fails with error 100117
       until those A/AAAA/CNAME records are removed). Do not run
@@ -427,7 +429,7 @@ the smoke test below passes.
 - [ ] Keep WordPress running, unrouted (not receiving traffic — the DNS
       records above removed, but the server left up), for two weeks after
       cutover, in case a rollback of the domain itself is needed: restore
-      the records you wrote down and run Deploy with `ROUTER_ENV` unset.
+      the records you wrote down and run Workflow with `ROUTER_ENV` unset.
 
 ## 7. Dues notices
 
@@ -447,18 +449,18 @@ the smoke test below passes.
    ```
 
    Set the repository variables `DUES_NOTICES_FROM` and (optionally)
-   `DUES_NOTICES_REPLY_TO`, then run the Deploy workflow (2.5) so the portal
+   `DUES_NOTICES_REPLY_TO`, then run the Workflow on `main` (2.5) so the portal
    picks them and the new secret versions up.
 
    The notice emails' "Pay dues" link is built from `NEXT_PUBLIC_SITE_URL`,
    and that value is **baked into the image at build time**: it is the
    `--build-arg NEXT_PUBLIC_SITE_URL=…` on the `docker build` step in
-   `.github/workflows/deploy.yml` (the `SITE_URL` repository variable,
+   `.github/workflows/workflow.yml` (the `SITE_URL` repository variable,
    default `https://kofc-15256.org`), not a Cloud Run env var. Setting it with
    `--set-env-vars` or in the Cloud Run console has no effect on the link
    (at runtime the server would otherwise fall back to the committed
    `apps/portal/.env`, which says `http://localhost:3000`). Confirm the build
-   arg is the public https origin for this environment, and run Deploy
+   arg is the public https origin for this environment, and run Workflow
    (which rebuilds the image) if you change it. Live mode refuses to send — the run shows
    "Live mode needs NEXT_PUBLIC_SITE_URL to be the public https origin…" —
    when the built-in value is missing, not https, or a localhost /
@@ -474,9 +476,9 @@ the smoke test below passes.
       skipped and never reaches Resend. Clear it only when the whole
       roster should receive mail.
    2. Set the repository variable `DUES_NOTICES_MODE` to `dry-run` and run
-      Deploy (2.5). Leave it for a week.
+      Workflow (2.5). Leave it for a week.
    3. Check `/home/dues-notices`.
-   4. Switch the variable to `live` and run Deploy again.
+   4. Switch the variable to `live` and run Workflow again.
    5. `off` (or unsetting it) stops everything.
 5. **Manual test send.** Officers with `finance.manage` see **Send a test
    notice** on `/home/dues-notices`. Pick a timing (30 days before, due date,
@@ -517,8 +519,8 @@ section 7: the same Resend account, webhook, API key and jobs secret.
      `EMAIL_ALLOWLIST` (same allowlist gates event emails). Live mode
      refuses to send, and the run records why, when the API key or sender is
      missing or the site URL is not a public https origin.
-   - Set these as repository variables and run Deploy (2.5);
-     `deploy.yml` passes them to Cloud Run. No new secret is needed.
+   - Set these as repository variables and run Workflow on `main` (2.5);
+     `workflow.yml` passes them to Cloud Run. No new secret is needed.
 3. **Rollout**
    1. Deploy with `EVENT_EMAILS_MODE=off`. Nothing is sent or claimed.
    2. Switch to `dry-run` for a week. Rows are claimed and marked
