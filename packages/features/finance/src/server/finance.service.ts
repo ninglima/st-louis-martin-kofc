@@ -26,9 +26,11 @@ type Client = SupabaseClient<Database>;
 /**
  * Typed wrapper over the finance RPCs. Pass the SIGNED-IN user's client
  * (getSupabaseServerClient), never the admin client: every function checks
- * finance.view / finance.manage against auth.uid(). Errors are thrown as-is so
- * callers keep the Postgres/PostgREST `code` (readDuesIfDeployed and the
- * actions' message mapping both rely on it).
+ * the caller's permissions against auth.uid(). Dashboard reads accept
+ * finance.view or dashboard_finance.view; the rest stay on finance.view /
+ * finance.manage. Errors are thrown as-is so callers keep the
+ * Postgres/PostgREST `code` (readDuesIfDeployed and the actions' message
+ * mapping both rely on it).
  */
 export class FinanceService {
   constructor(private readonly client: Client) {}

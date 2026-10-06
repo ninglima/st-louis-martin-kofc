@@ -100,7 +100,7 @@ export function FollowUpTable({
           <p className="text-muted-foreground mt-3 text-sm">
             {lapsedCount} lapsed member{lapsedCount === 1 ? '' : 's'} —{' '}
             <Link
-              href="/home?tab=lapses"
+              href="/home/dashboard?tab=lapses"
               className="underline underline-offset-2"
               data-test="follow-up-lapsed-link"
             >

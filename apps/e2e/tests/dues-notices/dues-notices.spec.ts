@@ -122,7 +122,7 @@ test.describe('Dues notices (dry run)', () => {
     await expect(row).toHaveCount(1);
     await expect(officerNotices.trackingBadge(row)).toHaveText('Dry run');
 
-    await officerFinance.goToHome('tab=overview');
+    await officerFinance.goToDashboard('tab=overview');
 
     const followUpRow = officerNotices.followUpRow(memberName);
     await expect(followUpRow).toHaveCount(1);

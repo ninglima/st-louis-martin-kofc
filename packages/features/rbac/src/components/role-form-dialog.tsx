@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 
 import { Button } from '@kit/ui/button';
@@ -226,93 +226,7 @@ export function RoleFormDialog({
               )}
             />
 
-            <div className="flex flex-col gap-y-2">
-              <h3 className="text-sm font-medium">Permissions</h3>
-
-              <div className="flex flex-col gap-y-2">
-                {SECTIONS.map((section, index) => {
-                  const manageChecked = Boolean(
-                    permissions?.[index]?.can_manage,
-                  );
-
-                  return (
-                    <div
-                      key={section.key}
-                      className="flex flex-col gap-y-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-x-4"
-                    >
-                      <div className="flex flex-col gap-y-0.5">
-                        <span className="text-sm font-medium">
-                          {t(`sections.${section.key}`)}
-                        </span>
-                        <span className="text-muted-foreground text-xs">
-                          {section.description}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-x-4">
-                        {sectionSupportsVerb(section.key, 'view') && (
-                          <FormField
-                            control={form.control}
-                            name={`permissions.${index}.can_view`}
-                            render={({ field }) => (
-                              <FormItem className="flex items-center gap-x-2 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    data-test={`perm-${section.key}-view`}
-                                    checked={manageChecked ? true : field.value}
-                                    disabled={manageChecked}
-                                    onCheckedChange={(checked) =>
-                                      field.onChange(Boolean(checked))
-                                    }
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-sm font-normal">
-                                  {t('verbs.view')}
-                                </FormLabel>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
-
-                        {sectionSupportsVerb(section.key, 'manage') && (
-                          <FormField
-                            control={form.control}
-                            name={`permissions.${index}.can_manage`}
-                            render={({ field }) => (
-                              <FormItem className="flex items-center gap-x-2 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    data-test={`perm-${section.key}-manage`}
-                                    checked={field.value}
-                                    onCheckedChange={(checked) => {
-                                      const isChecked = Boolean(checked);
-                                      field.onChange(isChecked);
-
-                                      if (isChecked) {
-                                        form.setValue(
-                                          `permissions.${index}.can_view`,
-                                          true,
-                                          { shouldDirty: true },
-                                        );
-                                      }
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-sm font-normal">
-                                  {t('verbs.manage')}
-                                </FormLabel>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <PermissionGroups form={form} permissions={permissions} />
 
             <DialogFooter>
               <Button
@@ -332,5 +246,145 @@ export function RoleFormDialog({
         </Form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PermissionGroups({
+  form,
+  permissions,
+}: {
+  form: UseFormReturn<RoleFormValues>;
+  permissions: RoleFormValues['permissions'] | undefined;
+}) {
+  const t = useTranslations('rbac');
+  const indexed = SECTIONS.map((section, index) => ({ section, index }));
+  const dashboards = indexed.filter(({ section }) =>
+    section.key.startsWith('dashboard_'),
+  );
+  const rest = indexed.filter(
+    ({ section }) => !section.key.startsWith('dashboard_'),
+  );
+
+  return (
+    <>
+      <SectionGroup
+        title="Permissions"
+        rows={rest}
+        form={form}
+        permissions={permissions}
+        t={t}
+      />
+      <SectionGroup
+        title="Dashboards"
+        rows={dashboards}
+        form={form}
+        permissions={permissions}
+        t={t}
+      />
+    </>
+  );
+}
+
+function SectionGroup({
+  title,
+  rows,
+  form,
+  permissions,
+  t,
+}: {
+  title: string;
+  rows: { section: (typeof SECTIONS)[number]; index: number }[];
+  form: UseFormReturn<RoleFormValues>;
+  permissions: RoleFormValues['permissions'] | undefined;
+  t: ReturnType<typeof useTranslations<'rbac'>>;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-y-2">
+      <h3 className="text-sm font-medium">{title}</h3>
+
+      <div className="flex flex-col gap-y-2">
+        {rows.map(({ section, index }) => {
+          const manageChecked = Boolean(permissions?.[index]?.can_manage);
+
+          return (
+            <div
+              key={section.key}
+              className="flex flex-col gap-y-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-x-4"
+            >
+              <div className="flex flex-col gap-y-0.5">
+                <span className="text-sm font-medium">
+                  {t(`sections.${section.key}`)}
+                </span>
+                <span className="text-muted-foreground text-xs">
+                  {section.description}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-x-4">
+                {sectionSupportsVerb(section.key, 'view') && (
+                  <FormField
+                    control={form.control}
+                    name={`permissions.${index}.can_view`}
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-x-2 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            data-test={`perm-${section.key}-view`}
+                            checked={manageChecked ? true : field.value}
+                            disabled={manageChecked}
+                            onCheckedChange={(checked) =>
+                              field.onChange(Boolean(checked))
+                            }
+                          />
+                        </FormControl>
+                        <FormLabel className="text-sm font-normal">
+                          {t('verbs.view')}
+                        </FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {sectionSupportsVerb(section.key, 'manage') && (
+                  <FormField
+                    control={form.control}
+                    name={`permissions.${index}.can_manage`}
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-x-2 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            data-test={`perm-${section.key}-manage`}
+                            checked={field.value}
+                            onCheckedChange={(checked) => {
+                              const isChecked = Boolean(checked);
+                              field.onChange(isChecked);
+
+                              if (isChecked) {
+                                form.setValue(
+                                  `permissions.${index}.can_view`,
+                                  true,
+                                  { shouldDirty: true },
+                                );
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <FormLabel className="text-sm font-normal">
+                          {t('verbs.manage')}
+                        </FormLabel>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

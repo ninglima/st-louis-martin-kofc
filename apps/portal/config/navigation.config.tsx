@@ -4,6 +4,7 @@ import {
   CreditCard,
   HandHeart,
   Home,
+  LayoutDashboard,
   Mail,
   Receipt,
   Settings,
@@ -32,6 +33,13 @@ const routes = [
         // exact match: do not stay highlighted on nested routes like /home/settings
         highlightMatch: `^${pathsConfig.app.home}$`,
         section: 'home',
+        verb: 'view' as const,
+      },
+      {
+        label: 'common.routes.dashboard',
+        path: pathsConfig.app.dashboard,
+        Icon: <LayoutDashboard className={iconClasses} />,
+        section: 'dashboard_finance',
         verb: 'view' as const,
       },
       {
