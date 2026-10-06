@@ -8,6 +8,9 @@ import { defineConfig } from 'vitest/config';
  * environment stays Node.
  */
 export default defineConfig({
+  test: {
+    setupFiles: ['./test/setup.ts'],
+  },
   oxc: {
     jsx: {
       runtime: 'automatic',

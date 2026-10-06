@@ -78,6 +78,12 @@ vi.mock('../providers/square.provider', () => ({
   isDefiniteSquareChargeFailure: () => false,
 }));
 
+const sendPaymentReceiptOnce = vi.fn(async () => undefined);
+
+vi.mock('./send-receipt', () => ({
+  sendPaymentReceiptOnce,
+}));
+
 const { confirmSquarePaymentAction } = await import('./server-actions');
 
 function payment(overrides: Record<string, unknown> = {}) {
@@ -104,6 +110,7 @@ beforeEach(() => {
   h.levels = [
     { slug: 'regular', name: 'Regular', amountCents: 5000, selfService: true },
   ];
+  sendPaymentReceiptOnce.mockClear();
 });
 
 describe('confirmSquarePaymentAction re-checks the row before charging', () => {
@@ -114,6 +121,10 @@ describe('confirmSquarePaymentAction re-checks the row before charging', () => {
     });
     expect(h.charges).toHaveLength(1);
     expect(h.charges[0]).toMatchObject({ amount: 2500 });
+    expect(sendPaymentReceiptOnce).toHaveBeenCalledWith(
+      expect.anything(),
+      PAYMENT_ID,
+    );
   });
 
   it('charges a dues row priced at its level', async () => {
@@ -125,6 +136,7 @@ describe('confirmSquarePaymentAction re-checks the row before charging', () => {
 
     await expect(confirm()).resolves.toMatchObject({ success: true });
     expect(h.charges[0]).toMatchObject({ amount: 5000 });
+    expect(sendPaymentReceiptOnce).toHaveBeenCalled();
   });
 
   it.each([
@@ -147,5 +159,6 @@ describe('confirmSquarePaymentAction re-checks the row before charging', () => {
     expect(result.success).toBe(false);
     expect(h.charges).toHaveLength(0);
     expect(h.updates).toHaveLength(0);
+    expect(sendPaymentReceiptOnce).not.toHaveBeenCalled();
   });
 });

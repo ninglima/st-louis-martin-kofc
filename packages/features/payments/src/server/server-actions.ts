@@ -17,6 +17,7 @@ import { ConfirmSquarePaymentSchema } from '../schemas/confirm-square-payment.sc
 import { PaymentConfigService } from './payment-config.service';
 import { refuseToCharge } from './charge-guard';
 import { PaymentService } from './payment.service';
+import { sendPaymentReceiptOnce } from './send-receipt';
 import { getPaymentProvider } from '../providers/provider-factory';
 import {
   describeSquareChargeError,
@@ -412,6 +413,13 @@ export const confirmSquarePaymentAction = enhanceAction(
         success: false,
         error: 'The payment was not successful.',
       };
+    }
+
+    // Card charges typically land here as `succeeded`. ACH stays
+    // `processing` until the Square webhook moves it; that path sends
+    // the receipt from `PaymentService.updatePaymentStatus`.
+    if (result.status === 'succeeded') {
+      await sendPaymentReceiptOnce(adminClient, payment.id);
     }
 
     return { success: true, status: result.status };

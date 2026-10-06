@@ -12,12 +12,14 @@
   "exports": {
     "./types": "./src/types/payment.types.ts",
     "./provider-types": "./src/types/payment-provider.ts",
+    "./config": "./src/config.ts",
     "./schemas/*": "./src/schemas/*.ts",
     "./server/*": "./src/server/*.ts",
     "./providers/*": "./src/providers/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
-    "./lib/*": "./src/lib/*.ts"
+    "./lib/*": "./src/lib/*.ts",
+    "./templates/*": "./src/templates/*.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .turbo node_modules",
@@ -25,6 +27,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@kit/email": "workspace:*",
     "@kit/i18n": "workspace:*",
     "next-intl": "catalog:",
     "square": "^42.1.0",
@@ -51,6 +54,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
+    "server-only": "catalog:",
     "sonner": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"

@@ -35,6 +35,8 @@ export interface Payment {
   payment_type: PaymentType;
   description: string | null;
   metadata: Record<string, unknown>;
+  receipt_sent_at: string | null;
+  receipt_error: string | null;
   created_at: string;
   updated_at: string;
 }

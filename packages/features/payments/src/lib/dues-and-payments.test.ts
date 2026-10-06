@@ -36,6 +36,8 @@ function payment(overrides: Partial<Payment>): Payment {
     payment_type: 'dues',
     description: null,
     metadata: {},
+    receipt_sent_at: null,
+    receipt_error: null,
     created_at: '2026-09-15T15:00:00Z',
     updated_at: '2026-09-15T15:00:00Z',
     ...overrides,

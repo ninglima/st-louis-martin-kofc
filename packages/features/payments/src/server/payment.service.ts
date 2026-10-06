@@ -4,6 +4,7 @@ import type { Database, Json } from '@kit/supabase/database';
 
 import type { CreatePaymentParams, Payment, PaymentItem, PaymentStatus } from '../types/payment.types';
 import { resolvePayers, type Payer } from '../lib/payers';
+import { sendPaymentReceiptOnce } from './send-receipt';
 
 type PaymentsClient = SupabaseClient<Database>;
 
@@ -118,6 +119,8 @@ export class PaymentService {
    * - `refunded` is terminal here: a late or replayed success event (a
    *   Stripe PaymentIntent stays `succeeded` after a refund) must not move
    *   the row back out of it.
+   * - First transition to `succeeded` also triggers a branded receipt email
+   *   (Square card confirm calls the same helper on its direct write path).
    * - `onlyIfAmount` restricts the write to a row with that exact amount
    *   (see `WebhookEvent.onlyIfAmount`).
    *
@@ -145,6 +148,12 @@ export class PaymentService {
       query = query.neq('status', 'refunded');
     }
 
+    // First success only: a replayed webhook (or Square COMPLETED after
+    // confirm already set succeeded) must not re-enter the receipt path.
+    if (status === 'succeeded') {
+      query = query.neq('status', 'succeeded');
+    }
+
     if (options.onlyIfAmount !== undefined) {
       query = query.eq('amount', options.onlyIfAmount);
     }
@@ -153,6 +162,12 @@ export class PaymentService {
 
     if (error) {
       throw new Error(`Failed to update payment status: ${error.message}`);
+    }
+
+    if (status === 'succeeded') {
+      for (const row of data ?? []) {
+        await sendPaymentReceiptOnce(adminClient, row.id);
+      }
     }
 
     if (status === 'refunded' && (data ?? []).length === 0) {
