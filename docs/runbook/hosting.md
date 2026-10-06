@@ -174,7 +174,8 @@ Optional repository **variables** (leave unset for the default):
   that owns the custom domain (section 6).
 - `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM`, `DUES_NOTICES_REPLY_TO`,
   `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO`,
-  `EMAIL_ALLOWLIST` — sections 7 and 8. Both modes default to `off`.
+  `PAYMENT_RECEIPTS_MODE`, `PAYMENT_RECEIPTS_FROM`, `PAYMENT_RECEIPTS_REPLY_TO`,
+  `EMAIL_ALLOWLIST` — sections 7, 8 and 9. Modes default to `off`.
   `EMAIL_ALLOWLIST` is a comma-separated list of addresses that may receive
   live mail; leave unset only when every eligible member should get email.
 
@@ -559,3 +560,43 @@ section 7: the same Resend account, webhook, API key and jobs secret.
    daily job after about 4 minutes (240 seconds); anything left is picked up
    by the next run. A very large sign-up burst therefore drains over several runs.
 9. **Deploy order.** Deploy the migration before or with the app.
+
+## 9. Payment receipts
+
+Successful Stripe and Square payments (dues, donations, and event fees) send
+a branded receipt email through Resend. The same Resend account, API key and
+`EMAIL_ALLOWLIST` from section 7 apply; no new secret is needed.
+
+1. **When it sends.** On the first transition of a `payments` row to
+   `succeeded`: Stripe/Square webhooks via `PaymentService.updatePaymentStatus`,
+   and Square card confirm when the charge completes immediately. ACH stays
+   `processing` until the webhook, then sends. Confirm + a later COMPLETED
+   webhook cannot double-send: `receipt_sent_at` claims once, and Resend gets
+   `Idempotency-Key: payment-receipt/<payment id>`.
+2. **Environment**
+   - `PAYMENT_RECEIPTS_MODE`: `off` (default), `dry-run` or `live`.
+   - `PAYMENT_RECEIPTS_FROM`, for example
+     `Council Payments <payments@example.org>`. The sender domain must be
+     verified in Resend.
+   - `PAYMENT_RECEIPTS_REPLY_TO` (optional).
+   - Reused from section 7: `RESEND_API_KEY`, the build-time
+     `NEXT_PUBLIC_SITE_URL`, and `EMAIL_ALLOWLIST`. Live mode refuses to send
+     when the API key or sender is missing or the site URL is not a public
+     https origin.
+   - Set these as repository variables and run Workflow on `main` (2.5);
+     `workflow.yml` passes them to Cloud Run.
+3. **Rollout**
+   1. Deploy the `payment_receipts` migration before or with the app.
+   2. Deploy with `PAYMENT_RECEIPTS_MODE=off`. Nothing is claimed or sent.
+   3. Switch to `dry-run` and make a test payment. The row gets
+      `receipt_sent_at` without calling Resend (that payment will not email
+      again when you go live — use a fresh payment for the live check).
+   4. Switch to `live` with `EMAIL_ALLOWLIST` set to your address, pay again,
+      and confirm the branded receipt.
+   5. `off` (or unsetting the mode) stops everything.
+4. **Recipient.** Prefers `members.primary_email` for the payer; falls back
+   to `accounts.email`. Missing or invalid addresses, and allowlist misses,
+   set `receipt_error` on the payment and do not call Resend. Retryable
+   Resend failures clear `receipt_sent_at` so a later webhook can try again.
+5. **Reading failures.** Check `payments.receipt_error` (and Cloud Run logs)
+   when a succeeded payment has no inbox mail.

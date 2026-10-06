@@ -257,6 +257,9 @@ jobs:
           EVENT_EMAILS_MODE: ${{ vars.EVENT_EMAILS_MODE || 'off' }}
           EVENT_EMAILS_FROM: ${{ vars.EVENT_EMAILS_FROM }}
           EVENT_EMAILS_REPLY_TO: ${{ vars.EVENT_EMAILS_REPLY_TO }}
+          PAYMENT_RECEIPTS_MODE: ${{ vars.PAYMENT_RECEIPTS_MODE || 'off' }}
+          PAYMENT_RECEIPTS_FROM: ${{ vars.PAYMENT_RECEIPTS_FROM }}
+          PAYMENT_RECEIPTS_REPLY_TO: ${{ vars.PAYMENT_RECEIPTS_REPLY_TO }}
           EMAIL_ALLOWLIST: ${{ vars.EMAIL_ALLOWLIST }}
         run: |
           DIGEST=$(gcloud artifacts docker images describe "$IMAGE:$SHA" --format='value(image_summary.digest)')
@@ -273,6 +276,9 @@ jobs:
               "EVENT_EMAILS_MODE",
               "EVENT_EMAILS_FROM",
               "EVENT_EMAILS_REPLY_TO",
+              "PAYMENT_RECEIPTS_MODE",
+              "PAYMENT_RECEIPTS_FROM",
+              "PAYMENT_RECEIPTS_REPLY_TO",
               "EMAIL_ALLOWLIST",
           ):
               emit(key, os.environ.get(key, ""))

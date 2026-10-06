@@ -982,6 +982,8 @@ export type Database = {
           payment_type: Database["public"]["Enums"]["payment_type"]
           provider: string
           provider_payment_id: string | null
+          receipt_error: string | null
+          receipt_sent_at: string | null
           status: Database["public"]["Enums"]["payment_status"]
           updated_at: string | null
           user_id: string
@@ -996,6 +998,8 @@ export type Database = {
           payment_type: Database["public"]["Enums"]["payment_type"]
           provider: string
           provider_payment_id?: string | null
+          receipt_error?: string | null
+          receipt_sent_at?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string | null
           user_id: string
@@ -1010,6 +1014,8 @@ export type Database = {
           payment_type?: Database["public"]["Enums"]["payment_type"]
           provider?: string
           provider_payment_id?: string | null
+          receipt_error?: string | null
+          receipt_sent_at?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string | null
           user_id?: string

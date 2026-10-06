@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PaymentService } from './payment.service';
+const sendPaymentReceiptOnce = vi.fn(async () => undefined);
+
+vi.mock('./send-receipt', () => ({
+  sendPaymentReceiptOnce,
+}));
+
+const { PaymentService } = await import('./payment.service');
 
 type Filter = [op: string, column: string, value: unknown];
 
@@ -57,6 +63,7 @@ describe('PaymentService.updatePaymentStatus', () => {
     expect(seen.table).toBe('payments');
     expect(seen.update).toMatchObject({ status: 'refunded' });
     expect(seen.filters).toEqual([['eq', 'provider_payment_id', 'pi_1']]);
+    expect(sendPaymentReceiptOnce).not.toHaveBeenCalled();
   });
 
   it('never moves a refunded payment back to another status', async () => {
@@ -69,6 +76,31 @@ describe('PaymentService.updatePaymentStatus', () => {
     );
 
     expect(seen.filters).toContainEqual(['neq', 'status', 'refunded']);
+  });
+
+  it('only applies succeeded to rows that are not already succeeded', async () => {
+    const { seen, client } = fakeClient([{ id: 'row-1' }]);
+
+    await new PaymentService(client).updatePaymentStatus(
+      client,
+      'pi_1',
+      'succeeded',
+    );
+
+    expect(seen.filters).toContainEqual(['neq', 'status', 'succeeded']);
+    expect(sendPaymentReceiptOnce).toHaveBeenCalledWith(client, 'row-1');
+  });
+
+  it('does not send a receipt when no row transitions to succeeded', async () => {
+    const { client } = fakeClient([]);
+
+    await new PaymentService(client).updatePaymentStatus(
+      client,
+      'pi_1',
+      'succeeded',
+    );
+
+    expect(sendPaymentReceiptOnce).not.toHaveBeenCalled();
   });
 
   it('only refunds a payment whose amount matches when asked to', async () => {
@@ -124,5 +156,6 @@ describe('PaymentService.updatePaymentStatus', () => {
 });
 
 afterEach(() => {
+  sendPaymentReceiptOnce.mockClear();
   vi.restoreAllMocks();
 });

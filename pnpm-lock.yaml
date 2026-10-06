@@ -1043,6 +1043,9 @@ importers:
 
   packages/features/payments:
     dependencies:
+      '@kit/email':
+        specifier: workspace:*
+        version: link:../../email
       '@kit/i18n':
         specifier: workspace:*
         version: link:../../i18n
@@ -1116,6 +1119,9 @@ importers:
       react-hook-form:
         specifier: 'catalog:'
         version: 7.84.0(react@19.2.8)
+      server-only:
+        specifier: 'catalog:'
+        version: 0.0.1
       sonner:
         specifier: 'catalog:'
         version: 2.0.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
