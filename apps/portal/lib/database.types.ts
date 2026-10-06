@@ -1191,6 +1191,32 @@ export type Database = {
           notice_id: string
         }[]
       }
+      dues_notices_manual_claim: {
+        Args: { p_kind: string; p_member_ids: string[] }
+        Returns: {
+          amount_cents: number
+          cycle_date: string
+          email: string
+          first_dues: boolean
+          first_name: string
+          kind: Database["public"]["Enums"]["dues_notice_kind"]
+          level_name: string
+          member_id: string
+          notice_id: string
+        }[]
+      }
+      dues_notices_manual_eligible: {
+        Args: { p_kind: string }
+        Returns: {
+          already_sent: boolean
+          cycle_date: string
+          email: string
+          first_name: string
+          last_name: string
+          member_id: string
+          membership_number: string
+        }[]
+      }
       // HAND-CORRECTED, do not regenerate away: error is null except on a
       // run that failed before completing (e.g. live mode misconfigured).
       dues_notices_last_run: {

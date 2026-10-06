@@ -478,7 +478,14 @@ the smoke test below passes.
    3. Check `/home/dues-notices`.
    4. Switch the variable to `live` and run Deploy again.
    5. `off` (or unsetting it) stops everything.
-5. **Deploy order.** Deploy the migration before or with the app. The pages
+5. **Manual test send.** Officers with `finance.manage` see **Send a test
+   notice** on `/home/dues-notices`. Pick a timing (30 days before, due date,
+   or 30 days after), checkbox the members to include, and confirm. That
+   claims live ledger rows and sends through Resend like the daily job:
+   `EMAIL_ALLOWLIST` still applies, and a member can only receive each timing
+   once per cycle (already-sent rows are disabled in the list). Timing can be
+   forced even when today is outside that window.
+6. **Deploy order.** Deploy the migration before or with the app. The pages
    show "Not available yet" until it has run.
 
 ## 8. Event emails

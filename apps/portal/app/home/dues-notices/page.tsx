@@ -7,12 +7,14 @@ import { PageBody, PageHeader } from '@kit/ui/page';
 import { Skeleton } from '@kit/ui/skeleton';
 
 import { NoticeFilters } from '@kit/dues-notices/components/notice-filters';
+import { ManualSendPanel } from '@kit/dues-notices/components/manual-send-panel';
 import { NoticesTable } from '@kit/dues-notices/components/notices-table';
 import { UnreachableList } from '@kit/dues-notices/components/unreachable-list';
 import { readNoticesConfig } from '@kit/dues-notices/config';
 import { NoticesService } from '@kit/dues-notices/server/notices.service';
 import { KIND_LABELS, TRACKING_LABELS } from '@kit/dues-notices/tracking';
 import type {
+  ManualEligibleMember,
   NoticeKind,
   NoticesMode,
   Tracking,
@@ -112,6 +114,24 @@ async function DuesNoticesContent({
   const [lastRun, rows, unreachable] = read.value;
   const config = readNoticesConfig();
   const canOpenMembers = hasPermission(perms, 'members', 'view');
+  const canManage = hasPermission(perms, 'finance', 'manage');
+
+  let membersByKind: Record<NoticeKind, ManualEligibleMember[]> | null = null;
+
+  if (canManage) {
+    try {
+      const kinds = Object.keys(KIND_LABELS) as NoticeKind[];
+      const lists = await Promise.all(
+        kinds.map((k) => service.manualEligible(k)),
+      );
+      membersByKind = Object.fromEntries(
+        kinds.map((k, i) => [k, lists[i]!]),
+      ) as Record<NoticeKind, ManualEligibleMember[]>;
+    } catch {
+      // Migration not applied yet, or manage permission denied at the RPC.
+      membersByKind = null;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,6 +155,16 @@ async function DuesNoticesContent({
           ) : null}
         </CardContent>
       </Card>
+
+      {membersByKind ? (
+        <ManualSendPanel
+          membersByKind={membersByKind}
+          allowlistActive={config.allowlist !== null}
+          liveReady={
+            config.mode === 'live' && config.missingForLive.length === 0
+          }
+        />
+      ) : null}
 
       <NoticeFilters kind={kind} tracking={tracking} />
 

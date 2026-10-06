@@ -1,3 +1,4 @@
+import { renderBrandedEmail } from '@kit/email/branded-layout';
 import { escapeHtml } from '@kit/email/html';
 import { formatAmountCents } from '@kit/dues/lib/format-amount';
 
@@ -77,6 +78,10 @@ function body(n: ClaimedNotice): string[] {
   }
 }
 
+function paragraphStyle(): string {
+  return 'font-size: 14px; line-height: 24px; margin: 16px 0; color: rgb(0, 0, 0);';
+}
+
 export function renderNotice(
   n: ClaimedNotice,
   siteUrl: string,
@@ -85,6 +90,7 @@ export function renderNotice(
   const lines = body(n);
   const stop =
     'To stop these reminders, reply to this email and let the Financial Secretary know.';
+  const subject = SUBJECTS[n.kind];
 
   const text = [
     `Dear ${n.firstName},`,
@@ -96,12 +102,21 @@ export function renderNotice(
     stop,
   ].join('\n');
 
-  const html = [
-    `<p>Dear ${escapeHtml(n.firstName)},</p>`,
-    ...lines.map((l) => `<p>${escapeHtml(l)}</p>`),
-    `<p><a href="${escapeHtml(payUrl)}">Pay dues</a></p>`,
-    `<p style="color:#666;font-size:12px">${escapeHtml(stop)}</p>`,
+  const bodyHtml = [
+    `<p style="${paragraphStyle()}">Dear ${escapeHtml(n.firstName)},</p>`,
+    ...lines.map(
+      (l) => `<p style="${paragraphStyle()}">${escapeHtml(l)}</p>`,
+    ),
   ].join('\n');
 
-  return { subject: SUBJECTS[n.kind], html, text };
+  const html = renderBrandedEmail({
+    title: subject,
+    bodyHtml,
+    ctaLabel: 'Pay dues',
+    ctaUrl: payUrl,
+    footerHtml: stop,
+    preheader: subject,
+  });
+
+  return { subject, html, text };
 }
