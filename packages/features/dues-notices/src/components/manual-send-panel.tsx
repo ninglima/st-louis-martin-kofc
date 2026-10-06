@@ -54,7 +54,7 @@ export function ManualSendPanel({
     });
   }, [members, query]);
 
-  const selectable = filtered.filter((m) => !m.alreadySent);
+  const selectable = filtered;
 
   function toggle(id: string, checked: boolean) {
     setSelected((prev) => {
@@ -87,12 +87,12 @@ export function ManualSendPanel({
   }
 
   const selectedCount = [...selected].filter((id) =>
-    members.some((m) => m.memberId === id && !m.alreadySent),
+    members.some((m) => m.memberId === id),
   ).length;
 
   function send() {
     const memberIds = [...selected].filter((id) =>
-      members.some((m) => m.memberId === id && !m.alreadySent),
+      members.some((m) => m.memberId === id),
     );
 
     startTransition(async () => {
@@ -105,9 +105,7 @@ export function ManualSendPanel({
       }
 
       if (result.candidates === 0) {
-        toast.message(
-          'No new notices were claimed (already sent for this timing and cycle).',
-        );
+        toast.message('No notices were claimed for the selected members.');
       } else {
         toast.success(
           `Sent ${result.sent} of ${result.candidates}` +
@@ -130,7 +128,8 @@ export function ManualSendPanel({
         <p className="text-muted-foreground text-sm">
           Claim and send a live dues notice for the selected members. Uses their
           current cycle and dues level, even if today is outside that timing
-          window. Each member can only receive a given timing once per cycle.
+          window. Re-sending replaces any prior live notice for that timing and
+          cycle (daily automatic sends still only go once).
         </p>
 
         {!liveReady ? (
@@ -210,8 +209,7 @@ export function ManualSendPanel({
           ) : (
             <ul className="divide-y">
               {filtered.map((m) => {
-                const disabled = m.alreadySent;
-                const checked = selected.has(m.memberId) && !disabled;
+                const checked = selected.has(m.memberId);
 
                 return (
                   <li
@@ -221,7 +219,6 @@ export function ManualSendPanel({
                     <Checkbox
                       data-test={`manual-notice-member-${m.membershipNumber}`}
                       checked={checked}
-                      disabled={disabled}
                       onCheckedChange={(value) =>
                         toggle(m.memberId, value === true)
                       }
@@ -236,7 +233,9 @@ export function ManualSendPanel({
                       </div>
                       <div className="text-muted-foreground truncate">
                         {m.email}
-                        {disabled ? ' · already sent for this timing' : null}
+                        {m.alreadySent
+                          ? ' · previously sent (re-send replaces it)'
+                          : null}
                       </div>
                     </div>
                   </li>
@@ -261,8 +260,8 @@ export function ManualSendPanel({
               <AlertDialogTitle>Send real dues notices?</AlertDialogTitle>
               <AlertDialogDescription>
                 This sends {selectedCount} {KIND_LABELS[kind].toLowerCase()}{' '}
-                notice{selectedCount === 1 ? '' : 's'} through Resend and
-                records them in the dues notices ledger.
+                notice{selectedCount === 1 ? '' : 's'} through Resend. Any prior
+                live notice for the same timing and cycle is replaced.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

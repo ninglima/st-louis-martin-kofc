@@ -85,8 +85,8 @@ describe('notice components', () => {
     });
   });
 
-  it('lists eligible members and disables already-sent rows', () => {
-    const { container } = render(
+  it('lists eligible members and keeps previously-sent rows selectable', () => {
+    const { container, getByLabelText } = render(
       <ManualSendPanel
         liveReady
         allowlistActive={false}
@@ -119,9 +119,9 @@ describe('notice components', () => {
 
     expect(container.textContent).toContain('Send a test notice');
     expect(container.textContent).toContain('Lovelace');
-    expect(container.textContent).toContain('already sent for this timing');
-    expect(
-      container.querySelector('[data-test="manual-notice-member-101"]'),
-    ).toBeTruthy();
+    expect(container.textContent).toContain(
+      'previously sent (re-send replaces it)',
+    );
+    expect(getByLabelText('Select Alan Turing')).not.toBeDisabled();
   });
 });

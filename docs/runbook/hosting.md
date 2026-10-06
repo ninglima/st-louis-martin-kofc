@@ -485,8 +485,9 @@ the smoke test below passes.
    notice** on `/home/dues-notices`. Pick a timing (30 days before, due date,
    or 30 days after), checkbox the members to include, and confirm. That
    claims live ledger rows and sends through Resend like the daily job:
-   `EMAIL_ALLOWLIST` still applies, and a member can only receive each timing
-   once per cycle (already-sent rows are disabled in the list). Timing can be
+   `EMAIL_ALLOWLIST` still applies. Re-sending the same timing for a member
+   replaces their prior live notice for that cycle (so testing can repeat);
+   the automatic daily job still claims each timing only once. Timing can be
    forced even when today is outside that window.
 6. **Deploy order.** Deploy the migration before or with the app. The pages
    show "Not available yet" until it has run.
