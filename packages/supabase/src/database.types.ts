@@ -1240,6 +1240,8 @@ export type Database = {
           created_at: string
           cycle_date: string
           email: string
+          // HAND-CORRECTED: null except when the notice failed to send.
+          error: string | null
           first_name: string
           id: string
           kind: string

@@ -1,6 +1,6 @@
 begin;
 \ir helpers/dues_fixtures.inc
-select plan(52);
+select plan(53);
 
 select tests.make_user('dn-admin@example.com', 'administrator') as admin \gset
 select tests.make_user('dn-knight@example.com', 'member') as knight \gset
@@ -198,6 +198,11 @@ select tests.act_as(:'admin');
 select is((select tracking from public.dues_last_notices(array[:'live_member'::uuid])), 'bounced',
           'last notice carries its tracking');
 select is(public.member_dues_notices_opt_out(:'opt'), true, 'opt-out is readable');
+-- list surfaces the notice-row error so the UI can show why a send failed
+update public.dues_notices set status = 'failed', error = 'not on EMAIL_ALLOWLIST'
+ where id = (select id from public.dues_notices where email = 'DN-TMO@example.com' limit 1);
+select is((select error from public.dues_notices_list() where email = 'DN-TMO@example.com'),
+          'not on EMAIL_ALLOWLIST', 'list returns the send error');
 
 -- 24-26 gates
 select tests.act_as(:'knight');
