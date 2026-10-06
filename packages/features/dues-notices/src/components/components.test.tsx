@@ -122,6 +122,8 @@ describe('notice components', () => {
     expect(container.textContent).toContain(
       'previously sent (re-send replaces it)',
     );
-    expect(getByLabelText('Select Alan Turing')).not.toBeDisabled();
+    expect(
+      getByLabelText('Select Alan Turing').getAttribute('disabled'),
+    ).toBeNull();
   });
 });
