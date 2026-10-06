@@ -175,7 +175,8 @@ Optional repository **variables** (leave unset for the default):
 - `DUES_NOTICES_MODE`, `DUES_NOTICES_FROM`, `DUES_NOTICES_REPLY_TO`,
   `EVENT_EMAILS_MODE`, `EVENT_EMAILS_FROM`, `EVENT_EMAILS_REPLY_TO`,
   `PAYMENT_RECEIPTS_MODE`, `PAYMENT_RECEIPTS_FROM`, `PAYMENT_RECEIPTS_REPLY_TO`,
-  `EMAIL_ALLOWLIST` — sections 7, 8 and 9. Modes default to `off`.
+  `MEMBER_INVITES_MODE`, `MEMBER_INVITES_FROM`,
+  `EMAIL_ALLOWLIST` — sections 7, 8, 9 and 10. Modes default to `off`.
   `EMAIL_ALLOWLIST` is a comma-separated list of addresses that may receive
   live mail; leave unset only when every eligible member should get email.
 
@@ -600,3 +601,47 @@ a branded receipt email through Resend. The same Resend account, API key and
    Resend failures clear `receipt_sent_at` so a later webhook can try again.
 5. **Reading failures.** Check `payments.receipt_error` (and Cloud Run logs)
    when a succeeded payment has no inbox mail.
+
+## 10. Member invites
+
+After a roster import, each new member with a primary email already has a
+silent, unconfirmed login. Inviting them is a second step on Members: an
+officer with **Users → Manage** selects rows and emails the address already
+on the roster. The message is sent through Resend, not Supabase’s auth
+mailer. The link lands on `/auth/confirm` and then the set-password page.
+
+1. **Who.** The Invite controls are shown only with `users.manage`. The
+   login gets the default member role from the existing signup trigger.
+   There is no role picker on this screen.
+2. **What one invite does.** No primary email, or the bad-address flag:
+   that row fails and the others continue. A confirmed sign-in is skipped.
+   An address that already belongs to a different member fails. A member
+   with no login gets an invite link and is linked. A member whose login
+   exists and is still unconfirmed (the usual case right after import)
+   gets a recovery link for that same user, so a second account is not
+   created. One request accepts at most 25 members.
+3. **Environment**
+   - `MEMBER_INVITES_MODE`: `off` (default), `dry-run` or `live`.
+   - `MEMBER_INVITES_FROM`, for example
+     `Council <members@example.org>`. The sender domain must be verified
+     in Resend.
+   - Reused from section 7: `RESEND_API_KEY`, the build-time
+     `NEXT_PUBLIC_SITE_URL`, and `EMAIL_ALLOWLIST`. Live mode refuses to
+     send when the API key or sender is missing or the site URL is not a
+     public https origin. The allowlist is checked only in live mode, and
+     only before a link is created.
+   - Set these as repository variables and run Workflow on `main` (2.5);
+     `workflow.yml` passes them to Cloud Run.
+4. **Rollout**
+   1. Deploy the `member_invites` migration before or with the app. Until
+      that function exists, linked rows stay labeled Signed in and the
+      invite controls stay off them.
+   2. Deploy with `MEMBER_INVITES_MODE=off`. Nothing is linked or sent.
+   3. Switch to `dry-run` and invite one unconfirmed member. The row is
+      linked (or already was) and the result says no email was sent.
+   4. Switch to `live` with `EMAIL_ALLOWLIST` set to that address, invite
+      again, and confirm the branded message and the set-password link.
+   5. `off` (or unsetting the mode) stops everything.
+5. **Reading results.** The members list reports each person as invited,
+   skipped, or failed. A dry run still creates the auth link; it does not
+   call Resend.

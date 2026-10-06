@@ -14,6 +14,15 @@ import type { MemberDuesSummary } from '@kit/dues/types';
 import { Badge } from '@kit/ui/badge';
 import { badgeExtras } from '@kit/ui/badge-extras';
 import { Button } from '@kit/ui/button';
+import { Checkbox } from '@kit/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@kit/ui/dialog';
 import { If } from '@kit/ui/if';
 import { Input } from '@kit/ui/input';
 import { Label } from '@kit/ui/label';
@@ -36,7 +45,12 @@ import {
 import { cn } from '@kit/ui/utils';
 
 import type { DuesFilter } from '../lib/dues-filter';
-import { exportMembersAction } from '../server/members-actions';
+import { MAX_MEMBER_INVITES } from '../lib/member-invite';
+import type { MemberInviteResult } from '../lib/member-invite';
+import {
+  exportMembersAction,
+  inviteMembersAction,
+} from '../server/members-actions';
 import type { MemberListRow } from '../server/members.service';
 import { MemberEditDialog } from './member-edit-dialog';
 
@@ -60,6 +74,69 @@ const WRAP = 'whitespace-normal break-words';
  * spread across every column.
  */
 const FIT = 'w-px';
+
+const NO_CONFIRMED = new Set<string>();
+
+function columnCount(options: {
+  dues: boolean;
+  canEdit: boolean;
+  canInvite: boolean;
+}) {
+  return (
+    8 +
+    (options.dues ? 3 : 0) +
+    (options.canInvite ? 1 : 0) +
+    (options.canEdit || options.canInvite ? 1 : 0)
+  );
+}
+
+/** An email on file, and a login that has not confirmed it yet (or none). */
+function inviteable(
+  member: MemberListRow,
+  confirmedUserIds: ReadonlySet<string>,
+) {
+  if (!member.primaryEmail) return false;
+
+  return !(member.userId && confirmedUserIds.has(member.userId));
+}
+
+function AccountBadge({
+  member,
+  confirmed,
+}: {
+  member: MemberListRow;
+  confirmed: boolean;
+}) {
+  if (member.userId === null) {
+    return (
+      <Badge variant="outline" data-test="member-no-account">
+        No account
+      </Badge>
+    );
+  }
+
+  if (confirmed) {
+    return (
+      <Badge
+        variant="outline"
+        className={badgeExtras.success}
+        data-test="member-has-account"
+      >
+        Signed in
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge
+      variant="outline"
+      className={badgeExtras.warning}
+      data-test="member-not-confirmed"
+    >
+      Not confirmed
+    </Badge>
+  );
+}
 
 function formatLastSeen(value: string | null) {
   if (value === null) return '—';
@@ -122,6 +199,8 @@ export function MembersList({
   dues,
   duesFilter = 'all',
   canEdit = false,
+  canInvite = false,
+  confirmedUserIds = NO_CONFIRMED,
 }: {
   members: MemberListRow[];
   /** The committed term, straight off the URL — never the keystroke in flight. */
@@ -146,6 +225,13 @@ export function MembersList({
   duesFilter?: DuesFilter;
   /** members.manage: shows an Edit button per row. */
   canEdit?: boolean;
+  /** users.manage: shows invite controls. Creating a login is that grant. */
+  canInvite?: boolean;
+  /**
+   * Logins on this page whose email is confirmed. A user id that is absent
+   * is not confirmed, which is the state a roster import leaves behind.
+   */
+  confirmedUserIds?: ReadonlySet<string>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -153,6 +239,9 @@ export function MembersList({
   const [term, setTerm] = useState(search);
   const [navigating, startNavigation] = useTransition();
   const [exporting, startExport] = useTransition();
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
+  const [inviting, startInvite] = useTransition();
 
   /**
    * The last term this component asked the server for. It is what keeps the
@@ -230,6 +319,68 @@ export function MembersList({
       } else {
         toast.success(`Downloaded ${result.filename}.`);
       }
+    });
+  };
+
+  const toggleSelected = (id: string, checked: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current);
+
+      if (checked) next.add(id);
+      else next.delete(id);
+
+      return next;
+    });
+  };
+
+  const onConfirmInvite = () => {
+    if (!confirmIds || confirmIds.length === 0) return;
+
+    startInvite(async () => {
+      const result: MemberInviteResult = await inviteMembersAction({
+        memberIds: confirmIds,
+      });
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
+      const invited = result.rows.filter((row) => row.outcome === 'invited');
+      const skipped = result.rows.filter((row) => row.outcome === 'skipped');
+      const failed = result.rows.filter((row) => row.outcome === 'failed');
+
+      if (invited.length > 0) {
+        const dryRun = invited.every((row) =>
+          row.detail.startsWith('Dry run'),
+        );
+
+        toast.success(
+          dryRun
+            ? `Dry run: ${invited.length} ${invited.length === 1 ? 'invite was' : 'invites were'} not emailed.`
+            : `Invited ${invited.length} ${invited.length === 1 ? 'member' : 'members'}.`,
+        );
+      }
+
+      if (skipped.length > 0) {
+        toast.message(
+          skipped.map((row) => `${row.name}: ${row.detail}`).join('\n'),
+        );
+      }
+
+      if (failed.length > 0) {
+        toast.error(failed.map((row) => `${row.name}: ${row.detail}`).join('\n'));
+      }
+
+      setSelected((current) => {
+        const next = new Set(current);
+
+        for (const row of [...invited, ...skipped]) next.delete(row.memberId);
+
+        return next;
+      });
+      setConfirmIds(null);
+      router.refresh();
     });
   };
 
@@ -384,15 +535,86 @@ export function MembersList({
           </If>
         </div>
 
-        <Button
-          variant="outline"
-          data-test="members-export"
-          disabled={exporting}
-          onClick={onExport}
-        >
-          {exporting ? 'Preparing…' : 'Export CSV'}
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <If condition={canInvite}>
+              <Button
+                data-test="members-invite-selected"
+                disabled={
+                  selected.size === 0 ||
+                  selected.size > MAX_MEMBER_INVITES ||
+                  inviting
+                }
+                onClick={() => setConfirmIds([...selected])}
+              >
+                {selected.size > 0
+                  ? `Invite selected (${selected.size})`
+                  : 'Invite selected'}
+              </Button>
+            </If>
+
+            <Button
+              variant="outline"
+              data-test="members-export"
+              disabled={exporting}
+              onClick={onExport}
+            >
+              {exporting ? 'Preparing…' : 'Export CSV'}
+            </Button>
+          </div>
+
+          <If condition={canInvite && selected.size > MAX_MEMBER_INVITES}>
+            <p
+              className="text-muted-foreground max-w-xs text-right text-sm"
+              data-test="members-invite-limit"
+            >
+              Invite up to {MAX_MEMBER_INVITES} members at a time. Invite the
+              rest in a second pass.
+            </p>
+          </If>
+        </div>
       </div>
+
+      <Dialog
+        open={confirmIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmIds(null);
+        }}
+      >
+        <DialogContent data-test="members-invite-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmIds?.length === 1
+                ? `Invite ${
+                    members.find((row) => row.id === confirmIds[0])?.fullName ??
+                    'this member'
+                  }`
+                : `Invite ${confirmIds?.length ?? 0} members`}
+            </DialogTitle>
+            <DialogDescription>
+              The message goes to the email already on the roster. They open
+              the link and set a password.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmIds(null)}
+              disabled={inviting}
+            >
+              Cancel
+            </Button>
+            <Button
+              data-test="members-invite-confirm"
+              onClick={onConfirmInvite}
+              disabled={inviting}
+            >
+              {inviting ? 'Sending…' : 'Send invites'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div
         className={cn(
@@ -403,6 +625,11 @@ export function MembersList({
         <Table>
           <TableHeader>
             <TableRow>
+              <If condition={canInvite}>
+                <TableHead className={FIT}>
+                  <span className="sr-only">Select</span>
+                </TableHead>
+              </If>
               <TableHead>Name</TableHead>
               <TableHead className={FIT}>Member #</TableHead>
               <TableHead>Email</TableHead>
@@ -416,7 +643,7 @@ export function MembersList({
                 <TableHead className={FIT}>Paid through</TableHead>
                 <TableHead className={FIT}>Status</TableHead>
               </If>
-              <If condition={canEdit}>
+              <If condition={canEdit || canInvite}>
                 <TableHead className={FIT}>
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -428,7 +655,11 @@ export function MembersList({
             <If condition={visibleMembers.length === 0}>
               <TableRow data-test="members-empty">
                 <TableCell
-                  colSpan={(dues ? 11 : 8) + (canEdit ? 1 : 0)}
+                  colSpan={columnCount({
+                    dues: Boolean(dues),
+                    canEdit,
+                    canInvite,
+                  })}
                   className="text-muted-foreground"
                 >
                   {members.length > 0
@@ -445,6 +676,21 @@ export function MembersList({
                 key={member.id}
                 data-test={`member-row-${member.membershipNumber}`}
               >
+                <If condition={canInvite}>
+                  <TableCell>
+                    <If condition={inviteable(member, confirmedUserIds)}>
+                      <Checkbox
+                        checked={selected.has(member.id)}
+                        onCheckedChange={(checked) =>
+                          toggleSelected(member.id, checked === true)
+                        }
+                        aria-label={`Select ${member.fullName}`}
+                        data-test={`member-select-${member.id}`}
+                      />
+                    </If>
+                  </TableCell>
+                </If>
+
                 <TableCell className={WRAP}>
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
@@ -518,22 +764,13 @@ export function MembersList({
                 <TableCell>{formatLastSeen(member.rosterLastSeenAt)}</TableCell>
 
                 <TableCell>
-                  <If
-                    condition={member.userId === null}
-                    fallback={
-                      <Badge
-                        variant="outline"
-                        className={badgeExtras.success}
-                        data-test="member-has-account"
-                      >
-                        Has sign-in
-                      </Badge>
+                  <AccountBadge
+                    member={member}
+                    confirmed={
+                      member.userId !== null &&
+                      confirmedUserIds.has(member.userId)
                     }
-                  >
-                    <Badge variant="outline" data-test="member-no-account">
-                      No account
-                    </Badge>
-                  </If>
+                  />
                 </TableCell>
 
                 <If condition={dues}>
@@ -558,21 +795,42 @@ export function MembersList({
                   }}
                 </If>
 
-                <If condition={canEdit}>
+                <If condition={canEdit || canInvite}>
                   <TableCell>
-                    <MemberEditDialog
-                      memberId={member.id}
-                      trigger={
+                    <div className="flex items-center gap-2">
+                      <If
+                        condition={
+                          canInvite && inviteable(member, confirmedUserIds)
+                        }
+                      >
                         <Button
                           variant="outline"
                           size="sm"
-                          data-test={`member-edit-${member.id}`}
-                          aria-label={`Edit ${member.fullName}`}
+                          data-test={`member-invite-${member.id}`}
+                          aria-label={`Invite ${member.fullName}`}
+                          disabled={inviting}
+                          onClick={() => setConfirmIds([member.id])}
                         >
-                          Edit
+                          Invite
                         </Button>
-                      }
-                    />
+                      </If>
+
+                      <If condition={canEdit}>
+                        <MemberEditDialog
+                          memberId={member.id}
+                          trigger={
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              data-test={`member-edit-${member.id}`}
+                              aria-label={`Edit ${member.fullName}`}
+                            >
+                              Edit
+                            </Button>
+                          }
+                        />
+                      </If>
+                    </div>
                   </TableCell>
                 </If>
               </TableRow>

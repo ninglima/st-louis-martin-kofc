@@ -29,6 +29,8 @@ services:
       DUES_NOTICES_REPLY_TO: fs@localhost
       EVENT_EMAILS_MODE: dry-run
       EVENT_EMAILS_FROM: 'Council Events <events@localhost>'
+      MEMBER_INVITES_MODE: dry-run
+      MEMBER_INVITES_FROM: 'Council <members@localhost>'
     extra_hosts:
       - host.docker.internal:host-gateway
 

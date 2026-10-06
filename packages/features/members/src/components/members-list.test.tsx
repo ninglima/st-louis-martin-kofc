@@ -16,6 +16,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('../server/members-actions', () => ({
   exportMembersAction: vi.fn(),
+  inviteMembersAction: vi.fn(),
   loadMemberForEditAction: vi.fn(),
   updateMemberAction: vi.fn(),
 }));
@@ -63,6 +64,8 @@ function render(
     cities?: string[];
     dues?: Map<string, MemberDuesSummary>;
     canEdit?: boolean;
+    canInvite?: boolean;
+    confirmedUserIds?: ReadonlySet<string>;
   } = {},
 ) {
   return renderToStaticMarkup(
@@ -77,6 +80,8 @@ function render(
       hasMore={false}
       dues={options.dues}
       canEdit={options.canEdit}
+      canInvite={options.canInvite}
+      confirmedUserIds={options.confirmedUserIds}
     />,
   );
 }
@@ -123,6 +128,7 @@ describe('MembersList', () => {
           userId: 'aa11bb22-cc33-dd44-ee55-ff6677889900',
         }),
       ],
+      confirmedUserIds: new Set(['aa11bb22-cc33-dd44-ee55-ff6677889900']),
     });
 
     expect(html).toContain('data-test="member-no-email"');
@@ -207,6 +213,57 @@ describe('MembersList', () => {
     // directly against this repo's react-dom before changing the assertion.
     expect(render({ members: [], canEdit: true })).toContain('colSpan="9"');
     expect(render({ members: [] })).toContain('colSpan="8"');
+  });
+
+  it('hides invite controls without users.manage', () => {
+    const html = render({
+      members: [member({ userId: null })],
+    });
+
+    expect(html).not.toContain('data-test="members-invite-selected"');
+    expect(html).not.toContain('data-test="member-invite-');
+    expect(html).not.toContain('data-test="member-select-');
+  });
+
+  it('offers an invite for an unconfirmed row that has an email', () => {
+    const html = render({
+      members: [member({ userId: 'aa11bb22-cc33-dd44-ee55-ff6677889900' })],
+      canInvite: true,
+    });
+
+    expect(html).toContain('data-test="members-invite-selected"');
+    expect(html).toContain(
+      'data-test="member-invite-bd1d9c3a-1111-2222-3333-444455556666"',
+    );
+    expect(html).toContain('data-test="member-not-confirmed"');
+    expect(html).toContain('Not confirmed');
+  });
+
+  it('does not offer an invite for a confirmed sign-in or a row with no email', () => {
+    const confirmed = 'aa11bb22-cc33-dd44-ee55-ff6677889900';
+    const html = render({
+      members: [
+        member({ userId: confirmed }),
+        member({
+          id: 'cd2e0d4b-1111-2222-3333-444455556666',
+          membershipNumber: '1000002',
+          fullName: 'No Mail',
+          primaryEmail: null,
+          userId: null,
+        }),
+      ],
+      canInvite: true,
+      confirmedUserIds: new Set([confirmed]),
+    });
+
+    expect(html).toContain('data-test="member-has-account"');
+    expect(html).toContain('Signed in');
+    expect(html).not.toContain(
+      'data-test="member-invite-bd1d9c3a-1111-2222-3333-444455556666"',
+    );
+    expect(html).not.toContain(
+      'data-test="member-invite-cd2e0d4b-1111-2222-3333-444455556666"',
+    );
   });
 });
 

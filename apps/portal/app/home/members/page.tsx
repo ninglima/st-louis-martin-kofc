@@ -153,6 +153,7 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
   // Gates the Edit button per row: same grant `member-edit-dialog.tsx` and
   // its server actions re-check before returning or changing anything.
   const canEdit = hasPermission(currentPermissions, 'members', 'manage');
+  const canInvite = hasPermission(currentPermissions, 'users', 'manage');
 
   // Read as the OFFICER, not the service role: `members_list` is
   // `security definer` and gates on `kit.has_permission(...)`, which reads
@@ -178,6 +179,15 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
   ]);
 
   const pageMembers = rows.slice(0, PAGE_SIZE);
+
+  const userIds = pageMembers.flatMap((row) =>
+    row.userId === null ? [] : [row.userId],
+  );
+  // `null` means the confirmation lookup is not deployed yet. Treat every
+  // linked login as already signed in so the invite controls stay off those
+  // rows until the function exists.
+  const confirmed = await service.signInConfirmed(userIds);
+  const confirmedUserIds = confirmed ?? new Set(userIds);
 
   // Same client, same reasoning `DuesService`'s own doc comment gives:
   // `member_dues_summary` is `security definer` and gates on
@@ -207,6 +217,8 @@ async function MembersContent(props: { searchParams: Promise<SearchParams> }) {
       dues={dues}
       duesFilter={dues ? duesFilter : 'all'}
       canEdit={canEdit}
+      canInvite={canInvite}
+      confirmedUserIds={confirmedUserIds}
     />
   );
 }

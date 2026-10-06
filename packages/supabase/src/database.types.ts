@@ -1610,6 +1610,17 @@ export type Database = {
           suffix: string | null
         }[]
       }
+      member_link_sign_in: {
+        Args: { p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      member_sign_in_status: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          confirmed: boolean
+          user_id: string
+        }[]
+      }
       member_update: {
         Args: { p_changes: Json; p_member_id: string }
         Returns: undefined
