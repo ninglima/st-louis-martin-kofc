@@ -26,26 +26,29 @@ env:
   SITE_URL: ${{ vars.SITE_URL || 'https://kofc-15256.org' }}
 
 jobs:
+  # Pin the runner image: ubuntu-latest moves to Ubuntu 26 starting
+  # 2026-10-19 (actions/runner-images#14748). Stay on 24.04 until we
+  # deliberately retest on the new image.
   # Optional E2E is a separate job (not a dynamic matrix include): job-level
   # `if` cannot use `matrix`, and custom `vars.*` in matrix expressions trip
   # the Actions language service when the variable is unset.
   unit:
     name: Unit
     timeout-minutes: 15
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: 'pnpm'
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
@@ -75,21 +78,21 @@ jobs:
   e2e:
     name: E2E
     timeout-minutes: 12
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: vars.ENABLE_E2E_JOB == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: 'pnpm'
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
@@ -107,7 +110,7 @@ jobs:
 
       - name: Cache Playwright Browsers for Playwright's Version
         id: cache-playwright-browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-browsers-${{ env.PLAYWRIGHT_VERSION }}
@@ -117,7 +120,7 @@ jobs:
         run: pnpm exec ./apps/e2e/node_modules/.bin/playwright install --with-deps
 
       - name: Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
 
       - name: Supabase Server
         run: pnpm run supabase:web:start -- -x studio,migra,deno-relay,pgadmin-schema-diff,imgproxy,logflare
@@ -136,7 +139,7 @@ jobs:
       - name: Run Supabase tests
         run: pnpm --filter portal supabase:test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: playwright-report
@@ -159,7 +162,7 @@ jobs:
         (github.event_name == 'push' && github.ref == 'refs/heads/main')
         || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
       )
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       actions: read
@@ -167,7 +170,7 @@ jobs:
       portal: ${{ steps.affected.outputs.portal }}
       router: ${{ steps.affected.outputs.router }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.SHA }}
           fetch-depth: 0
@@ -210,7 +213,7 @@ jobs:
     name: Deploy portal
     needs: changes
     if: needs.changes.outputs.portal == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Only this job authenticates to Google Cloud, so only it may mint an OIDC token.
     permissions:
       contents: read
@@ -218,14 +221,14 @@ jobs:
     env:
       IMAGE: us-east4-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/portal/portal
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.SHA }}
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v3
       - run: gcloud auth configure-docker us-east4-docker.pkg.dev --quiet
       # GIT_HASH is a build arg because /version is prerendered at build time.
       # NEXT_PUBLIC_SITE_URL is baked in too: email links are built from it.
@@ -293,7 +296,7 @@ jobs:
       always() && needs.changes.result == 'success'
       && needs.changes.outputs.router == 'true'
       && needs.portal.result != 'failure' && needs.portal.result != 'cancelled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # An empty PORTAL_ORIGIN deploys a router whose portal paths all 500.
       # It is empty only before the portal's first deploy: set it to the
@@ -303,11 +306,11 @@ jobs:
         run: |
           echo "::error::PORTAL_ORIGIN is not set. Set it to the Cloud Run service URL, then run Deploy again (docs/runbook/hosting.md, 2.4)."
           exit 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.SHA }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: pnpm
