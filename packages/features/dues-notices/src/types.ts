@@ -30,6 +30,8 @@ export interface NoticeRow {
   cycleDate: string;
   status: string;
   tracking: Tracking;
+  /** Present when status is failed (allowlist, Resend, invalid address, …). */
+  error: string | null;
   sentAt: string | null;
   createdAt: string;
 }

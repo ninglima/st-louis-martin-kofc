@@ -50,6 +50,7 @@ export class NoticesService {
       cycleDate: r.cycle_date,
       status: r.status,
       tracking: r.tracking as Tracking,
+      error: r.error,
       sentAt: r.sent_at,
       createdAt: r.created_at,
     }));

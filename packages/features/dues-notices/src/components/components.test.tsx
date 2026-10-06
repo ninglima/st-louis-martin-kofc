@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../server/notice-actions', () => ({
@@ -9,6 +9,7 @@ vi.mock('../server/notice-actions', () => ({
 
 import { LastNoticeCell } from './last-notice-cell';
 import { ManualSendPanel } from './manual-send-panel';
+import { NoticesTable } from './notices-table';
 import { TrackingBadge } from './tracking-badge';
 
 describe('notice components', () => {
@@ -43,6 +44,45 @@ describe('notice components', () => {
     expect(container.textContent).toContain('30 days after');
     expect(container.textContent).toContain('Oct 3');
     expect(container.textContent).toContain('Opened');
+  });
+
+  it('shows the send error when expanding a failed notice', async () => {
+    const { loadNoticeEventsAction } = await import('../server/notice-actions');
+    vi.mocked(loadNoticeEventsAction).mockResolvedValue({
+      success: true,
+      events: [],
+    });
+
+    const { container, getByRole } = render(
+      <NoticesTable
+        canOpenMembers={false}
+        rows={[
+          {
+            id: 'n1',
+            memberId: 'm1',
+            firstName: 'Ada',
+            lastName: 'Lovelace',
+            membershipNumber: '100',
+            email: 'ada@example.com',
+            kind: 'due_date',
+            cycleDate: '2026-11-14',
+            status: 'failed',
+            tracking: 'failed',
+            error: 'not on EMAIL_ALLOWLIST',
+            sentAt: null,
+            createdAt: '2026-10-06T10:00:00Z',
+          },
+        ]}
+      />,
+    );
+
+    getByRole('button', { name: 'Show events' }).click();
+    await waitFor(() => {
+      expect(container.textContent).toContain('not on EMAIL_ALLOWLIST');
+      expect(container.textContent).toContain(
+        'No delivery events (the email never reached Resend).',
+      );
+    });
   });
 
   it('lists eligible members and disables already-sent rows', () => {
