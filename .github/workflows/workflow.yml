@@ -260,6 +260,8 @@ jobs:
           PAYMENT_RECEIPTS_MODE: ${{ vars.PAYMENT_RECEIPTS_MODE || 'off' }}
           PAYMENT_RECEIPTS_FROM: ${{ vars.PAYMENT_RECEIPTS_FROM }}
           PAYMENT_RECEIPTS_REPLY_TO: ${{ vars.PAYMENT_RECEIPTS_REPLY_TO }}
+          MEMBER_INVITES_MODE: ${{ vars.MEMBER_INVITES_MODE || 'off' }}
+          MEMBER_INVITES_FROM: ${{ vars.MEMBER_INVITES_FROM }}
           EMAIL_ALLOWLIST: ${{ vars.EMAIL_ALLOWLIST }}
         run: |
           DIGEST=$(gcloud artifacts docker images describe "$IMAGE:$SHA" --format='value(image_summary.digest)')
@@ -279,6 +281,8 @@ jobs:
               "PAYMENT_RECEIPTS_MODE",
               "PAYMENT_RECEIPTS_FROM",
               "PAYMENT_RECEIPTS_REPLY_TO",
+              "MEMBER_INVITES_MODE",
+              "MEMBER_INVITES_FROM",
               "EMAIL_ALLOWLIST",
           ):
               emit(key, os.environ.get(key, ""))

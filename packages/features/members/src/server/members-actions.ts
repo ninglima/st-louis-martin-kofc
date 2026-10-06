@@ -2,14 +2,24 @@
 
 import * as z from 'zod';
 
+import { sendEmail } from '@kit/email/resend';
 import { enhanceAction } from '@kit/next/actions';
 import { loadPermissionsForUser } from '@kit/rbac/server/permissions.service';
 import { hasPermission } from '@kit/rbac/types';
 import { getSupabaseServerAdminClient } from '@kit/supabase/server-admin-client';
 import { getSupabaseServerClient } from '@kit/supabase/server-client';
 
+import type { MemberInviteResult } from '../lib/member-invite';
 import { MEMBER_EDIT_FIELDS } from '../lib/member-edit';
 import type { MemberEditChanges, MemberForEdit } from '../lib/member-edit';
+import { renderMemberInvite } from '../templates/invite';
+import { readMemberInvitesConfig } from './invite-config';
+import {
+  inviteRosterMembers,
+  isInviteAlreadyRegistered,
+  type InviteAuthAccount,
+  type MemberInvitePorts,
+} from './invite-members';
 import { MembersService } from './members.service';
 import type { MemberListFilters, MemberListRow } from './members.service';
 
@@ -331,3 +341,155 @@ export const updateMemberAction = enhanceAction(
   },
   {},
 );
+
+const INVITE_UNAUTHORIZED = 'You do not have permission to invite members.';
+
+const InviteIds = z.object({
+  memberIds: z.array(z.string().guid()).min(1).max(25),
+});
+
+/**
+ * Emails the address already on each roster row and links that login to
+ * the member. `users.manage` is re-checked here because a Server Action is
+ * a public endpoint. The link RPC checks it again against `auth.uid()`.
+ */
+export const inviteMembersAction = enhanceAction(
+  async (input: unknown, user): Promise<MemberInviteResult> => {
+    if (!(await canInviteMembers(user.id))) {
+      return { success: false, error: INVITE_UNAUTHORIZED };
+    }
+
+    const parsed = InviteIds.safeParse(input);
+
+    if (!parsed.success) {
+      return { success: false, error: 'Select members to invite.' };
+    }
+
+    const config = readMemberInvitesConfig();
+
+    return inviteRosterMembers(
+      parsed.data.memberIds,
+      invitePorts(config.siteUrl),
+      config,
+    );
+  },
+  {},
+);
+
+async function canInviteMembers(userId: string): Promise<boolean> {
+  const permissions = await loadPermissionsForUser(
+    getSupabaseServerAdminClient(),
+    userId,
+  );
+
+  return hasPermission(permissions, 'users', 'manage');
+}
+
+function invitePorts(siteUrl: string): MemberInvitePorts {
+  const officer = getSupabaseServerClient();
+  const admin = getSupabaseServerAdminClient();
+
+  return {
+    async loadMembers(ids) {
+      const { data, error } = await officer
+        .from('members')
+        .select('id, primary_email, user_id, bad_address, first_name, last_name')
+        .in('id', ids);
+
+      if (error) throw new Error(error.message);
+
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        primaryEmail: row.primary_email,
+        userId: row.user_id,
+        badAddress: row.bad_address,
+        firstName: row.first_name,
+        lastName: row.last_name,
+      }));
+    },
+
+    async ownerOf(userId) {
+      const { data, error } = await officer
+        .from('members')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) throw new Error(error.message);
+
+      return data?.id ?? null;
+    },
+
+    async link(memberId, userId) {
+      const { error } = await officer.rpc('member_link_sign_in', {
+        p_member_id: memberId,
+        p_user_id: userId,
+      });
+
+      if (error) throw new Error(error.message);
+    },
+
+    async getUser(id) {
+      const { data, error } = await admin.auth.admin.getUserById(id);
+
+      if (error || !data.user) return null;
+
+      return toAccount(data.user);
+    },
+
+    async generateLink(input) {
+      const { data, error } = await admin.auth.admin.generateLink({
+        type: input.type,
+        email: input.email,
+        options: { redirectTo: `${siteUrl}/update-password` },
+      });
+
+      if (error || !data.user || !data.properties?.hashed_token) {
+        return {
+          ok: false,
+          alreadyRegistered: isInviteAlreadyRegistered(error),
+          error: error?.message ?? 'The invite link could not be created.',
+        };
+      }
+
+      return {
+        ok: true,
+        link: {
+          user: toAccount(data.user),
+          tokenHash: data.properties.hashed_token,
+          verificationType: data.properties.verification_type,
+        },
+      };
+    },
+
+    async send(input) {
+      const config = readMemberInvitesConfig();
+      const rendered = renderMemberInvite({
+        firstName: input.firstName,
+        url: input.url,
+      });
+      const sent = await sendEmail(config.apiKey, {
+        from: config.from,
+        to: input.to,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tags: [{ name: 'kind', value: 'member_invite' }],
+      });
+
+      return sent.ok ? { ok: true } : { ok: false, error: sent.error };
+    },
+  };
+}
+
+function toAccount(user: {
+  id: string;
+  email?: string;
+  email_confirmed_at?: string | null;
+}): InviteAuthAccount {
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    emailConfirmedAt: user.email_confirmed_at ?? null,
+  };
+}

@@ -155,6 +155,31 @@ export class MembersService {
   }
 
   /**
+   * Which of these logins have confirmed their email.
+   *
+   * `null` means the function is not in this database yet (the portal can
+   * deploy before the migration). Callers then keep the previous badge,
+   * "Has a sign-in", instead of offering an invite they cannot complete.
+   */
+  async signInConfirmed(userIds: string[]): Promise<Set<string> | null> {
+    if (userIds.length === 0) return new Set();
+
+    const { data, error } = await this.client.rpc('member_sign_in_status', {
+      p_user_ids: userIds,
+    });
+
+    if (error) {
+      if (error.code === 'PGRST202' || error.code === '42883') return null;
+
+      throw new Error(error.message);
+    }
+
+    return new Set(
+      (data ?? []).filter((row) => row.confirmed).map((row) => row.user_id),
+    );
+  }
+
+  /**
    * One member by id, for the member detail page.
    *
    * Reads `members` directly rather than through `members_list`: that RPC

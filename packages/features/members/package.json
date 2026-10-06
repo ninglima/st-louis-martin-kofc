@@ -21,6 +21,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@kit/email": "workspace:*",
     "@kit/i18n": "workspace:*",
     "exceljs": "^4.4.0",
     "next-intl": "catalog:"
@@ -43,6 +44,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
+    "server-only": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
   }

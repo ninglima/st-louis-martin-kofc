@@ -11,6 +11,9 @@ import { defineConfig } from 'vitest/config';
  * what reaches the screen and costs the repo no new test framework.
  */
 export default defineConfig({
+  test: {
+    setupFiles: ['./test/setup.ts'],
+  },
   oxc: {
     jsx: {
       runtime: 'automatic',
