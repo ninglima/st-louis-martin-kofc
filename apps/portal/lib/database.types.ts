@@ -50,33 +50,6 @@ export type Database = {
         }
         Relationships: []
       }
-      dues_levels: {
-        Row: {
-          active: boolean
-          amount_cents: number
-          name: string
-          self_service: boolean
-          slug: string
-          sort_order: number
-        }
-        Insert: {
-          active?: boolean
-          amount_cents: number
-          name: string
-          self_service?: boolean
-          slug: string
-          sort_order: number
-        }
-        Update: {
-          active?: boolean
-          amount_cents?: number
-          name?: string
-          self_service?: boolean
-          slug?: string
-          sort_order?: number
-        }
-        Relationships: []
-      }
       dues_level_changes: {
         Row: {
           action: string
@@ -127,6 +100,33 @@ export type Database = {
             referencedColumns: ["slug"]
           },
         ]
+      }
+      dues_levels: {
+        Row: {
+          active: boolean
+          amount_cents: number
+          name: string
+          self_service: boolean
+          slug: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          amount_cents: number
+          name: string
+          self_service?: boolean
+          slug: string
+          sort_order: number
+        }
+        Update: {
+          active?: boolean
+          amount_cents?: number
+          name?: string
+          self_service?: boolean
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: []
       }
       dues_notice_events: {
         Row: {
@@ -325,27 +325,6 @@ export type Database = {
           },
         ]
       }
-      event_series: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          rule: Json
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          rule: Json
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          rule?: Json
-        }
-        Relationships: []
-      }
       event_email_events: {
         Row: {
           email_id: string
@@ -488,6 +467,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      event_series: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          rule: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          rule: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          rule?: Json
+        }
+        Relationships: []
       }
       event_shifts: {
         Row: {
@@ -678,6 +678,39 @@ export type Database = {
           },
         ]
       }
+      finance_payment_packets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          note: string | null
+          state_cents: number | null
+          supreme_cents: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label: string
+          note?: string | null
+          state_cents?: number | null
+          supreme_cents?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string
+          note?: string | null
+          state_cents?: number | null
+          supreme_cents?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hosting_costs: {
         Row: {
           amount_cents: number
@@ -792,8 +825,8 @@ export type Database = {
           created_at: string
           dues_level: string
           dues_notices_opt_out: boolean
-          event_reminders_opt_out: boolean
           email_secondary_enc: string | null
+          event_reminders_opt_out: boolean
           first_name: string
           id: string
           is_student: boolean
@@ -825,8 +858,8 @@ export type Database = {
           created_at?: string
           dues_level?: string
           dues_notices_opt_out?: boolean
-          event_reminders_opt_out?: boolean
           email_secondary_enc?: string | null
+          event_reminders_opt_out?: boolean
           first_name: string
           id?: string
           is_student?: boolean
@@ -858,8 +891,8 @@ export type Database = {
           created_at?: string
           dues_level?: string
           dues_notices_opt_out?: boolean
-          event_reminders_opt_out?: boolean
           email_secondary_enc?: string | null
+          event_reminders_opt_out?: boolean
           first_name?: string
           id?: string
           is_student?: boolean
@@ -971,6 +1004,9 @@ export type Database = {
           },
         ]
       }
+      // HAND-CORRECTED, do not regenerate away: receipt_sent_at and
+      // receipt_error come from 20261006130000_payment_receipts.sql. Local
+      // `gen types` omitted them because that migration is not applied here.
       payments: {
         Row: {
           amount: number
@@ -982,6 +1018,8 @@ export type Database = {
           payment_type: Database["public"]["Enums"]["payment_type"]
           provider: string
           provider_payment_id: string | null
+          receipt_error: string | null
+          receipt_sent_at: string | null
           status: Database["public"]["Enums"]["payment_status"]
           updated_at: string | null
           user_id: string
@@ -996,6 +1034,8 @@ export type Database = {
           payment_type: Database["public"]["Enums"]["payment_type"]
           provider: string
           provider_payment_id?: string | null
+          receipt_error?: string | null
+          receipt_sent_at?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string | null
           user_id: string
@@ -1010,6 +1050,8 @@ export type Database = {
           payment_type?: Database["public"]["Enums"]["payment_type"]
           provider?: string
           provider_payment_id?: string | null
+          receipt_error?: string | null
+          receipt_sent_at?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           updated_at?: string | null
           user_id?: string
@@ -1191,32 +1233,6 @@ export type Database = {
           notice_id: string
         }[]
       }
-      dues_notices_manual_claim: {
-        Args: { p_kind: string; p_member_ids: string[] }
-        Returns: {
-          amount_cents: number
-          cycle_date: string
-          email: string
-          first_dues: boolean
-          first_name: string
-          kind: Database["public"]["Enums"]["dues_notice_kind"]
-          level_name: string
-          member_id: string
-          notice_id: string
-        }[]
-      }
-      dues_notices_manual_eligible: {
-        Args: { p_kind: string }
-        Returns: {
-          already_sent: boolean
-          cycle_date: string
-          email: string
-          first_name: string
-          last_name: string
-          member_id: string
-          membership_number: string
-        }[]
-      }
       // HAND-CORRECTED, do not regenerate away: error is null except on a
       // run that failed before completing (e.g. live mode misconfigured).
       dues_notices_last_run: {
@@ -1251,6 +1267,32 @@ export type Database = {
           sent_at: string | null
           status: string
           tracking: string
+        }[]
+      }
+      dues_notices_manual_claim: {
+        Args: { p_kind: string; p_member_ids: string[] }
+        Returns: {
+          amount_cents: number
+          cycle_date: string
+          email: string
+          first_dues: boolean
+          first_name: string
+          kind: Database["public"]["Enums"]["dues_notice_kind"]
+          level_name: string
+          member_id: string
+          notice_id: string
+        }[]
+      }
+      dues_notices_manual_eligible: {
+        Args: { p_kind: string }
+        Returns: {
+          already_sent: boolean
+          cycle_date: string
+          email: string
+          first_name: string
+          last_name: string
+          member_id: string
+          membership_number: string
         }[]
       }
       dues_notices_unreachable: {
@@ -1400,6 +1442,7 @@ export type Database = {
           membership_number: string
         }[]
       }
+      finance_monthly_worksheet: { Args: { p_month: string }; Returns: Json }
       finance_net_by_year: {
         Args: never
         Returns: {
@@ -1407,6 +1450,58 @@ export type Database = {
           hosting_cents: number
           year: number
         }[]
+      }
+      finance_payment_packet_delete: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      // HAND-CORRECTED, do not regenerate away: p_id, p_note,
+      // p_supreme_cents and p_state_cents are nullable in SQL. The generator
+      // types them as required non-null, so a new packet (null id) and a
+      // blank total or note would not type-check.
+      finance_payment_packet_save: {
+        Args: {
+          p_id: string | null
+          p_label: string
+          p_note: string | null
+          p_state_cents: number | null
+          p_supreme_cents: number | null
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          note: string | null
+          state_cents: number | null
+          supreme_cents: number | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "finance_payment_packets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      finance_payment_packets: {
+        Args: never
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          note: string | null
+          state_cents: number | null
+          supreme_cents: number | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "finance_payment_packets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       // HAND-CORRECTED, do not regenerate away: member_id, member_name and
       // dues_level are null when the payment has no linked member, or its
@@ -1602,6 +1697,17 @@ export type Database = {
           secondary_address: string | null
           state: string | null
           suffix: string | null
+        }[]
+      }
+      member_link_sign_in: {
+        Args: { p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      member_sign_in_status: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          confirmed: boolean
+          user_id: string
         }[]
       }
       member_update: {
@@ -1902,6 +2008,7 @@ export const Constants = {
     Enums: {
       dues_method: ["online", "check", "cash", "waived", "opening_balance"],
       dues_notice_kind: ["before_30", "due_date", "after_30"],
+      event_status: ["scheduled", "cancelled"],
       payment_status: [
         "pending",
         "processing",
@@ -1911,6 +2018,8 @@ export const Constants = {
         "cancelled",
       ],
       payment_type: ["dues", "donation", "event_fee"],
+      program_category: ["faith", "family", "community", "life"],
+      signup_status: ["signed_up", "cancelled", "attended", "no_show"],
     },
   },
 } as const
