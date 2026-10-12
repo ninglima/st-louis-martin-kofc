@@ -12,6 +12,7 @@ const PathsSchema = z.object({
   app: z.object({
     home: z.string().min(1),
     dashboard: z.string().min(1),
+    reports: z.string().min(1),
     profileSettings: z.string().min(1),
     payments: z.string().min(1),
     paymentSettings: z.string().min(1),
@@ -39,6 +40,7 @@ const pathsConfig = PathsSchema.parse({
   app: {
     home: '/home',
     dashboard: '/home/dashboard',
+    reports: '/home/reports',
     profileSettings: '/home/settings',
     payments: '/home/payments',
     paymentSettings: '/home/settings/payments',

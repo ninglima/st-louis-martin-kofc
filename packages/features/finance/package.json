@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@hookform/resolvers": "catalog:",
+    "@kit/brand": "workspace:*",
     "@kit/dues": "workspace:*",
     "@kit/dues-notices": "workspace:*",
     "@kit/next": "workspace:*",
