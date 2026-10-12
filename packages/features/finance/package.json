@@ -21,12 +21,16 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run"
   },
+  "dependencies": {
+    "@kit/email": "workspace:*",
+    "@kit/rbac": "workspace:*",
+    "server-only": "catalog:"
+  },
   "devDependencies": {
     "@hookform/resolvers": "catalog:",
     "@kit/dues": "workspace:*",
     "@kit/dues-notices": "workspace:*",
     "@kit/next": "workspace:*",
-    "@kit/rbac": "workspace:*",
     "@kit/supabase": "workspace:*",
     "@kit/tsconfig": "workspace:*",
     "@kit/ui": "workspace:*",
