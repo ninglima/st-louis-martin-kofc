@@ -55,8 +55,10 @@ jwt_expiry = 3600
 enable_signup = false
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = false
+# CLI 2.119 maps this flag to GOTRUE_EXTERNAL_EMAIL_ENABLED, so false
+# disables password sign-in (email_provider_disabled), not just signup.
+# Public signup stays off via [auth].enable_signup above.
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
