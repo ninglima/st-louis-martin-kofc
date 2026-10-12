@@ -25,6 +25,10 @@ export class FinancePageObject {
     return this.page.goto('/home/hosting-costs');
   }
 
+  goToReports() {
+    return this.page.goto('/home/reports');
+  }
+
   /**
    * Opens a `@kit/ui/select` trigger and picks the option by visible text --
    * the same pattern as `DuesPageObject.selectOption` in `dues.po.ts`.

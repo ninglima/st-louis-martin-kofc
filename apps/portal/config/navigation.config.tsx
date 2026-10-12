@@ -43,6 +43,13 @@ const routes = [
         verb: 'view' as const,
       },
       {
+        label: 'common.routes.reports',
+        path: pathsConfig.app.reports,
+        Icon: <LayoutDashboard className={iconClasses} />,
+        section: 'dashboard_finance',
+        verb: 'view' as const,
+      },
+      {
         label: 'common.routes.payments',
         path: pathsConfig.app.payments,
         Icon: <CreditCard className={iconClasses} />,

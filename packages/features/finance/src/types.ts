@@ -141,3 +141,28 @@ export interface Retention {
   years: { year: number; eligible: number; renewed: number }[];
   lapsesByMonth: { month: string; lapses: number }[];
 }
+
+export interface MonthlyWorksheet {
+  month: string;
+  asOf: string;
+  roster: number;
+  statusCounts: Record<
+    'current' | 'due_soon' | 'due' | 'lapsed' | 'no_record',
+    number
+  >;
+  receivedCents: number;
+  onlineCents: number;
+  checkCents: number;
+  cashCents: number;
+}
+
+export interface PaymentPacket {
+  id: string;
+  label: string;
+  supremeCents: number | null;
+  stateCents: number | null;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

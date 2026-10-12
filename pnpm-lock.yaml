@@ -897,10 +897,23 @@ importers:
         version: 4.4.3
 
   packages/features/finance:
+    dependencies:
+      '@kit/email':
+        specifier: workspace:*
+        version: link:../../email
+      '@kit/rbac':
+        specifier: workspace:*
+        version: link:../rbac
+      server-only:
+        specifier: 'catalog:'
+        version: 0.0.1
     devDependencies:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.84.0(react@19.2.8))(zod@4.4.3)
+      '@kit/brand':
+        specifier: workspace:*
+        version: link:../../brand
       '@kit/dues':
         specifier: workspace:*
         version: link:../dues
@@ -910,9 +923,6 @@ importers:
       '@kit/next':
         specifier: workspace:*
         version: link:../../next
-      '@kit/rbac':
-        specifier: workspace:*
-        version: link:../rbac
       '@kit/supabase':
         specifier: workspace:*
         version: link:../../supabase

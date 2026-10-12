@@ -70,3 +70,60 @@ export const OverlapCheckSchema = z.object({
   periodEnd: isoDate,
   excludeId: z.string().uuid().optional(),
 });
+
+export const PaymentPacketFormSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    label: z
+      .string()
+      .trim()
+      .min(1, 'Enter a label')
+      .max(120, 'The label can be at most 120 characters'),
+    supreme: z.string(),
+    state: z.string(),
+    note: z
+      .string()
+      .max(500, 'The note can be at most 500 characters')
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    const supremeBlank = value.supreme.trim() === '';
+    const stateBlank = value.state.trim() === '';
+
+    if (!supremeBlank && parseDollarsToCents(value.supreme) === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['supreme'],
+        message: 'Enter an amount like 25 or 25.00',
+      });
+    }
+    if (!stateBlank && parseDollarsToCents(value.state) === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['state'],
+        message: 'Enter an amount like 25 or 25.00',
+      });
+    }
+    if (supremeBlank && stateBlank) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['supreme'],
+        message: 'Enter a Supreme or a state total',
+      });
+    }
+  });
+
+export function toPaymentPacketCents(input: {
+  supreme: string;
+  state: string;
+}): {
+  supremeCents: number | null;
+  stateCents: number | null;
+} {
+  return {
+    supremeCents:
+      input.supreme.trim() === '' ? null : parseDollarsToCents(input.supreme),
+    stateCents:
+      input.state.trim() === '' ? null : parseDollarsToCents(input.state),
+  };
+}

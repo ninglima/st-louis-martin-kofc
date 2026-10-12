@@ -101,7 +101,14 @@ export class AuthPageObject {
     await this.createConfirmedUser({ email, password });
     await this.page.goto(`/auth/sign-in?next=${path}`);
     await this.signIn({ email, password });
-    await this.page.waitForURL(`**${path}`);
+    // Pathname only. A glob such as `**/home` also matches
+    // `/auth/sign-in?next=/home`, so the wait would return before sign-in.
+    await this.page.waitForURL((url) => {
+      const pathname = url.pathname.replace(/\/$/, '') || '/';
+      const expected = path.replace(/\/$/, '') || '/';
+
+      return pathname === expected;
+    });
 
     return email;
   }

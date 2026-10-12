@@ -30,6 +30,9 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'http://localhost:3000',
 
+    /* Components use `data-test`, not Playwright's default `data-testid`. */
+    testIdAttribute: 'data-test',
+
     // take a screenshot when a test fails
     screenshot: 'only-on-failure',
 

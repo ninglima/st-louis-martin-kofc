@@ -15,13 +15,31 @@ import type {
   HostingProvider,
   LapsedMember,
   LatestBill,
+  MonthlyWorksheet,
   NetYear,
+  PaymentPacket,
   PaymentToCheck,
   Retention,
 } from '../types';
 import type { DuesStatus } from '@kit/dues/types';
 
 type Client = SupabaseClient<Database>;
+
+type PaymentPacketRow =
+  Database['public']['Functions']['finance_payment_packets']['Returns'][number];
+
+function toPaymentPacket(row: PaymentPacketRow): PaymentPacket {
+  return {
+    id: row.id,
+    label: row.label,
+    supremeCents: row.supreme_cents,
+    stateCents: row.state_cents,
+    note: row.note,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 /**
  * Typed wrapper over the finance RPCs. Pass the SIGNED-IN user's client
@@ -230,5 +248,47 @@ export class FinanceService {
     const { data, error } = await this.client.rpc('finance_retention');
     if (error) throw error;
     return data as unknown as Retention;
+  }
+
+  async monthlyWorksheet(month: string): Promise<MonthlyWorksheet> {
+    const { data, error } = await this.client.rpc('finance_monthly_worksheet', {
+      p_month: month,
+    });
+    if (error) throw error;
+    return data as unknown as MonthlyWorksheet;
+  }
+
+  async paymentPackets(): Promise<PaymentPacket[]> {
+    const { data, error } = await this.client.rpc('finance_payment_packets');
+    if (error) throw error;
+    return (data ?? []).map(toPaymentPacket);
+  }
+
+  async savePaymentPacket(input: {
+    id?: string;
+    label: string;
+    supremeCents: number | null;
+    stateCents: number | null;
+    note?: string | null;
+  }): Promise<PaymentPacket> {
+    const { data, error } = await this.client.rpc(
+      'finance_payment_packet_save',
+      {
+        p_id: input.id ?? null,
+        p_label: input.label,
+        p_supreme_cents: input.supremeCents,
+        p_state_cents: input.stateCents,
+        p_note: input.note ?? null,
+      },
+    );
+    if (error) throw error;
+    return toPaymentPacket(data);
+  }
+
+  async deletePaymentPacket(id: string): Promise<void> {
+    const { error } = await this.client.rpc('finance_payment_packet_delete', {
+      p_id: id,
+    });
+    if (error) throw error;
   }
 }
