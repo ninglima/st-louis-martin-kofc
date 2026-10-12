@@ -54,6 +54,7 @@ export function ReportsScreen({
           <div className="flex flex-col gap-y-1">
             <Label htmlFor="worksheet-month">Month</Label>
             <select
+              key={month}
               id="worksheet-month"
               name="month"
               data-test="worksheet-month"
