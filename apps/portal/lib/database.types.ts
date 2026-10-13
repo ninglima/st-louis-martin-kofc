@@ -1005,7 +1005,7 @@ export type Database = {
         ]
       }
       // HAND-CORRECTED, do not regenerate away: receipt_sent_at and
-      // receipt_error come from 20261006130000_payment_receipts.sql. Local
+      // receipt_error come from 20261006130100_payment_receipts.sql. Local
       // `gen types` omitted them because that migration is not applied here.
       payments: {
         Row: {
