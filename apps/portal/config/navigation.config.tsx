@@ -2,6 +2,7 @@ import {
   BadgeDollarSign,
   CalendarDays,
   CreditCard,
+  FileSpreadsheet,
   HandHeart,
   Home,
   LayoutDashboard,
@@ -45,7 +46,7 @@ const routes = [
       {
         label: 'common.routes.reports',
         path: pathsConfig.app.reports,
-        Icon: <LayoutDashboard className={iconClasses} />,
+        Icon: <FileSpreadsheet className={iconClasses} />,
         section: 'dashboard_finance',
         verb: 'view' as const,
       },

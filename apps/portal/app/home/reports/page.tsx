@@ -7,7 +7,6 @@ import { Skeleton } from '@kit/ui/skeleton';
 
 import { readDuesIfDeployed } from '@kit/dues/lib/dues-schema';
 import { chicagoToday } from '@kit/dues/schemas';
-import { DashboardTabsNav } from '@kit/finance/components/dashboard-tabs-nav';
 import { ReportsScreen } from '@kit/finance/components/reports-screen';
 import {
   defaultWorksheetMonth,
@@ -75,12 +74,7 @@ async function ReportsContent({
   );
 
   if (!read.deployed) {
-    return (
-      <div className="flex flex-col gap-6">
-        <DashboardTabsNav active="reports" />
-        <p className="text-muted-foreground">Not available yet.</p>
-      </div>
-    );
+    return <p className="text-muted-foreground">Not available yet.</p>;
   }
 
   const [worksheet, packets] = read.value;
@@ -93,16 +87,13 @@ async function ReportsContent({
     packets.find((packet) => packet.id === searchParam(params.packet)) ?? null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <DashboardTabsNav active="reports" />
-      <ReportsScreen
-        worksheet={worksheet}
-        packets={packets}
-        month={month}
-        monthOptions={monthOptions}
-        emailBlocker={emailBlocker}
-        editing={editing}
-      />
-    </div>
+    <ReportsScreen
+      worksheet={worksheet}
+      packets={packets}
+      month={month}
+      monthOptions={monthOptions}
+      emailBlocker={emailBlocker}
+      editing={editing}
+    />
   );
 }

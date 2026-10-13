@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import pathsConfig from '@kit/brand/config/paths';
 import { cn } from '@kit/ui/utils';
 
 import { DASHBOARD_TABS } from '../lib/dashboard-tabs';
@@ -13,11 +12,7 @@ const LABELS: Record<DashboardTab, string> = {
   retention: 'Retention',
 };
 
-export function DashboardTabsNav({
-  active,
-}: {
-  active: DashboardTab | 'reports';
-}) {
+export function DashboardTabsNav({ active }: { active: DashboardTab }) {
   return (
     <nav
       className="flex gap-1 border-b"
@@ -40,19 +35,6 @@ export function DashboardTabsNav({
           {LABELS[tab]}
         </Link>
       ))}
-      <Link
-        href={pathsConfig.app.reports}
-        aria-current={active === 'reports' ? 'page' : undefined}
-        data-test="dashboard-reports-link"
-        className={cn(
-          '-mb-px border-b-2 px-3 py-2 text-sm font-medium',
-          active === 'reports'
-            ? 'border-primary text-foreground'
-            : 'text-muted-foreground border-transparent hover:text-foreground',
-        )}
-      >
-        Reports
-      </Link>
     </nav>
   );
 }
