@@ -32,6 +32,9 @@ describe('DashboardTabsNav', () => {
         .querySelector('[data-test="dashboard-tab-retention"]')
         ?.getAttribute('href'),
     ).toBe('/home/dashboard?tab=retention');
+    expect(
+      container.querySelector('[data-test="dashboard-reports-link"]'),
+    ).toBeNull();
   });
 });
 

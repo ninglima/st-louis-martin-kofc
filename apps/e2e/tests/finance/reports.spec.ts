@@ -3,7 +3,6 @@ import { expect, test } from '@playwright/test';
 import { AuthPageObject } from '../authentication/auth.po';
 import { chicagoToday } from '../dues/dues.po';
 import { RbacPageObject } from '../rbac/rbac.po';
-import { FinancePageObject } from './finance.po';
 
 function previousMonthLabel(today: string): string {
   const [year, month] = today.split('-').map(Number) as [number, number];
@@ -27,12 +26,14 @@ test.describe('finance reports', () => {
     const officerPage = await browser.newPage();
     const officerAuth = new AuthPageObject(officerPage);
     const officerRbac = new RbacPageObject(officerPage);
-    const officerFinance = new FinancePageObject(officerPage);
     const officerEmail = await officerAuth.signUpFlow('/home');
     await officerRbac.promoteToAdministrator(officerEmail);
 
-    await officerFinance.goToDashboard();
-    await officerPage.getByTestId('dashboard-reports-link').click();
+    await officerPage
+      .locator('[data-sidebar="content"]')
+      .getByRole('link', { name: 'Reports' })
+      .click();
+    await expect(officerPage.getByTestId('dashboard-tabs')).toHaveCount(0);
     await expect(officerPage.getByTestId('worksheet-month')).toHaveValue(
       /.*/,
     );
